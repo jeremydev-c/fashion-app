@@ -16,20 +16,24 @@
     "ios": {
       "supportsTablet": true
     },
-    "android": {},
+    "android": {
+      "package": "com.dripnap25.fashionfit"
+    },
     "web": {
       "bundler": "metro",
       "output": "single",
       "favicon": "./favicon.png"
     },
-    "extra": {
-      "eas": {
-        "projectId": "fashion-fit-placeholder-id"
-      }
-    },
     "plugins": [
       "expo-font",
-      "expo-localization"
-    ]
+      "expo-localization",
+      "expo-blur"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "93f5bd2f-4f7c-4970-aada-f89680859424"
+      }
+    },
+    "owner": "dripnap25"
   }
 }
