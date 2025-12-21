@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Fashion Fit",
+    "slug": "fashion-fit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "fashionfit",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#050816"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {},
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "fashion-fit-placeholder-id"
+      }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-localization"
+    ]
+  }
+}

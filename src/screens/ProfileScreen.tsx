@@ -1,0 +1,1608 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  SafeAreaView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Dimensions,
+  Linking,
+  Modal,
+  TextInput,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { colors } from '../theme/colors';
+import { spacing } from '../theme/spacing';
+import { CustomAlert } from '../components/CustomAlert';
+import { updateUser } from '../services/authService';
+import { LoadingSpinner } from '../components/LoadingSpinner';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const scale = (size: number) => Math.round((SCREEN_WIDTH / 393) * size);
+import { useAuth } from '../context/AuthContext';
+import { useUserId } from '../hooks/useUserId';
+import { apiClient } from '../services/apiClient';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { RootTabParamList } from '../navigation/TabNavigator';
+
+interface StyleDNA {
+  primaryStyle: string;
+  secondaryStyles: string[];
+  colorPreferences: {
+    dominantColors: { color: string; percentage: number }[];
+    colorPalette: string[];
+    seasonalColors: {
+      spring: string[];
+      summer: string[];
+      fall: string[];
+      winter: string[];
+    };
+  };
+  brandAffinity: { brand: string; count: number; score: number }[];
+  categoryDistribution: Record<string, number>;
+  uniquenessScore: number;
+  styleConsistency: number;
+  trendAlignment: number;
+}
+
+interface WardrobeStats {
+  totalItems: number;
+  savedOutfits: number;
+  plannedOutfits: number;
+  categories: { name: string; count: number }[];
+}
+
+type ProfileScreenNavigationProp = BottomTabNavigationProp<RootTabParamList, 'Profile'>;
+
+export const ProfileScreen: React.FC = () => {
+  const { user, logout, setUser } = useAuth();
+  const userId = useUserId();
+  const navigation = useNavigation<ProfileScreenNavigationProp>();
+  const [showStyleDNA, setShowStyleDNA] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [styleDNA, setStyleDNA] = useState<StyleDNA | null>(null);
+  const [stats, setStats] = useState<WardrobeStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [darkModeEnabled, setDarkModeEnabled] = useState(true);
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    title: string;
+    message: string;
+    buttons: Array<{ text: string; onPress: () => void; style?: 'default' | 'destructive' | 'primary' }>;
+    icon?: keyof typeof Ionicons.glyphMap;
+  } | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingUsername, setEditingUsername] = useState('');
+  const [editingName, setEditingName] = useState('');
+  const [profilePictureUri, setProfilePictureUri] = useState<string | null>(null);
+  const [profilePictureBase64, setProfilePictureBase64] = useState<string | null>(null);
+  const [updatingProfile, setUpdatingProfile] = useState(false);
+  const [logoTapCount, setLogoTapCount] = useState(0);
+  const [lastLogoTap, setLastLogoTap] = useState(0);
+
+  useEffect(() => {
+    loadData();
+  }, [userId]);
+
+  useEffect(() => {
+    // Initialize edit form with current user data
+    if (user) {
+      setEditingName(user.name || '');
+      setEditingUsername(user.username || '');
+      setProfilePictureUri(user.avatar || null);
+    }
+  }, [user]);
+
+  const loadData = async () => {
+    if (!userId) return;
+    setLoading(true);
+    try {
+      // Load Style DNA
+      const dnaResponse = await apiClient.get(`/style-dna/${userId}`);
+      if (dnaResponse.data?.styleDNA) {
+        setStyleDNA(dnaResponse.data.styleDNA);
+      }
+
+      // Load wardrobe stats
+      const wardrobeResponse = await apiClient.get(`/wardrobe/items?userId=${userId}`);
+      const items = wardrobeResponse.data.items || [];
+      
+      // Calculate stats
+      const categories: Record<string, number> = {};
+      items.forEach((item: any) => {
+        categories[item.category] = (categories[item.category] || 0) + 1;
+      });
+
+      setStats({
+        totalItems: items.length,
+        savedOutfits: 0,
+        plannedOutfits: 0,
+        categories: Object.entries(categories).map(([name, count]) => ({ name, count })),
+      });
+    } catch (error: any) {
+      console.log('Failed to load profile data:', error?.message || error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showAlert = (config: {
+    title: string;
+    message: string;
+    buttons: Array<{ text: string; onPress: () => void; style?: 'default' | 'destructive' | 'primary' }>;
+    icon?: keyof typeof Ionicons.glyphMap;
+  }) => {
+    setAlertConfig(config);
+    setAlertVisible(true);
+  };
+
+  const handleNotifications = () => {
+    showAlert({
+      title: 'Notifications',
+      message: 'Manage your notification preferences',
+      icon: 'notifications-outline',
+      buttons: [
+        {
+          text: 'Cancel',
+          onPress: () => {},
+        },
+        {
+          text: notificationsEnabled ? 'Disable' : 'Enable',
+          onPress: () => {
+            setNotificationsEnabled(!notificationsEnabled);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            showAlert({
+              title: 'Notifications',
+              message: notificationsEnabled ? 'Notifications disabled' : 'Notifications enabled',
+              icon: notificationsEnabled ? 'notifications-off-outline' : 'notifications',
+              buttons: [{ text: 'Got it!', onPress: () => {}, style: 'primary' }],
+            });
+          },
+          style: 'primary',
+        },
+      ],
+    });
+  };
+
+  const handleDarkMode = () => {
+    showAlert({
+      title: 'Dark Mode',
+      message: 'Fashion Fit is designed with a beautiful dark theme. This setting will be available in a future update.',
+      icon: 'moon',
+      buttons: [{ text: 'Got it!', onPress: () => {}, style: 'primary' }],
+    });
+  };
+
+  const handleHelp = () => {
+    showAlert({
+      title: 'Help & Support',
+      message: 'Need help? We\'re here for you!\n\n📧 Email: support@fashionfit.app\n💬 In-app: Chat with your Style Coach\n📱 Report bugs: Use the feedback option\n\nWe typically respond within 24 hours.',
+      icon: 'help-circle',
+      buttons: [
+        {
+          text: 'OK',
+          onPress: () => {},
+        },
+        {
+          text: 'Email Support',
+          onPress: () => {
+            Linking.openURL('mailto:support@fashionfit.app?subject=Fashion Fit Support');
+          },
+          style: 'primary',
+        },
+      ],
+    });
+  };
+
+  const handlePrivacy = () => {
+    showAlert({
+      title: 'Privacy Policy',
+      message: 'Your privacy matters to us.\n\n• We only collect data you provide\n• Your wardrobe images are stored securely\n• We never sell your data\n• You can delete your account anytime\n\nFull privacy policy coming soon. For questions, email privacy@fashionfit.app',
+      icon: 'lock-closed',
+      buttons: [
+        {
+          text: 'OK',
+          onPress: () => {},
+        },
+        {
+          text: 'Email Privacy',
+          onPress: () => {
+            Linking.openURL('mailto:privacy@fashionfit.app?subject=Privacy Question');
+          },
+          style: 'primary',
+        },
+      ],
+    });
+  };
+
+  const handleTerms = () => {
+    showAlert({
+      title: 'Terms of Service',
+      message: 'By using Fashion Fit, you agree to:\n\n• Use the app responsibly\n• Not abuse AI features\n• Respect intellectual property\n• Follow community guidelines\n\nFull terms of service coming soon. For questions, email legal@fashionfit.app',
+      icon: 'shield-checkmark',
+      buttons: [
+        {
+          text: 'OK',
+          onPress: () => {},
+        },
+        {
+          text: 'Email Legal',
+          onPress: () => {
+            Linking.openURL('mailto:legal@fashionfit.app?subject=Terms Question');
+          },
+          style: 'primary',
+        },
+      ],
+    });
+  };
+
+  const handleLogout = () => {
+    showAlert({
+      title: 'Log Out',
+      message: 'Are you sure you want to log out?',
+      icon: 'log-out-outline',
+      buttons: [
+        {
+          text: 'Cancel',
+          onPress: () => {},
+        },
+        {
+          text: 'Log Out',
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            await logout();
+          },
+          style: 'destructive',
+        },
+      ],
+    });
+  };
+
+  const toggleStyleDNA = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowStyleDNA(!showStyleDNA);
+  };
+
+  const toggleAnalytics = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowAnalytics(!showAnalytics);
+  };
+
+  const handlePickProfilePicture = async () => {
+    // Close modal first to free up memory
+    setEditModalVisible(false);
+    
+    // Wait for modal to fully close
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    try {
+      // Request media library permissions first
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        setEditModalVisible(true);
+        showAlert({
+          title: 'Permission Required',
+          message: 'Media library permission is required to select a profile picture.',
+          icon: 'image-outline',
+          buttons: [{ text: 'OK', onPress: () => {} }],
+        });
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.1, // Very low quality to minimize memory
+        base64: true, // Get base64 immediately to upload right away
+        exif: false,
+        allowsMultipleSelection: false,
+      });
+
+      // Wait for picker to fully close
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        
+        if (asset.base64) {
+          // Upload immediately without storing in state
+          setUpdatingProfile(true);
+          try {
+            const updatedUser = await updateUser({
+              profilePictureBase64: asset.base64,
+            });
+            
+            setUser(updatedUser);
+            setProfilePictureUri(updatedUser.avatar || null);
+            setProfilePictureBase64(null);
+            
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            showAlert({
+              title: 'Success',
+              message: 'Profile picture updated!',
+              icon: 'checkmark-circle',
+              buttons: [{ text: 'OK', onPress: () => {}, style: 'primary' }],
+            });
+          } catch (uploadError: any) {
+            console.error('Failed to upload profile picture:', uploadError);
+            showAlert({
+              title: 'Error',
+              message: uploadError?.data?.error || uploadError?.message || 'Failed to upload profile picture.',
+              icon: 'alert-circle',
+              buttons: [{ text: 'OK', onPress: () => {} }],
+            });
+          } finally {
+            setUpdatingProfile(false);
+            setEditModalVisible(true);
+          }
+        } else {
+          // No base64 - reopen modal
+          setEditModalVisible(true);
+        }
+      } else {
+        // User canceled - reopen modal
+        setEditModalVisible(true);
+      }
+    } catch (error: any) {
+      console.error('Failed to pick image:', error);
+      setEditModalVisible(true);
+      if (error?.code !== 'E_PICKER_CANCELLED') {
+        showAlert({
+          title: 'Error',
+          message: 'Failed to pick image. Please try again.',
+          icon: 'alert-circle',
+          buttons: [{ text: 'OK', onPress: () => {} }],
+        });
+      }
+    }
+  };
+
+  const handleTakeProfilePicture = async () => {
+    // Close modal first to free up memory
+    setEditModalVisible(false);
+    
+    // Wait for modal to fully close
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    try {
+      // Request camera permissions first
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        setEditModalVisible(true);
+        showAlert({
+          title: 'Camera Permission',
+          message: 'Camera permission is required to take a profile picture.',
+          icon: 'camera-outline',
+          buttons: [{ text: 'OK', onPress: () => {} }],
+        });
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.1, // Very low quality to minimize memory
+        base64: true, // Get base64 immediately to upload right away
+        exif: false,
+        allowsMultipleSelection: false,
+      });
+
+      // Wait for camera to fully close
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        
+        if (asset.base64) {
+          // Upload immediately without storing in state
+          setUpdatingProfile(true);
+          try {
+            const updatedUser = await updateUser({
+              profilePictureBase64: asset.base64,
+            });
+            
+            setUser(updatedUser);
+            setProfilePictureUri(updatedUser.avatar || null);
+            setProfilePictureBase64(null);
+            
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            showAlert({
+              title: 'Success',
+              message: 'Profile picture updated!',
+              icon: 'checkmark-circle',
+              buttons: [{ text: 'OK', onPress: () => {}, style: 'primary' }],
+            });
+          } catch (uploadError: any) {
+            console.error('Failed to upload profile picture:', uploadError);
+            showAlert({
+              title: 'Error',
+              message: uploadError?.data?.error || uploadError?.message || 'Failed to upload profile picture.',
+              icon: 'alert-circle',
+              buttons: [{ text: 'OK', onPress: () => {} }],
+            });
+          } finally {
+            setUpdatingProfile(false);
+            setEditModalVisible(true);
+          }
+        } else {
+          // No base64 - reopen modal
+          setEditModalVisible(true);
+        }
+      } else {
+        // User canceled - reopen modal
+        setEditModalVisible(true);
+      }
+    } catch (error: any) {
+      console.error('Failed to take picture:', error);
+      setEditModalVisible(true);
+      if (error?.code !== 'E_PICKER_CANCELLED') {
+        showAlert({
+          title: 'Error',
+          message: 'Failed to take picture. Please try again.',
+          icon: 'alert-circle',
+          buttons: [{ text: 'OK', onPress: () => {} }],
+        });
+      }
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+
+    setUpdatingProfile(true);
+    try {
+      const updateData: any = {
+        name: editingName.trim(),
+      };
+
+      if (editingUsername.trim()) {
+        // Validate username format
+        const usernameRegex = /^[a-z0-9_]+$/;
+        if (!usernameRegex.test(editingUsername.trim().toLowerCase())) {
+          showAlert({
+            title: 'Invalid Username',
+            message: 'Username can only contain lowercase letters, numbers, and underscores.',
+            icon: 'alert-circle',
+            buttons: [{ text: 'OK', onPress: () => {} }],
+          });
+          setUpdatingProfile(false);
+          return;
+        }
+        if (editingUsername.trim().length < 3 || editingUsername.trim().length > 30) {
+          showAlert({
+            title: 'Invalid Username',
+            message: 'Username must be between 3 and 30 characters.',
+            icon: 'alert-circle',
+            buttons: [{ text: 'OK', onPress: () => {} }],
+          });
+          setUpdatingProfile(false);
+          return;
+        }
+        updateData.username = editingUsername.trim().toLowerCase();
+      } else {
+        updateData.username = ''; // Clear username
+      }
+
+      // Only convert to base64 if it's a local file (not a remote URL)
+      // Remote URLs (Cloudinary) are already uploaded, so we don't need to process them
+      if (profilePictureUri && !profilePictureBase64) {
+        // Check if it's a local file (starts with file:// or doesn't start with http)
+        const isLocalFile = profilePictureUri.startsWith('file://') || 
+                           profilePictureUri.startsWith('content://') ||
+                           (!profilePictureUri.startsWith('http://') && !profilePictureUri.startsWith('https://'));
+        
+        if (isLocalFile) {
+          try {
+            // Check if file exists before reading
+            const fileInfo = await FileSystem.getInfoAsync(profilePictureUri);
+            if (!fileInfo.exists) {
+              throw new Error('Image file not found');
+            }
+
+            // Read the image file and convert to base64
+            const base64 = await FileSystem.readAsStringAsync(profilePictureUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            
+            // Validate base64 is not too large (max ~2MB)
+            if (base64.length > 3000000) {
+              throw new Error('Image is too large. Please choose a smaller image.');
+            }
+            
+            updateData.profilePictureBase64 = base64;
+          } catch (convertError: any) {
+            console.error('Failed to convert image to base64:', convertError);
+            showAlert({
+              title: 'Error',
+              message: convertError?.message || 'Failed to process image. Please try again with a smaller image.',
+              icon: 'alert-circle',
+              buttons: [{ text: 'OK', onPress: () => {} }],
+            });
+            setUpdatingProfile(false);
+            return;
+          }
+        }
+        // If it's a remote URL, it's already uploaded, so we don't need to do anything
+      } else if (profilePictureBase64) {
+        // Use existing base64 if available
+        updateData.profilePictureBase64 = profilePictureBase64;
+      }
+
+      const updatedUser = await updateUser(updateData);
+      
+      // Update user in context
+      setUser(updatedUser);
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setEditModalVisible(false);
+      showAlert({
+        title: 'Success',
+        message: 'Profile updated successfully!',
+        icon: 'checkmark-circle',
+        buttons: [{ text: 'OK', onPress: () => {}, style: 'primary' }],
+      });
+    } catch (error: any) {
+      console.error('Failed to update profile:', error);
+      const errorMessage = error?.data?.error || error?.message || 'Failed to update profile';
+      showAlert({
+        title: 'Error',
+        message: errorMessage,
+        icon: 'alert-circle',
+        buttons: [{ text: 'OK', onPress: () => {} }],
+      });
+    } finally {
+      setUpdatingProfile(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.editButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setEditModalVisible(true);
+            }}
+          >
+            <Ionicons name="create-outline" size={scale(20)} color={colors.textPrimary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setEditModalVisible(true);
+            }}
+            activeOpacity={0.8}
+          >
+            {user?.avatar ? (
+              <Image source={{ uri: user.avatar }} style={styles.profileAvatar} />
+            ) : (
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.avatarGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="person" size={scale(40)} color="#fff" />
+              </LinearGradient>
+            )}
+          </TouchableOpacity>
+          <Text style={styles.name}>{user?.name || 'Style Explorer'}</Text>
+          {user?.username && (
+            <Text style={styles.username}>@{user.username}</Text>
+          )}
+          <Text style={styles.email}>{user?.email}</Text>
+          <TouchableOpacity
+            style={styles.memberBadge}
+            onPress={() => {
+              const now = Date.now();
+              // Reset if more than 2 seconds passed
+              if (now - lastLogoTap > 2000) {
+                setLogoTapCount(1);
+              } else {
+                setLogoTapCount(prev => prev + 1);
+              }
+              setLastLogoTap(now);
+              
+              // Secret: Tap 7 times to open admin dashboard
+              if (logoTapCount + 1 >= 7) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                navigation.navigate('AdminDashboard');
+                setLogoTapCount(0);
+              } else {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="sparkles" size={scale(14)} color={colors.accent} />
+            <Text style={styles.memberText}>Fashion Fit Member</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick Stats */}
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 20 }} />
+        ) : (
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{stats?.totalItems || 0}</Text>
+              <Text style={styles.statLabel}>Items</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{stats?.savedOutfits || 0}</Text>
+              <Text style={styles.statLabel}>Outfits</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{stats?.categories?.length || 0}</Text>
+              <Text style={styles.statLabel}>Categories</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Style DNA Card */}
+        <TouchableOpacity style={styles.featureCard} onPress={toggleStyleDNA} activeOpacity={0.8}>
+          <LinearGradient
+            colors={['rgba(99,102,241,0.15)', 'transparent']}
+            style={styles.featureGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.featureHeader}>
+              <View style={styles.featureIconContainer}>
+                <Ionicons name="finger-print" size={24} color={colors.primary} />
+              </View>
+              <View style={styles.featureInfo}>
+                <Text style={styles.featureTitle}>Style DNA</Text>
+                <Text style={styles.featureSubtitle}>Your personalized style profile</Text>
+              </View>
+              <Ionicons name={showStyleDNA ? "chevron-down" : "chevron-forward"} size={20} color={colors.textMuted} />
+            </View>
+            {styleDNA?.colorPreferences?.colorPalette && styleDNA.colorPreferences.colorPalette.length > 0 && (
+              <View style={styles.colorPalette}>
+                {styleDNA.colorPreferences.colorPalette.slice(0, 5).map((color, i) => (
+                  <View key={i} style={[styles.colorDot, { backgroundColor: color }]} />
+                ))}
+              </View>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* Style DNA Expanded */}
+        {showStyleDNA && (
+          <View style={styles.expandedCard}>
+            {styleDNA ? (
+              <>
+                {/* Primary Style */}
+                <View style={styles.primaryStyleContainer}>
+                  <Text style={styles.primaryStyleLabel}>YOUR PRIMARY STYLE</Text>
+                  <Text style={styles.primaryStyleValue}>{styleDNA.primaryStyle}</Text>
+                </View>
+
+                {/* Style Scores */}
+                <View style={styles.scoresRow}>
+                  <View style={styles.scoreItem}>
+                    <Text style={styles.scoreValue}>{Math.round((styleDNA.uniquenessScore || 0) * 100)}%</Text>
+                    <Text style={styles.scoreLabel}>Uniqueness</Text>
+                  </View>
+                  <View style={styles.scoreItem}>
+                    <Text style={styles.scoreValue}>{Math.round((styleDNA.styleConsistency || 0) * 100)}%</Text>
+                    <Text style={styles.scoreLabel}>Consistency</Text>
+                  </View>
+                  <View style={styles.scoreItem}>
+                    <Text style={styles.scoreValue}>{Math.round((styleDNA.trendAlignment || 0) * 100)}%</Text>
+                    <Text style={styles.scoreLabel}>Trend Score</Text>
+                  </View>
+                </View>
+
+                {/* Secondary Styles */}
+                {styleDNA.secondaryStyles?.length > 0 && (
+                  <>
+                    <Text style={styles.expandedTitle}>Secondary Styles</Text>
+                    <View style={styles.tagsContainer}>
+                      {styleDNA.secondaryStyles.map((style, i) => (
+                        <View key={i} style={styles.tag}>
+                          <Text style={styles.tagText}>{style}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {/* Color Palette */}
+                {styleDNA.colorPreferences?.dominantColors?.length > 0 && (
+                  <>
+                    <Text style={styles.expandedTitle}>Your Color Palette</Text>
+                    <View style={styles.colorPaletteExpanded}>
+                      {styleDNA.colorPreferences.dominantColors.map((item, i) => (
+                        <View key={i} style={styles.colorItem}>
+                          <View style={[styles.colorDotLarge, { backgroundColor: item.color }]} />
+                          <Text style={styles.colorName}>{item.color}</Text>
+                          <Text style={styles.colorPercent}>{Math.round(item.percentage)}%</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {/* Wardrobe Balance */}
+                {styleDNA.categoryDistribution && Object.keys(styleDNA.categoryDistribution).length > 0 && (
+                  <>
+                    <Text style={styles.expandedTitle}>Wardrobe Balance</Text>
+                    {Object.entries(styleDNA.categoryDistribution).map(([category, count], i) => {
+                      const total = Object.values(styleDNA.categoryDistribution).reduce((a, b) => a + b, 0);
+                      const percentage = total > 0 ? (count / total) * 100 : 0;
+                      return (
+                        <View key={i} style={styles.balanceItem}>
+                          <Text style={styles.balanceCategory}>{category}</Text>
+                          <View style={styles.balanceBar}>
+                            <View style={[styles.balanceFill, { width: `${percentage}%` }]} />
+                          </View>
+                          <Text style={styles.balancePercent}>{count}</Text>
+                        </View>
+                      );
+                    })}
+                  </>
+                )}
+
+                {/* Brand Affinity */}
+                {styleDNA.brandAffinity?.length > 0 && (
+                  <>
+                    <Text style={styles.expandedTitle}>Favorite Brands</Text>
+                    <View style={styles.brandsContainer}>
+                      {styleDNA.brandAffinity.slice(0, 5).map((item, i) => (
+                        <View key={i} style={styles.brandTag}>
+                          <Text style={styles.brandText}>{item.brand}</Text>
+                          <Text style={styles.brandCount}>{item.count}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {/* Seasonal Colors */}
+                {styleDNA.colorPreferences?.seasonalColors && (
+                  <>
+                    <Text style={styles.expandedTitle}>Seasonal Recommendations</Text>
+                    <View style={styles.seasonalContainer}>
+                      {(['spring', 'summer', 'fall', 'winter'] as const).map((season) => (
+                        <View key={season} style={styles.seasonItem}>
+                          <Text style={styles.seasonName}>{season}</Text>
+                          <View style={styles.seasonColors}>
+                            {styleDNA.colorPreferences?.seasonalColors?.[season]?.slice(0, 3).map((color, i) => (
+                              <View key={i} style={[styles.seasonColorDot, { backgroundColor: color }]} />
+                            ))}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+              </>
+            ) : (
+              <Text style={styles.noDataText}>Add more items to your wardrobe to see your Style DNA</Text>
+            )}
+          </View>
+        )}
+
+        {/* Analytics Card */}
+        <TouchableOpacity style={styles.featureCard} onPress={toggleAnalytics} activeOpacity={0.8}>
+          <LinearGradient
+            colors={['rgba(236,72,153,0.15)', 'transparent']}
+            style={styles.featureGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.featureHeader}>
+              <View style={[styles.featureIconContainer, { backgroundColor: 'rgba(236,72,153,0.15)' }]}>
+                <Ionicons name="analytics" size={24} color={colors.secondary} />
+              </View>
+              <View style={styles.featureInfo}>
+                <Text style={styles.featureTitle}>Style Analytics</Text>
+                <Text style={styles.featureSubtitle}>Insights about your wardrobe</Text>
+              </View>
+              <Ionicons name={showAnalytics ? "chevron-down" : "chevron-forward"} size={20} color={colors.textMuted} />
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* Analytics Expanded */}
+        {showAnalytics && (
+          <View style={styles.expandedCard}>
+            {stats ? (
+              <>
+                <Text style={styles.expandedTitle}>Wardrobe Overview</Text>
+                <View style={styles.analyticsGrid}>
+                  <View style={styles.analyticsItem}>
+                    <Ionicons name="shirt" size={28} color={colors.primary} />
+                    <Text style={styles.analyticsNumber}>{stats.totalItems}</Text>
+                    <Text style={styles.analyticsLabel}>Total Items</Text>
+                  </View>
+                  <View style={styles.analyticsItem}>
+                    <Ionicons name="heart" size={28} color="#f43f5e" />
+                    <Text style={styles.analyticsNumber}>{stats.savedOutfits}</Text>
+                    <Text style={styles.analyticsLabel}>Saved Outfits</Text>
+                  </View>
+                  <View style={styles.analyticsItem}>
+                    <Ionicons name="calendar" size={28} color={colors.secondary} />
+                    <Text style={styles.analyticsNumber}>{stats.plannedOutfits}</Text>
+                    <Text style={styles.analyticsLabel}>Planned</Text>
+                  </View>
+                </View>
+
+                {stats.categories?.length > 0 && (
+                  <>
+                    <Text style={styles.expandedTitle}>Categories</Text>
+                    {stats.categories.map((cat, i) => (
+                      <View key={i} style={styles.categoryItem}>
+                        <Text style={styles.categoryName}>{cat.name}</Text>
+                        <Text style={styles.categoryCount}>{cat.count} items</Text>
+                      </View>
+                    ))}
+                  </>
+                )}
+              </>
+            ) : (
+              <Text style={styles.noDataText}>Add items to your wardrobe to see analytics</Text>
+            )}
+          </View>
+        )}
+
+        {/* Settings Section */}
+        <Text style={styles.sectionTitle}>Settings</Text>
+
+        <TouchableOpacity style={styles.menuItem} onPress={handleNotifications}>
+          <View style={styles.menuIcon}>
+            <Ionicons name="notifications-outline" size={20} color={colors.textSecondary} />
+          </View>
+          <Text style={styles.menuText}>Notifications</Text>
+          <View style={[styles.toggleOn, !notificationsEnabled && styles.toggleOff]}>
+            <Text style={styles.toggleText}>{notificationsEnabled ? 'On' : 'Off'}</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuItem} onPress={handleDarkMode}>
+          <View style={styles.menuIcon}>
+            <Ionicons name="moon-outline" size={20} color={colors.textSecondary} />
+          </View>
+          <Text style={styles.menuText}>Dark Mode</Text>
+          <View style={styles.toggleOn}>
+            <Text style={styles.toggleText}>On</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Support Section */}
+        <Text style={styles.sectionTitle}>Support</Text>
+
+        <TouchableOpacity style={styles.menuItem} onPress={handleHelp}>
+          <View style={styles.menuIcon}>
+            <Ionicons name="help-circle-outline" size={20} color={colors.textSecondary} />
+          </View>
+          <Text style={styles.menuText}>Help & Support</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuItem} onPress={handlePrivacy}>
+          <View style={styles.menuIcon}>
+            <Ionicons name="document-text-outline" size={20} color={colors.textSecondary} />
+          </View>
+          <Text style={styles.menuText}>Privacy Policy</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuItem} onPress={handleTerms}>
+          <View style={styles.menuIcon}>
+            <Ionicons name="shield-checkmark-outline" size={20} color={colors.textSecondary} />
+          </View>
+          <Text style={styles.menuText}>Terms of Service</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+
+        {/* Logout */}
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color="#f43f5e" />
+          <Text style={styles.logoutText}>Log Out</Text>
+        </TouchableOpacity>
+
+        {/* Version */}
+        <Text style={styles.version}>Fashion Fit v1.0.0</Text>
+      </ScrollView>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}
+        >
+          <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.modalGradient}>
+            <ScrollView contentContainerStyle={styles.modalContent}>
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Edit Profile</Text>
+                <TouchableOpacity
+                  onPress={() => setEditModalVisible(false)}
+                  style={styles.closeButton}
+                >
+                  <Ionicons name="close" size={scale(28)} color={colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Profile Picture Section */}
+              <View style={styles.profilePictureSection}>
+                <TouchableOpacity
+                  onPress={handlePickProfilePicture}
+                  style={styles.profilePictureContainer}
+                >
+                  {profilePictureUri ? (
+                    <Image 
+                      source={{ uri: profilePictureUri }} 
+                      style={styles.profilePicturePreview}
+                      resizeMode="cover"
+                      cache="force-cache"
+                    />
+                  ) : (
+                    <LinearGradient
+                      colors={[colors.primary, colors.secondary]}
+                      style={styles.profilePicturePlaceholder}
+                    >
+                      <Ionicons name="person" size={scale(50)} color="#fff" />
+                    </LinearGradient>
+                  )}
+                  <View style={styles.profilePictureEditBadge}>
+                    <Ionicons name="camera" size={scale(16)} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.profilePictureButtons}>
+                  <TouchableOpacity
+                    style={styles.pictureButton}
+                    onPress={handlePickProfilePicture}
+                  >
+                    <Ionicons name="image-outline" size={scale(18)} color={colors.textPrimary} />
+                    <Text style={styles.pictureButtonText}>Choose from Gallery</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Name Input */}
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Full Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingName}
+                  onChangeText={setEditingName}
+                  placeholder="Enter your name"
+                  placeholderTextColor={colors.textMuted}
+                  maxLength={50}
+                />
+              </View>
+
+              {/* Username Input */}
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Username (optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingUsername}
+                  onChangeText={(text) => {
+                    // Only allow lowercase letters, numbers, and underscores
+                    const filtered = text.replace(/[^a-z0-9_]/gi, '').toLowerCase();
+                    setEditingUsername(filtered);
+                  }}
+                  placeholder="username"
+                  placeholderTextColor={colors.textMuted}
+                  maxLength={30}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Text style={styles.inputHint}>
+                  Only lowercase letters, numbers, and underscores. 3-30 characters.
+                </Text>
+              </View>
+
+              {/* Save Button */}
+              <TouchableOpacity
+                style={[styles.saveButton, updatingProfile && styles.saveButtonDisabled]}
+                onPress={handleSaveProfile}
+                disabled={updatingProfile}
+              >
+                {updatingProfile ? (
+                  <LoadingSpinner size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={scale(20)} color="#fff" />
+                    <Text style={styles.saveButtonText}>Save Changes</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </LinearGradient>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Custom Alert */}
+      {alertConfig && (
+        <CustomAlert
+          visible={alertVisible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          buttons={alertConfig.buttons}
+          icon={alertConfig.icon}
+          onClose={() => setAlertVisible(false)}
+        />
+      )}
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { 
+    flex: 1, 
+    backgroundColor: colors.background,
+  },
+  scroll: { 
+    padding: spacing.lg, 
+    paddingBottom: 120,
+  },
+  header: { 
+    alignItems: 'center', 
+    marginBottom: spacing.xl,
+    paddingTop: spacing.lg,
+  },
+  avatarGradient: {
+    width: scale(90),
+    height: scale(90),
+    borderRadius: scale(45),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  name: { 
+    fontSize: scale(22),
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  email: { 
+    fontSize: scale(14),
+    color: colors.textMuted, 
+    marginTop: scale(4),
+  },
+  memberBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(251,191,36,0.15)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 20,
+    marginTop: spacing.sm,
+  },
+  memberText: {
+    fontSize: scale(12),
+    color: colors.accent,
+    fontWeight: '600',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.1)',
+  },
+  statNumber: {
+    fontSize: scale(24),
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  statLabel: {
+    fontSize: scale(12),
+    color: colors.textMuted,
+    marginTop: scale(4),
+  },
+  featureCard: {
+    marginBottom: spacing.md,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  featureGradient: {
+    padding: spacing.lg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.1)',
+  },
+  featureHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  featureIconContainer: {
+    width: scale(44),
+    height: scale(44),
+    borderRadius: scale(12),
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  featureTitle: {
+    fontSize: scale(16),
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  featureSubtitle: {
+    fontSize: scale(13),
+    color: colors.textMuted,
+    marginTop: scale(2),
+  },
+  colorPalette: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  colorDot: {
+    width: scale(24),
+    height: scale(24),
+    borderRadius: scale(12),
+    borderWidth: 2,
+    borderColor: 'rgba(148,163,184,0.2)',
+  },
+  sectionTitle: {
+    fontSize: scale(12),
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.1)',
+  },
+  menuIcon: {
+    width: scale(36),
+    height: scale(36),
+    borderRadius: scale(10),
+    backgroundColor: 'rgba(148,163,184,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuText: {
+    flex: 1,
+    fontSize: scale(15),
+    color: colors.textPrimary,
+    marginLeft: spacing.md,
+  },
+  toggleOn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  toggleOff: {
+    backgroundColor: colors.textMuted,
+  },
+  toggleText: {
+    fontSize: scale(12),
+    color: '#fff',
+    fontWeight: '600',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: 12,
+    padding: spacing.md,
+    marginTop: spacing.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  logoutText: {
+    fontSize: scale(15),
+    fontWeight: '600',
+    color: '#f43f5e',
+  },
+  version: {
+    fontSize: scale(12),
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+  },
+  expandedCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.1)',
+  },
+  expandedTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
+    marginTop: spacing.md,
+  },
+  colorPaletteExpanded: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  colorItem: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  colorDotLarge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(148,163,184,0.2)',
+  },
+  colorName: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    textTransform: 'capitalize',
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  tag: {
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 20,
+  },
+  tagText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  balanceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  balanceCategory: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    width: 80,
+    textTransform: 'capitalize',
+  },
+  balanceBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: 'rgba(148,163,184,0.1)',
+    borderRadius: 4,
+    marginHorizontal: spacing.sm,
+  },
+  balanceFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+  },
+  balancePercent: {
+    fontSize: 12,
+    color: colors.textMuted,
+    width: 40,
+    textAlign: 'right',
+  },
+  analyticsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: spacing.lg,
+  },
+  analyticsItem: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  analyticsNumber: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  analyticsLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  categoryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148,163,184,0.1)',
+  },
+  categoryName: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    textTransform: 'capitalize',
+  },
+  categoryCount: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  noDataText: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: spacing.lg,
+  },
+  primaryStyleContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148,163,184,0.1)',
+    marginBottom: spacing.md,
+  },
+  primaryStyleLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  primaryStyleValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.primary,
+    textTransform: 'capitalize',
+    marginTop: spacing.xs,
+  },
+  scoresRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148,163,184,0.1)',
+  },
+  scoreItem: {
+    alignItems: 'center',
+  },
+  scoreValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  scoreLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  colorPercent: {
+    fontSize: 10,
+    color: colors.textMuted,
+  },
+  brandsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  brandTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(236,72,153,0.15)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 20,
+    gap: spacing.xs,
+  },
+  brandText: {
+    fontSize: 12,
+    color: colors.secondary,
+    fontWeight: '600',
+  },
+  brandCount: {
+    fontSize: 10,
+    color: colors.textMuted,
+  },
+  seasonalContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  seasonItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  seasonName: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    textTransform: 'capitalize',
+    marginBottom: spacing.xs,
+  },
+  seasonColors: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  seasonColorDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.2)',
+  },
+  // Edit Profile Modal Styles
+  editButton: {
+    position: 'absolute',
+    top: spacing.lg,
+    right: spacing.lg,
+    padding: spacing.sm,
+    backgroundColor: colors.cardSoft,
+    borderRadius: scale(20),
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  profileAvatar: {
+    width: scale(90),
+    height: scale(90),
+    borderRadius: scale(45),
+    borderWidth: 3,
+    borderColor: colors.primary,
+  },
+  username: {
+    fontSize: scale(16),
+    color: colors.primary,
+    fontWeight: '600',
+    marginTop: scale(4),
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalGradient: {
+    flex: 1,
+  },
+  modalContent: {
+    padding: spacing.lg,
+    paddingBottom: spacing['4xl'],
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+    paddingTop: Platform.OS === 'ios' ? spacing['3xl'] : spacing.lg,
+  },
+  modalTitle: {
+    fontSize: scale(24),
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  closeButton: {
+    padding: spacing.xs,
+  },
+  profilePictureSection: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  profilePictureContainer: {
+    position: 'relative',
+    marginBottom: spacing.md,
+  },
+  profilePicturePreview: {
+    width: scale(120),
+    height: scale(120),
+    borderRadius: scale(60),
+    borderWidth: 3,
+    borderColor: colors.primary,
+  },
+  profilePicturePlaceholder: {
+    width: scale(120),
+    height: scale(120),
+    borderRadius: scale(60),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profilePictureEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: scale(36),
+    height: scale(36),
+    borderRadius: scale(18),
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: colors.background,
+  },
+  profilePictureButtons: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  pictureButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.cardSoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: scale(20),
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  pictureButtonText: {
+    fontSize: scale(14),
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  inputSection: {
+    marginBottom: spacing.lg,
+  },
+  inputLabel: {
+    fontSize: scale(14),
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: spacing.sm,
+  },
+  input: {
+    backgroundColor: colors.cardSoft,
+    borderRadius: scale(12),
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: scale(16),
+    color: colors.textPrimary,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  inputHint: {
+    fontSize: scale(12),
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+  },
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: scale(12),
+    marginTop: spacing.xl,
+    minHeight: scale(50),
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    fontSize: scale(16),
+    fontWeight: '600',
+    color: '#fff',
+  },
+});
+
+export default ProfileScreen;
