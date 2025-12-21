@@ -2,7 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 declare const process: any;
 
-const DEFAULT_BASE_URL = 'http://192.168.0.101:4000';
+// Development: Use local IP for testing
+// Production: Use Railway URL
+const DEFAULT_BASE_URL = __DEV__ 
+  ? 'http://192.168.0.101:4000'  // Local development
+  : 'https://fashion-app-production-6083.up.railway.app';  // Railway production
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || DEFAULT_BASE_URL;
 
