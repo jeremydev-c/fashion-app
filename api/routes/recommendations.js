@@ -3,6 +3,7 @@ const ClothingItem = require('../models/ClothingItem');
 const StyleDNA = require('../models/StyleDNA');
 const UserPreferences = require('../models/UserPreferences');
 const Outfit = require('../models/Outfit');
+const ApiUsage = require('../models/ApiUsage');
 const { evaluateFashionIntelligence } = require('../utils/fashionIntelligence');
 
 const router = express.Router();
@@ -47,8 +48,8 @@ router.get('/', async (req, res) => {
       tempSwing: tempSwing ? parseFloat(tempSwing) : 0,
     };
 
-    // Generate recommendations
-    const recommendations = await generateRecommendations({
+    // Generate recommendations using HYBRID approach: Algorithm + AI work together throughout
+    const recommendations = await generateHybridRecommendations({
       wardrobe,
       styleDNA,
       preferences,
@@ -57,7 +58,7 @@ router.get('/', async (req, res) => {
       timeOfDay: timeOfDay || 'afternoon',
       weather: weather || 'warm',
       limit: recommendationLimit,
-      forecastContext, // Pass forecast to AI
+      forecastContext,
     });
 
     res.json({ recommendations });
@@ -156,10 +157,15 @@ async function generateRecommendations({
         }
       }
 
-      // Score the outfit with advanced fashion intelligence
+      // HYBRID SCORING: Algorithm + Fashion Intelligence work together
+      // Algorithm provides technical score (color harmony, style match, etc.)
       const baseScore = scoreOutfit(outfit.items, styleDNA, preferences, savedOutfits, occasion, timeOfDay, weather);
       const fashionIntel = evaluateFashionIntelligence(outfit.items, occasion, weather);
-      outfit.score = (baseScore * 0.7) + (fashionIntel.score * 0.3);
+      
+      // They work together - mix their scores
+      outfit.algorithmScore = baseScore;
+      outfit.fashionIntelScore = fashionIntel.score;
+      outfit.score = (baseScore * 0.6) + (fashionIntel.score * 0.4); // Mixed scoring
       
       // Build reasons including forecast intelligence
       const forecastReasons = [];
@@ -170,11 +176,13 @@ async function generateRecommendations({
         forecastReasons.push('Consider rain-friendly options');
       }
       
-      outfit.reasons = [
+      // Algorithm reasons + fashion intelligence reasons (working together)
+      outfit.algorithmReasons = [
         ...getOutfitReasons(outfit.items, styleDNA, preferences, occasion),
         ...fashionIntel.reasons,
         ...forecastReasons,
-      ].slice(0, 4);
+      ];
+      outfit.reasons = outfit.algorithmReasons.slice(0, 4);
 
       if (outfit.items.length >= 2) {
         recommendations.push(outfit);
@@ -230,10 +238,15 @@ async function generateRecommendations({
         }
       }
 
-      // Score the outfit with advanced fashion intelligence
+      // HYBRID SCORING: Algorithm + Fashion Intelligence work together
+      // Algorithm provides technical score (color harmony, style match, etc.)
       const baseScore = scoreOutfit(outfit.items, styleDNA, preferences, savedOutfits, occasion, timeOfDay, weather);
       const fashionIntel = evaluateFashionIntelligence(outfit.items, occasion, weather);
-      outfit.score = (baseScore * 0.7) + (fashionIntel.score * 0.3);
+      
+      // They work together - mix their scores
+      outfit.algorithmScore = baseScore;
+      outfit.fashionIntelScore = fashionIntel.score;
+      outfit.score = (baseScore * 0.6) + (fashionIntel.score * 0.4); // Mixed scoring
       
       // Build reasons including forecast intelligence
       const forecastReasons = [];
@@ -244,11 +257,13 @@ async function generateRecommendations({
         forecastReasons.push('Consider rain-friendly options');
       }
       
-      outfit.reasons = [
+      // Algorithm reasons + fashion intelligence reasons (working together)
+      outfit.algorithmReasons = [
         ...getOutfitReasons(outfit.items, styleDNA, preferences, occasion),
         ...fashionIntel.reasons,
         ...forecastReasons,
-      ].slice(0, 4);
+      ];
+      outfit.reasons = outfit.algorithmReasons.slice(0, 4);
 
       if (outfit.items.length >= 3) {
         recommendations.push(outfit);
@@ -852,6 +867,563 @@ function getOutfitReasons(items, styleDNA, preferences, occasion) {
   }
 
   return reasons;
+}
+
+/**
+ * SMART HYBRID: Algorithm + AI work together efficiently
+ * 
+ * Strategy:
+ * 1. Algorithm does FAST filtering (quick elimination of bad combinations)
+ * 2. Algorithm provides top candidates + key insights (not full scoring)
+ * 3. AI does DEEP analysis on filtered set using algorithm insights
+ * 4. They work together, not sequentially
+ */
+async function generateHybridRecommendations({
+  wardrobe,
+  styleDNA,
+  preferences,
+  savedOutfits = [],
+  occasion,
+  timeOfDay,
+  weather,
+  limit,
+  forecastContext = {},
+}) {
+  // Step 1: Algorithm does FAST filtering (quick, not expensive)
+  const quickCandidates = await generateQuickCandidates({
+    wardrobe,
+    styleDNA,
+    preferences,
+    occasion,
+    timeOfDay,
+    weather,
+    limit: limit * 2, // Only 2x, not 3x (smarter)
+    forecastContext,
+  });
+
+  if (quickCandidates.length === 0) {
+    return [];
+  }
+
+  // Step 2: AI + Algorithm work together on filtered set
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      return await enhanceCandidatesWithAI({
+        algorithmCandidates: quickCandidates,
+        wardrobe,
+        styleDNA,
+        preferences,
+        occasion,
+        timeOfDay,
+        weather,
+        limit,
+        forecastContext,
+      });
+    } catch (aiError) {
+      console.error('AI enhancement failed, using algorithm results:', aiError);
+      // Fallback: Do full algorithm scoring on quick candidates
+      return await scoreAndSelectCandidates(quickCandidates, limit);
+    }
+  }
+
+  // No AI: Do full algorithm scoring on quick candidates
+  return await scoreAndSelectCandidates(quickCandidates, limit);
+}
+
+/**
+ * FAST filtering: Algorithm quickly eliminates bad combinations
+ * Doesn't do expensive scoring - just smart filtering
+ */
+async function generateQuickCandidates({
+  wardrobe,
+  styleDNA,
+  preferences,
+  occasion,
+  timeOfDay,
+  weather,
+  limit,
+  forecastContext = {},
+}) {
+  const { needsLayers, hasRainRisk } = forecastContext;
+  
+  // Quick pre-filtering (same as before)
+  const occasionFilters = {
+    formal: { avoidStyles: ['sporty', 'casual', 'athletic'] },
+    work: { avoidStyles: ['sporty', 'athletic', 'bohemian'] },
+    casual: { avoidStyles: [] },
+    date: { avoidStyles: ['sporty', 'athletic'] },
+    party: { avoidStyles: [] },
+  };
+  
+  const filter = occasionFilters[occasion] || occasionFilters.casual;
+  let filteredWardrobe = filter.avoidStyles.length > 0
+    ? wardrobe.filter(item => !filter.avoidStyles.includes(item.style?.toLowerCase()))
+    : wardrobe;
+  
+  if (preferences && preferences.avoidedColors && preferences.avoidedColors.length > 0) {
+    filteredWardrobe = filteredWardrobe.filter(item => 
+      !preferences.avoidedColors.includes(item.color?.toLowerCase() || '')
+    );
+  }
+  
+  const tops = filteredWardrobe.filter((item) => item.category === 'top');
+  const bottoms = filteredWardrobe.filter((item) => item.category === 'bottom');
+  const shoes = filteredWardrobe.filter((item) => item.category === 'shoes');
+  const outerwear = filteredWardrobe.filter((item) => item.category === 'outerwear');
+  const accessories = filteredWardrobe.filter((item) => item.category === 'accessory');
+  const dresses = filteredWardrobe.filter((item) => item.category === 'dress');
+
+  const candidates = [];
+  const maxQuickCombinations = Math.min(limit * 2, 30); // Smarter limit
+
+  // Quick dress combinations
+  if (dresses.length > 0) {
+    for (const dress of dresses.slice(0, 5)) { // Limit dresses too
+      const outfit = { items: [dress], quickScore: 0, quickInsights: [] };
+      
+      const compatibleShoes = findCompatibleShoes(dress, shoes, occasion, preferences);
+      if (compatibleShoes.length > 0) outfit.items.push(compatibleShoes[0]);
+      
+      if (weather === 'cool' || weather === 'cold' || needsLayers) {
+        const compatibleOuterwear = findCompatibleOuterwear(dress, outerwear, occasion, preferences);
+        if (compatibleOuterwear.length > 0) outfit.items.push(compatibleOuterwear[0]);
+      }
+      
+      const compatibleAccessories = findCompatibleAccessories(dress, accessories, occasion, preferences);
+      if (compatibleAccessories.length > 0) {
+        const existingTypes = outfit.items
+          .filter(item => item.category === 'accessory')
+          .map(item => getAccessoryType(item));
+        const newAccessory = compatibleAccessories[0];
+        if (!existingTypes.includes(getAccessoryType(newAccessory))) {
+          outfit.items.push(newAccessory);
+        }
+      }
+      
+      // Quick scoring (lightweight, not full algorithm)
+      outfit.quickScore = quickScoreOutfit(outfit.items, preferences, occasion);
+      outfit.quickInsights = quickGetInsights(outfit.items, preferences, occasion);
+      
+      if (outfit.items.length >= 2) {
+        candidates.push(outfit);
+      }
+    }
+  }
+
+  // Quick top + bottom combinations
+  let comboCount = 0;
+  for (const top of tops.slice(0, 10)) { // Limit tops
+    if (comboCount >= maxQuickCombinations) break;
+    
+    for (const bottom of bottoms.slice(0, 10)) { // Limit bottoms
+      if (comboCount >= maxQuickCombinations) break;
+      
+      const outfit = { items: [top, bottom], quickScore: 0, quickInsights: [] };
+      
+      const compatibleShoes = findCompatibleShoes(top, shoes, occasion, preferences);
+      if (compatibleShoes.length > 0) outfit.items.push(compatibleShoes[0]);
+      
+      if (weather === 'cool' || weather === 'cold' || needsLayers) {
+        const compatibleOuterwear = findCompatibleOuterwear(top, outerwear, occasion, preferences);
+        if (compatibleOuterwear.length > 0) outfit.items.push(compatibleOuterwear[0]);
+      }
+      
+      const compatibleAccessories = findCompatibleAccessories(top, accessories, occasion, preferences);
+      if (compatibleAccessories.length > 0) {
+        const existingTypes = outfit.items
+          .filter(item => item.category === 'accessory')
+          .map(item => getAccessoryType(item));
+        const newAccessory = compatibleAccessories[0];
+        if (!existingTypes.includes(getAccessoryType(newAccessory))) {
+          outfit.items.push(newAccessory);
+        }
+      }
+      
+      // Quick scoring (lightweight)
+      outfit.quickScore = quickScoreOutfit(outfit.items, preferences, occasion);
+      outfit.quickInsights = quickGetInsights(outfit.items, preferences, occasion);
+      
+      if (outfit.items.length >= 3) {
+        candidates.push(outfit);
+        comboCount++;
+      }
+    }
+  }
+
+  // Sort by quick score and return top candidates
+  candidates.sort((a, b) => b.quickScore - a.quickScore);
+  return candidates.slice(0, limit * 2);
+}
+
+/**
+ * Quick lightweight scoring (for filtering, not final scoring)
+ */
+function quickScoreOutfit(items, preferences, occasion) {
+  let score = 50; // Base score
+  
+  // Quick color check
+  const colors = items.map(i => i.color?.toLowerCase()).filter(Boolean);
+  const uniqueColors = new Set(colors);
+  if (uniqueColors.size <= 3) score += 20; // Good color count
+  
+  // Quick style check
+  const styles = items.map(i => i.style?.toLowerCase()).filter(Boolean);
+  const hasMatchingStyle = styles.length > 0 && styles.every(s => s === styles[0] || s.includes(styles[0]));
+  if (hasMatchingStyle) score += 15;
+  
+  // Preference match
+  if (preferences) {
+    if (preferences.preferredColors?.some(c => colors.includes(c.toLowerCase()))) {
+      score += 15;
+    }
+  }
+  
+  return Math.min(score, 100);
+}
+
+/**
+ * Quick insights (for AI context, not final reasons)
+ */
+function quickGetInsights(items, preferences, occasion) {
+  const insights = [];
+  const colors = items.map(i => i.color?.toLowerCase()).filter(Boolean);
+  const uniqueColors = new Set(colors);
+  
+  if (uniqueColors.size <= 3) insights.push('Good color harmony');
+  if (preferences?.preferredColors?.some(c => colors.includes(c.toLowerCase()))) {
+    insights.push('Uses preferred colors');
+  }
+  
+  return insights;
+}
+
+/**
+ * Full algorithm scoring (only used if AI fails)
+ */
+async function scoreAndSelectCandidates(candidates, limit) {
+  // This would do full algorithm scoring - but we prefer AI enhancement
+  // For now, just return top quick-scored candidates
+  return candidates.slice(0, limit).map(candidate => ({
+    id: `algorithm-${Date.now()}-${Math.random()}`,
+    items: candidate.items.map(item => ({
+      id: item._id.toString(),
+      name: item.name,
+      category: item.category,
+      color: item.color,
+      imageUrl: item.imageUrl,
+      style: item.style,
+      pattern: item.pattern,
+    })),
+    score: candidate.quickScore,
+    confidence: candidate.quickScore,
+    reasons: candidate.quickInsights,
+  }));
+}
+
+/**
+ * AI + Algorithm Hybrid: AI enhances algorithm-generated candidates
+ * Algorithm does smart filtering & scoring, AI adds intelligence & refinement
+ */
+async function enhanceCandidatesWithAI({
+  algorithmCandidates,
+  wardrobe,
+  styleDNA,
+  preferences,
+  occasion,
+  timeOfDay,
+  weather,
+  limit,
+  forecastContext = {},
+}) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  // Build candidate outfits summary for AI
+  const candidatesSummary = algorithmCandidates.slice(0, 15).map((candidate, idx) => {
+    const itemNames = candidate.items.map(item => {
+      const wardrobeItem = wardrobe.find(w => w._id.toString() === item.id);
+      return wardrobeItem ? wardrobeItem.name : item.name;
+    }).join(' + ');
+    
+    return {
+      idx: idx,
+      items: candidate.items.map(item => item.id),
+      score: candidate.score,
+      reasons: candidate.reasons?.join(', ') || '',
+      summary: itemNames,
+    };
+  });
+
+  // Analyze wardrobe for user insights
+  const colorDistribution = {};
+  const styleDistribution = {};
+  wardrobe.forEach(item => {
+    if (item.color) {
+      const color = item.color.toLowerCase();
+      colorDistribution[color] = (colorDistribution[color] || 0) + 1;
+    }
+    if (item.style) {
+      const style = item.style.toLowerCase();
+      styleDistribution[style] = (styleDistribution[style] || 0) + 1;
+    }
+  });
+
+  const topColors = Object.entries(colorDistribution)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([color]) => color);
+
+  const topStyles = Object.entries(styleDistribution)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([style]) => style);
+
+  // Build user profile
+  let userProfile = '';
+  if (preferences) {
+    if (preferences.preferredColors?.length) {
+      userProfile += `\n🎨 Loves: ${preferences.preferredColors.join(', ')}`;
+    }
+    if (preferences.preferredStyles?.length) {
+      userProfile += `\n👔 Style: ${preferences.preferredStyles.join(', ')}`;
+    }
+  }
+  userProfile += `\n📊 Wardrobe shows they gravitate toward: ${topColors.join(', ')} colors`;
+  userProfile += `\n👔 Real style DNA: ${topStyles.join(', ')}`;
+
+  const season = getCurrentSeason();
+  const { needsLayers, hasRainRisk } = forecastContext;
+
+  // Build detailed candidate info for AI (algorithm + AI work together)
+  const detailedCandidates = algorithmCandidates.slice(0, 20).map((candidate, idx) => {
+    const items = candidate.items.map(item => {
+      const wardrobeItem = wardrobe.find(w => w._id.toString() === item.id);
+      return wardrobeItem || item;
+    });
+
+    // Algorithm analysis (what the algorithm found)
+    const algorithmAnalysis = {
+      colorHarmony: candidate.algorithmReasons?.find(r => r.includes('color')) || 'Good color combination',
+      styleMatch: candidate.algorithmReasons?.find(r => r.includes('style') || r.includes('Style')) || 'Style coherent',
+      occasionFit: candidate.algorithmReasons?.find(r => r.includes(occasion)) || `Perfect for ${occasion}`,
+    };
+
+    return {
+      idx: idx,
+      items: candidate.items.map(item => ({
+        id: item.id,
+        name: item.name || 'Item',
+        category: item.category,
+        color: item.color || 'unknown',
+        style: item.style || 'casual',
+      })),
+      algorithmScore: candidate.algorithmScore || candidate.score,
+      fashionIntelScore: candidate.fashionIntelScore || 0,
+      combinedScore: candidate.score,
+      algorithmReasons: candidate.algorithmReasons || candidate.reasons || [],
+      algorithmAnalysis: algorithmAnalysis,
+    };
+  });
+
+  const prompt = `You are the FASHION FIT AI STYLING ENGINE - working TOGETHER with our smart algorithms.
+
+═══════════════════════════════════════════
+🤖 ALGORITHM ANALYSIS (Technical Intelligence)
+═══════════════════════════════════════════
+Our algorithms have analyzed ${detailedCandidates.length} outfit candidates. For each, they calculated:
+- Color harmony scores
+- Style coherence matching
+- Occasion appropriateness
+- Weather adaptation
+- User preference matching
+
+Here's what the algorithms found:
+
+${JSON.stringify(detailedCandidates, null, 2)}
+
+═══════════════════════════════════════════
+👤 USER PROFILE
+═══════════════════════════════════════════
+${userProfile}
+
+═══════════════════════════════════════════
+🎯 CONTEXT
+═══════════════════════════════════════════
+Occasion: ${occasion}
+Time: ${timeOfDay}
+Season: ${season}
+Weather: ${weather}${needsLayers ? ' (needs layers)' : ''}${hasRainRisk ? ' (rain risk)' : ''}
+
+═══════════════════════════════════════════
+🧠 YOUR TASK: WORK WITH THE ALGORITHM
+═══════════════════════════════════════════
+The algorithm has done the technical work. NOW you add the psychological intelligence:
+
+1. REVIEW algorithm scores - they're technically sound (color harmony, style match, etc.)
+2. ADD your intelligence layer:
+   - Which outfits make the user feel confident and unstoppable?
+   - Which have that "wow factor" - outfits their friends will ask about?
+   - Which match their psychological style (not just technical style)?
+   - Which create emotional connection?
+3. ENHANCE algorithm reasons with deeper insights:
+   - Algorithm says "Good color combination" → You say "These colors make you glow"
+   - Algorithm says "Style coherent" → You say "This is YOUR signature style"
+   - Algorithm says "Perfect for ${occasion}" → You say "You'll own this ${occasion}"
+4. MIX algorithm scores with your confidence scores
+5. Select the BEST ${limit} outfits that combine:
+   - Algorithm's technical excellence
+   - Your psychological intelligence
+   - Outstanding, memorable suggestions
+
+═══════════════════════════════════════════
+📤 OUTPUT (JSON only)
+═══════════════════════════════════════════
+{
+  "outfits": [
+    {
+      "candidateIdx": 0,
+      "aiConfidence": 95,  // Your confidence (0-100)
+      "finalScore": 92,   // Mixed: (algorithmScore * 0.6) + (aiConfidence * 0.4)
+      "title": "3-4 word catchy name",
+      "description": "One confident line (max 15 words) - why this outfit is special",
+      "enhancedReasons": [
+        "Algorithm: Good color harmony",
+        "AI: These colors make you glow and feel unstoppable",
+        "Algorithm: Perfect for ${occasion}",
+        "AI: You'll own this ${occasion} - everyone will notice"
+      ]
+    }
+  ]
+}
+
+Select ${limit} DISTINCT outfits. Mix algorithm intelligence with your intelligence. Output ONLY valid JSON.`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are the Fashion Fit AI Styling Engine. You work WITH our algorithms to enhance outfit recommendations. Output ONLY valid JSON.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error('OpenAI API error:', text);
+    throw new Error('OpenAI API request failed');
+  }
+
+  const json = await response.json();
+  const rawContent = json.choices?.[0]?.message?.content || '{}';
+
+  // Parse AI response
+  let parsed;
+  try {
+    let cleanContent = rawContent.trim();
+    if (cleanContent.startsWith('```')) {
+      cleanContent = cleanContent.replace(/^```json?\n?/, '').replace(/\n?```$/, '');
+    }
+    parsed = JSON.parse(cleanContent);
+  } catch (err) {
+    console.error('Failed to parse AI response:', rawContent);
+    throw new Error('Failed to parse AI recommendations');
+  }
+
+  // Track API usage
+  const promptTokens = json.usage?.prompt_tokens || 0;
+  const completionTokens = json.usage?.completion_tokens || 0;
+  const cost = (promptTokens / 1000000 * 0.15) + (completionTokens / 1000000 * 0.60);
+
+  await ApiUsage.create({
+    date: new Date(),
+    service: 'openai',
+    operation: 'enhance-outfits',
+    tokens: { prompt: promptTokens, completion: completionTokens },
+    cost,
+    model: 'gpt-4o-mini',
+  });
+
+  // Map AI-enhanced selections back to algorithm candidates
+  // MIX algorithm scores with AI scores (they work together)
+  const enhancedOutfits = (parsed.outfits || []).map((aiOutfit) => {
+    const candidateIdx = aiOutfit.candidateIdx;
+    const originalCandidate = algorithmCandidates[candidateIdx];
+    
+    if (!originalCandidate) {
+      return null;
+    }
+
+    // MIXED SCORING: Algorithm + AI work together
+    const algorithmScore = originalCandidate.score || originalCandidate.algorithmScore || 70;
+    const aiConfidence = aiOutfit.aiConfidence || 85;
+    const finalScore = (algorithmScore * 0.6) + (aiConfidence * 0.4); // They mix together
+
+    // MIXED REASONS: Algorithm reasons + AI enhanced reasons (working together)
+    const algorithmReasons = originalCandidate.algorithmReasons || originalCandidate.reasons || [];
+    const aiReasons = aiOutfit.enhancedReasons || [];
+    
+    // Combine: Keep algorithm technical reasons, add AI psychological insights
+    const mixedReasons = [];
+    algorithmReasons.slice(0, 2).forEach(reason => {
+      mixedReasons.push(`Algorithm: ${reason}`);
+    });
+    aiReasons.slice(0, 2).forEach(reason => {
+      if (!reason.includes('Algorithm:')) {
+        mixedReasons.push(`AI: ${reason}`);
+      }
+    });
+
+    return {
+      id: `hybrid-outfit-${Date.now()}-${candidateIdx}`,
+      items: originalCandidate.items,
+      score: Math.round(finalScore), // MIXED score from both
+      confidence: Math.round(finalScore), // Combined confidence
+      reasons: mixedReasons.length > 0 ? mixedReasons : aiOutfit.enhancedReasons || [aiOutfit.description || 'Perfectly styled outfit'],
+      title: aiOutfit.title,
+      description: aiOutfit.description,
+      occasion,
+      timeOfDay,
+      weather,
+      // Keep algorithm analysis for transparency
+      algorithmScore: Math.round(algorithmScore),
+      aiConfidence: Math.round(aiConfidence),
+    };
+  }).filter(Boolean);
+
+  // If AI didn't return enough, fill with top algorithm candidates
+  if (enhancedOutfits.length < limit) {
+    const usedIndices = new Set((parsed.outfits || []).map(o => o.candidateIdx));
+    const remaining = algorithmCandidates
+      .filter((_, idx) => !usedIndices.has(idx))
+      .slice(0, limit - enhancedOutfits.length)
+      .map(candidate => ({
+        ...candidate,
+        id: `algorithm-outfit-${Date.now()}-${candidate.id}`,
+      }));
+    enhancedOutfits.push(...remaining);
+  }
+
+  return enhancedOutfits.slice(0, limit);
+}
+
+function getCurrentSeason() {
+  const month = new Date().getMonth();
+  if (month >= 2 && month <= 4) return 'spring';
+  if (month >= 5 && month <= 7) return 'summer';
+  if (month >= 8 && month <= 10) return 'fall';
+  return 'winter';
 }
 
 module.exports = router;

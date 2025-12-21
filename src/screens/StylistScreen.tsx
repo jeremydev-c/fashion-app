@@ -20,8 +20,9 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const scale = (size: number) => Math.round((SCREEN_WIDTH / 393) * size);
 
 import { fetchClothingItems, ClothingItem } from '../services/wardrobeApi';
-import { generateAIOutfits } from '../services/openAiStylist';
+import { getRecommendations } from '../services/recommendationsService';
 import { submitOutfitFeedback } from '../services/stylistFeedback';
+import { useUserId } from '../hooks/useUserId';
 import { getCurrentWeather, WeatherData, WeatherForecast } from '../services/weatherService';
 import { DestinationPicker } from '../components/DestinationPicker';
 import { AIMisuseWarning, hasAcknowledgedWarning } from '../components/AIMisuseWarning';
@@ -38,6 +39,7 @@ interface OutfitSuggestion {
 }
 
 export const StylistScreen: React.FC = () => {
+  const userId = useUserId();
   const [wardrobe, setWardrobe] = useState<ClothingItem[]>([]);
   const [outfits, setOutfits] = useState<OutfitSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -130,13 +132,69 @@ export const StylistScreen: React.FC = () => {
       alert('Add more items to your wardrobe first!');
       return;
     }
+    if (!userId) {
+      alert('Please log in to generate outfits');
+      return;
+    }
     setLoading(true);
     try {
-      const suggestions = await generateAIOutfits(wardrobe, occasion, timeOfDay);
-      setOutfits(suggestions);
-    } catch (err) {
+      // Get weather context for forecast
+      const weatherContext = weather ? {
+        needsLayers: weather.temperature < 15,
+        hasRainRisk: weather.condition === 'rain',
+        tempSwing: forecast?.tempSwing || 0,
+      } : undefined;
+
+      const recommendations = await getRecommendations({
+        userId,
+        occasion: occasion.toLowerCase(),
+        timeOfDay: timeOfDay.toLowerCase(),
+        weather: weather ? (weather.temperature > 20 ? 'warm' : weather.temperature > 10 ? 'cool' : 'cold') : undefined,
+        limit: 3,
+        forecast: weatherContext,
+      });
+
+      // Map backend response to frontend format
+      const mappedOutfits: OutfitSuggestion[] = recommendations.map((rec) => {
+        // Map items - backend returns items with id, we need to find them in wardrobe
+        const mappedItems: ClothingItem[] = rec.items.map((item) => {
+          // Try to find the item in wardrobe by ID
+          const fullItem = wardrobe.find(w => 
+            w._id?.toString() === item.id || 
+            w._id === item.id ||
+            (w.name === item.name && w.category === item.category)
+          );
+          
+          if (fullItem) {
+            return fullItem;
+          }
+          
+          // If not found, create a minimal item from the recommendation
+          return {
+            _id: item.id,
+            name: item.name || 'Unknown Item',
+            category: item.category,
+            color: item.color,
+            imageUrl: item.imageUrl,
+            style: item.style,
+            pattern: item.pattern,
+            subcategory: item.category,
+          } as ClothingItem;
+        }).filter(Boolean) as ClothingItem[];
+
+        return {
+          id: rec.id,
+          items: mappedItems,
+          occasion: rec.occasion || occasion,
+          reasoning: rec.reasons?.join('. ') || 'Perfectly styled outfit for you',
+        };
+      });
+
+      setOutfits(mappedOutfits);
+    } catch (err: any) {
       console.error('Failed to generate outfits', err);
-      alert('Could not generate outfits. Try again.');
+      const errorMessage = err?.data?.error || err?.message || 'Could not generate outfits. Try again.';
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
