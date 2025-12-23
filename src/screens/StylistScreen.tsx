@@ -193,7 +193,27 @@ export const StylistScreen: React.FC = () => {
       setOutfits(mappedOutfits);
     } catch (err: any) {
       console.error('Failed to generate outfits', err);
-      const errorMessage = err?.data?.error || err?.message || 'Could not generate outfits. Try again.';
+      console.error('Error details:', {
+        message: err?.message,
+        status: err?.status,
+        data: err?.data,
+        stack: err?.stack,
+      });
+      
+      // More detailed error message
+      let errorMessage = 'Could not generate outfits. Try again.';
+      if (err?.data?.error) {
+        errorMessage = err.data.error;
+      } else if (err?.message) {
+        errorMessage = err.message;
+      } else if (err?.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (err?.status === 400) {
+        errorMessage = 'Invalid request. Please check your wardrobe.';
+      } else if (err?.status === 401) {
+        errorMessage = 'Please log in again.';
+      }
+      
       alert(errorMessage);
     } finally {
       setLoading(false);

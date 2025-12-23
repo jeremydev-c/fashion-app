@@ -56,9 +56,17 @@ export async function getRecommendations(params: {
     ...(params.forecast?.tempSwing !== undefined && { tempSwing: params.forecast.tempSwing.toString() }),
   });
 
-  const res = await apiRequest<RecommendationsResponse>(
-    `/recommendations?${queryParams.toString()}`
-  );
-  return res.recommendations;
+  try {
+    const res = await apiRequest<RecommendationsResponse>(
+      `/recommendations?${queryParams.toString()}`
+    );
+    return res.recommendations;
+  } catch (error: any) {
+    console.error('getRecommendations error:', error);
+    console.error('Request params:', params);
+    console.error('Error status:', error?.status);
+    console.error('Error data:', error?.data);
+    throw error; // Re-throw to let caller handle
+  }
 }
 

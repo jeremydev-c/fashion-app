@@ -6,11 +6,11 @@
     "orientation": "portrait",
     "scheme": "fashionfit",
     "userInterfaceStyle": "automatic",
-    "icon": "./logo/WhatsApp Image 2025-12-21 at 18.25.53.jpeg",
+    "icon": "./logo/app-icon.jpeg",
     "splash": {
       "resizeMode": "contain",
       "backgroundColor": "#050816",
-      "image": "./logo/WhatsApp Image 2025-12-21 at 18.25.53.jpeg"
+      "image": "./logo/app-icon.jpeg"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -35,6 +35,12 @@
         "projectId": "93f5bd2f-4f7c-4970-aada-f89680859424"
       }
     },
-    "owner": "dripnap25"
+    "owner": "dripnap25",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/93f5bd2f-4f7c-4970-aada-f89680859424"
+    }
   }
 }

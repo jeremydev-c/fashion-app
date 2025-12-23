@@ -64,7 +64,16 @@ router.get('/', async (req, res) => {
     res.json({ recommendations });
   } catch (err) {
     console.error('GET /recommendations error', err);
-    res.status(500).json({ error: 'Failed to generate recommendations' });
+    console.error('Error stack:', err.stack);
+    console.error('Error details:', {
+      message: err.message,
+      userId: req.query.userId,
+      occasion: req.query.occasion,
+    });
+    res.status(500).json({ 
+      error: 'Failed to generate recommendations',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
   }
 });
 
@@ -279,11 +288,13 @@ async function generateRecommendations({
   const selectedOutfits = [];
   const usedTopIds = new Set();
   const usedDressIds = new Set();
+const usedShoeIds = new Set();
   
   // First pass: prioritize diverse tops
   for (const rec of recommendations) {
     const top = rec.items.find(item => item.category === 'top');
     const dress = rec.items.find(item => item.category === 'dress');
+  const shoe = rec.items.find(item => item.category === 'shoes');
     
     let isDuplicate = false;
     
@@ -299,6 +310,16 @@ async function generateRecommendations({
         isDuplicate = true;
       } else {
         usedTopIds.add(topId);
+      }
+    }
+    // Enforce shoe diversity when possible
+    if (!isDuplicate && shoe) {
+      const shoeId = shoe._id.toString();
+      // Only block duplicates if we have enough shoes to vary
+      if (usedShoeIds.has(shoeId) && shoes.length > 1) {
+        isDuplicate = true;
+      } else {
+        usedShoeIds.add(shoeId);
       }
     }
     
@@ -948,10 +969,10 @@ async function generateQuickCandidates({
   
   // Quick pre-filtering (same as before)
   const occasionFilters = {
-    formal: { avoidStyles: ['sporty', 'casual', 'athletic'] },
-    work: { avoidStyles: ['sporty', 'athletic', 'bohemian'] },
-    casual: { avoidStyles: [] },
-    date: { avoidStyles: ['sporty', 'athletic'] },
+    formal: { avoidStyles: ['athletic'] },
+    work: { avoidStyles: ['athletic'] },
+    casual: { avoidStyles: [] }, // allow most items for variety
+    date: { avoidStyles: ['athletic'] },
     party: { avoidStyles: [] },
   };
   
@@ -974,11 +995,12 @@ async function generateQuickCandidates({
   const dresses = filteredWardrobe.filter((item) => item.category === 'dress');
 
   const candidates = [];
-  const maxQuickCombinations = Math.min(limit * 2, 30); // Smarter limit
+  // Broader pool to improve variety
+  const maxQuickCombinations = Math.min(limit * 4, 80);
 
   // Quick dress combinations
   if (dresses.length > 0) {
-    for (const dress of dresses.slice(0, 5)) { // Limit dresses too
+    for (const dress of dresses.slice(0, 10)) { // allow more dresses
       const outfit = { items: [dress], quickScore: 0, quickInsights: [] };
       
       const compatibleShoes = findCompatibleShoes(dress, shoes, occasion, preferences);
@@ -1012,10 +1034,10 @@ async function generateQuickCandidates({
 
   // Quick top + bottom combinations
   let comboCount = 0;
-  for (const top of tops.slice(0, 10)) { // Limit tops
+  for (const top of tops.slice(0, 25)) { // widen top pool
     if (comboCount >= maxQuickCombinations) break;
     
-    for (const bottom of bottoms.slice(0, 10)) { // Limit bottoms
+    for (const bottom of bottoms.slice(0, 25)) { // widen bottom pool
       if (comboCount >= maxQuickCombinations) break;
       
       const outfit = { items: [top, bottom], quickScore: 0, quickInsights: [] };
