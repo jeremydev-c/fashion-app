@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { colors } from '../theme/colors';
+import { useTheme, useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 
 interface GlassCardProps {
@@ -11,10 +11,12 @@ interface GlassCardProps {
 }
 
 export default function GlassCard({ children, style, intensity = 20 }: GlassCardProps) {
+  const colors = useThemeColors();
+  const { isDark } = useTheme();
   return (
-    <View style={[styles.container, style]}>
-      <BlurView intensity={intensity} tint="dark" style={styles.blur}>
-        <View style={styles.content}>{children}</View>
+    <View style={[styles.container, { borderColor: colors.borderSubtle }, style]}>
+      <BlurView intensity={intensity} tint={isDark ? 'dark' : 'light'} style={styles.blur}>
+        <View style={[styles.content, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>{children}</View>
       </BlurView>
     </View>
   );
@@ -25,14 +27,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   blur: {
     flex: 1,
   },
   content: {
     padding: spacing.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
 });
 

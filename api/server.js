@@ -39,8 +39,7 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
 const app = express();
 app.use(cors());
 
-// Stripe webhook needs raw body - must be before JSON parser
-app.use('/payments/webhook', express.raw({ type: 'application/json' }));
+// Paystack webhooks use standard JSON body
 
 app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -67,6 +66,17 @@ app.use('/chat', chatRoutes);
 app.use('/payments', paymentsRoutes);
 app.use('/admin', adminRoutes);
 console.log('✅ Recommendations route registered at /recommendations');
+
+// 404 handler for unknown routes
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Global error handler
+app.use((err, _req, res, _next) => {
+  console.error('Unhandled error:', err);
+  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+});
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

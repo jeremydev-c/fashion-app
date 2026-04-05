@@ -46,6 +46,9 @@ ehthumbs_vista.db
 [Dd]esktop.ini
 $RECYCLE.BIN/
 
+# Separate Next.js portfolio (own repo: jeremy-portfolio)
+PORTFOLIO/
+
 # IDE
 .vscode/
 .idea/

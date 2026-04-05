@@ -2,6 +2,7 @@ const express = require('express');
 const OutfitFeedback = require('../models/OutfitFeedback');
 const UserPreferences = require('../models/UserPreferences');
 const ClothingItem = require('../models/ClothingItem');
+const User = require('../models/User');
 const { recordInteraction } = require('../utils/continuousLearning');
 
 const router = express.Router();
@@ -31,7 +32,9 @@ router.post('/feedback', async (req, res) => {
     });
 
     // Update user preferences based on this feedback
-    await updateUserPreferences(userId, feedback, itemIds);
+    if (itemIds && itemIds.length > 0) {
+      await updateUserPreferences(userId, feedback, itemIds);
+    }
 
     // Record for continuous learning (never stops learning!)
     await recordInteraction({
@@ -82,6 +85,21 @@ router.get('/preferences', async (req, res) => {
   }
 });
 
+// Map onboarding occasion names to recommendation engine names
+const OCCASION_NAME_MAP = {
+  workout: 'gym',
+  travel: 'casual',
+  lounge: 'casual',
+};
+
+function normalizeOccasions(occasions) {
+  if (!occasions || !Array.isArray(occasions)) return [];
+  return [...new Set(occasions.map(o => {
+    const lower = o.toLowerCase();
+    return OCCASION_NAME_MAP[lower] || lower;
+  }))];
+}
+
 // POST /stylist/onboarding
 // Save onboarding questionnaire data
 router.post('/onboarding', async (req, res) => {
@@ -97,17 +115,19 @@ router.post('/onboarding', async (req, res) => {
       prefs = new UserPreferences({ userId });
     }
 
-    // Set preferences from onboarding
-    prefs.preferredStyles = styles || [];
-    prefs.preferredColors = colors || [];
-    prefs.preferredOccasions = occasions || [];
-    prefs.avoidedColors = avoidColors || [];
+    prefs.preferredStyles = (styles || []).map(s => s.toLowerCase());
+    prefs.preferredColors = (colors || []).map(c => c.toLowerCase());
+    prefs.preferredOccasions = normalizeOccasions(occasions);
+    prefs.avoidedColors = (avoidColors || []).map(c => c.toLowerCase());
     prefs.bodyType = bodyType || '';
     prefs.ageRange = ageRange || '';
     prefs.onboardingCompleted = true;
     prefs.lastUpdated = new Date();
 
     await prefs.save();
+
+    // Also set the flag on the User model for admin stats
+    await User.findByIdAndUpdate(userId, { onboardingCompleted: true }).catch(() => {});
 
     res.json({ success: true, preferences: prefs });
   } catch (err) {
@@ -124,21 +144,29 @@ async function updateUserPreferences(userId, feedback, itemIds) {
       userId,
       preferredColors: [],
       preferredStyles: [],
+      avoidedColors: [],
       avoidedCombinations: [],
       preferredOccasions: [],
       feedbackCount: 0,
     });
   }
 
-  // Get the actual clothing items to analyze
   const items = await ClothingItem.find({ _id: { $in: itemIds } });
 
-  if (feedback.action === 'saved' || (feedback.action === 'rated' && feedback.rating >= 4)) {
-    // Positive feedback: learn what they like
+  const isPositive = feedback.action === 'saved' || (feedback.action === 'rated' && feedback.rating >= 4);
+  const isNegative = feedback.action === 'rejected' || (feedback.action === 'rated' && feedback.rating <= 2);
+
+  if (isPositive) {
     items.forEach((item) => {
+      // Learn preferred colors
       if (item.color && !prefs.preferredColors.includes(item.color.toLowerCase())) {
         prefs.preferredColors.push(item.color.toLowerCase());
       }
+      // Learn preferred styles from the item's style field (primary signal)
+      if (item.style && !prefs.preferredStyles.includes(item.style.toLowerCase())) {
+        prefs.preferredStyles.push(item.style.toLowerCase());
+      }
+      // Also learn from tags as secondary signal
       if (item.tags && item.tags.length > 0) {
         item.tags.forEach((tag) => {
           if (!prefs.preferredStyles.includes(tag.toLowerCase())) {
@@ -147,19 +175,39 @@ async function updateUserPreferences(userId, feedback, itemIds) {
         });
       }
     });
-    if (feedback.occasion && !prefs.preferredOccasions.includes(feedback.occasion)) {
-      prefs.preferredOccasions.push(feedback.occasion);
+    if (feedback.occasion && !prefs.preferredOccasions.includes(feedback.occasion.toLowerCase())) {
+      prefs.preferredOccasions.push(feedback.occasion.toLowerCase());
     }
-  } else if (feedback.action === 'rejected' || (feedback.action === 'rated' && feedback.rating <= 2)) {
-    // Negative feedback: learn what to avoid
+  } else if (isNegative) {
+    // Avoid color combinations from rejected outfits
     const colors = items.map((i) => i.color?.toLowerCase()).filter(Boolean);
     if (colors.length >= 2) {
-      const combo = colors.sort().join('+');
+      const combo = [...new Set(colors)].sort().join('+');
       if (!prefs.avoidedCombinations.includes(combo)) {
         prefs.avoidedCombinations.push(combo);
       }
     }
+    // If strongly negative (rating 1-2), track avoided styles too
+    if (feedback.action === 'rated' && feedback.rating <= 2) {
+      const styles = items.map(i => i.style?.toLowerCase()).filter(Boolean);
+      const uniqueStyles = [...new Set(styles)];
+      uniqueStyles.forEach(s => {
+        // Only mark as avoided if it appears in rejected outfits 3+ times
+        // (tracked via avoidedCombinations with style: prefix)
+        const key = `style:${s}`;
+        const existingCount = prefs.avoidedCombinations.filter(c => c === key).length;
+        if (existingCount < 3) {
+          prefs.avoidedCombinations.push(key);
+        }
+      });
+    }
   }
+
+  // Keep lists manageable
+  prefs.preferredColors = prefs.preferredColors.slice(0, 20);
+  prefs.preferredStyles = prefs.preferredStyles.slice(0, 15);
+  prefs.avoidedCombinations = prefs.avoidedCombinations.slice(0, 30);
+  prefs.preferredOccasions = prefs.preferredOccasions.slice(0, 10);
 
   prefs.feedbackCount += 1;
   prefs.lastUpdated = new Date();

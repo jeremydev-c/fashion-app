@@ -4,10 +4,8 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
   Linking,
   Modal,
   TextInput,
@@ -15,22 +13,24 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { colors } from '../theme/colors';
+import { useTheme, useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { CustomAlert } from '../components/CustomAlert';
 import { updateUser } from '../services/authService';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const scale = (size: number) => Math.round((SCREEN_WIDTH / 393) * size);
+import { scale, verticalScale } from '../utils/responsive';
 import { useAuth } from '../context/AuthContext';
 import { useUserId } from '../hooks/useUserId';
-import { apiClient } from '../services/apiClient';
+import { SubscriptionScreen } from './SubscriptionScreen';
+import { AnalyticsScreen } from './AnalyticsScreen';
+import { apiClient, apiRequest } from '../services/apiClient';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { RootTabParamList } from '../navigation/TabNavigator';
@@ -65,16 +65,20 @@ interface WardrobeStats {
 type ProfileScreenNavigationProp = BottomTabNavigationProp<RootTabParamList, 'Profile'>;
 
 export const ProfileScreen: React.FC = () => {
+  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
+  const { mode: themeMode, isDark, setMode: setThemeMode } = useTheme();
   const { user, logout, setUser } = useAuth();
   const userId = useUserId();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
   const [showStyleDNA, setShowStyleDNA] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showSubscription, setShowSubscription] = useState(false);
   const [styleDNA, setStyleDNA] = useState<StyleDNA | null>(null);
   const [stats, setStats] = useState<WardrobeStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(true);
+  const themeModeLabel = themeMode === 'dark' ? 'Dark' : themeMode === 'light' ? 'Light' : 'Auto';
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{
     title: string;
@@ -114,8 +118,12 @@ export const ProfileScreen: React.FC = () => {
         setStyleDNA(dnaResponse.data.styleDNA);
       }
 
-      // Load wardrobe stats
-      const wardrobeResponse = await apiClient.get(`/wardrobe/items?userId=${userId}`);
+      // Load wardrobe stats, saved outfits, and planned outfits in parallel
+      const [wardrobeResponse, outfitsResponse, plannerResponse] = await Promise.all([
+        apiClient.get(`/wardrobe/items?userId=${userId}`),
+        apiRequest<{ outfits: any[] }>(`/outfits?userId=${encodeURIComponent(userId)}`).catch(() => ({ outfits: [] })),
+        apiRequest<{ plans: any[] }>(`/planner?userId=${encodeURIComponent(userId)}`).catch(() => ({ plans: [] })),
+      ]);
       const items = wardrobeResponse.data.items || [];
       
       // Calculate stats
@@ -126,8 +134,8 @@ export const ProfileScreen: React.FC = () => {
 
       setStats({
         totalItems: items.length,
-        savedOutfits: 0,
-        plannedOutfits: 0,
+        savedOutfits: outfitsResponse.outfits?.length || 0,
+        plannedOutfits: plannerResponse.plans?.length || 0,
         categories: Object.entries(categories).map(([name, count]) => ({ name, count })),
       });
     } catch (error: any) {
@@ -175,13 +183,10 @@ export const ProfileScreen: React.FC = () => {
     });
   };
 
-  const handleDarkMode = () => {
-    showAlert({
-      title: 'Dark Mode',
-      message: 'Fashion Fit is designed with a beautiful dark theme. This setting will be available in a future update.',
-      icon: 'moon',
-      buttons: [{ text: 'Got it!', onPress: () => {}, style: 'primary' }],
-    });
+  const handleThemeToggle = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const next = themeMode === 'dark' ? 'light' : themeMode === 'light' ? 'system' : 'dark';
+    setThemeMode(next);
   };
 
   const handleHelp = () => {
@@ -279,6 +284,8 @@ export const ProfileScreen: React.FC = () => {
     setShowAnalytics(!showAnalytics);
   };
 
+  const [showFullAnalytics, setShowFullAnalytics] = useState(false);
+
   const handlePickProfilePicture = async () => {
     // Close modal first to free up memory
     setEditModalVisible(false);
@@ -336,7 +343,7 @@ export const ProfileScreen: React.FC = () => {
               buttons: [{ text: 'OK', onPress: () => {}, style: 'primary' }],
             });
           } catch (uploadError: any) {
-            console.error('Failed to upload profile picture:', uploadError);
+            console.log('Failed to upload profile picture:', uploadError);
             showAlert({
               title: 'Error',
               message: uploadError?.data?.error || uploadError?.message || 'Failed to upload profile picture.',
@@ -356,7 +363,7 @@ export const ProfileScreen: React.FC = () => {
         setEditModalVisible(true);
       }
     } catch (error: any) {
-      console.error('Failed to pick image:', error);
+      console.log('Failed to pick image:', error);
       setEditModalVisible(true);
       if (error?.code !== 'E_PICKER_CANCELLED') {
         showAlert({
@@ -425,7 +432,7 @@ export const ProfileScreen: React.FC = () => {
               buttons: [{ text: 'OK', onPress: () => {}, style: 'primary' }],
             });
           } catch (uploadError: any) {
-            console.error('Failed to upload profile picture:', uploadError);
+            console.log('Failed to upload profile picture:', uploadError);
             showAlert({
               title: 'Error',
               message: uploadError?.data?.error || uploadError?.message || 'Failed to upload profile picture.',
@@ -445,7 +452,7 @@ export const ProfileScreen: React.FC = () => {
         setEditModalVisible(true);
       }
     } catch (error: any) {
-      console.error('Failed to take picture:', error);
+      console.log('Failed to take picture:', error);
       setEditModalVisible(true);
       if (error?.code !== 'E_PICKER_CANCELLED') {
         showAlert({
@@ -523,7 +530,7 @@ export const ProfileScreen: React.FC = () => {
             
             updateData.profilePictureBase64 = base64;
           } catch (convertError: any) {
-            console.error('Failed to convert image to base64:', convertError);
+            console.log('Failed to convert image to base64:', convertError);
             showAlert({
               title: 'Error',
               message: convertError?.message || 'Failed to process image. Please try again with a smaller image.',
@@ -554,7 +561,7 @@ export const ProfileScreen: React.FC = () => {
         buttons: [{ text: 'OK', onPress: () => {}, style: 'primary' }],
       });
     } catch (error: any) {
-      console.error('Failed to update profile:', error);
+      console.log('Failed to update profile:', error);
       const errorMessage = error?.data?.error || error?.message || 'Failed to update profile';
       showAlert({
         title: 'Error',
@@ -568,7 +575,7 @@ export const ProfileScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
@@ -637,7 +644,7 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Quick Stats */}
         {loading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 20 }} />
+          <ActivityIndicator size="large" color={colors.primary} style={styles.loadingIndicator} />
         ) : (
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
@@ -658,7 +665,7 @@ export const ProfileScreen: React.FC = () => {
         {/* Style DNA Card */}
         <TouchableOpacity style={styles.featureCard} onPress={toggleStyleDNA} activeOpacity={0.8}>
           <LinearGradient
-            colors={['rgba(99,102,241,0.15)', 'transparent']}
+            colors={[colors.primarySoft, 'transparent']}
             style={styles.featureGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -803,13 +810,13 @@ export const ProfileScreen: React.FC = () => {
         {/* Analytics Card */}
         <TouchableOpacity style={styles.featureCard} onPress={toggleAnalytics} activeOpacity={0.8}>
           <LinearGradient
-            colors={['rgba(236,72,153,0.15)', 'transparent']}
+            colors={['rgba(232,213,183,0.15)', 'transparent']}
             style={styles.featureGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
             <View style={styles.featureHeader}>
-              <View style={[styles.featureIconContainer, { backgroundColor: 'rgba(236,72,153,0.15)' }]}>
+              <View style={[styles.featureIconContainer, { backgroundColor: 'rgba(232,213,183,0.15)' }]}>
                 <Ionicons name="analytics" size={24} color={colors.secondary} />
               </View>
               <View style={styles.featureInfo}>
@@ -834,7 +841,7 @@ export const ProfileScreen: React.FC = () => {
                     <Text style={styles.analyticsLabel}>Total Items</Text>
                   </View>
                   <View style={styles.analyticsItem}>
-                    <Ionicons name="heart" size={28} color="#f43f5e" />
+                    <Ionicons name="heart" size={28} color={colors.primary} />
                     <Text style={styles.analyticsNumber}>{stats.savedOutfits}</Text>
                     <Text style={styles.analyticsLabel}>Saved Outfits</Text>
                   </View>
@@ -856,6 +863,16 @@ export const ProfileScreen: React.FC = () => {
                     ))}
                   </>
                 )}
+
+                <TouchableOpacity
+                  style={styles.viewFullAnalyticsBtn}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowFullAnalytics(true); }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="bar-chart" size={scale(16)} color={colors.textOnPrimary} />
+                  <Text style={styles.viewFullAnalyticsBtnText}>View Full Analytics</Text>
+                  <Ionicons name="arrow-forward" size={scale(16)} color={colors.textOnPrimary} />
+                </TouchableOpacity>
               </>
             ) : (
               <Text style={styles.noDataText}>Add items to your wardrobe to see analytics</Text>
@@ -876,13 +893,13 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleDarkMode}>
+        <TouchableOpacity style={styles.menuItem} onPress={handleThemeToggle}>
           <View style={styles.menuIcon}>
-            <Ionicons name="moon-outline" size={20} color={colors.textSecondary} />
+            <Ionicons name={isDark ? 'moon-outline' : themeMode === 'system' ? 'phone-portrait-outline' : 'sunny-outline'} size={20} color={colors.textSecondary} />
           </View>
-          <Text style={styles.menuText}>Dark Mode</Text>
-          <View style={styles.toggleOn}>
-            <Text style={styles.toggleText}>On</Text>
+          <Text style={styles.menuText}>Appearance</Text>
+          <View style={[styles.toggleOn, !isDark && { backgroundColor: colors.secondary }]}>
+            <Text style={styles.toggleText}>{themeModeLabel}</Text>
           </View>
         </TouchableOpacity>
 
@@ -913,15 +930,47 @@ export const ProfileScreen: React.FC = () => {
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </TouchableOpacity>
 
+        {/* Subscription */}
+        <TouchableOpacity style={[styles.menuItem, { marginTop: spacing.lg }]} onPress={() => setShowSubscription(true)}>
+          <View style={[styles.menuIcon, { backgroundColor: colors.primarySoft }]}>
+            <Ionicons name="diamond-outline" size={20} color={colors.primary} />
+          </View>
+          <Text style={[styles.menuText, { color: colors.primary, fontWeight: '700' }]}>Manage Plan</Text>
+          <View style={[styles.planBadge, { backgroundColor: colors.primarySoft }]}>
+            <Text style={[styles.planBadgeText, { color: colors.primary }]}>
+              {user?.subscription?.planId === 'free' || !user?.subscription?.planId ? 'Free' : user.subscription.planId === 'pro' ? 'Pro' : user.subscription.planId === 'elite' ? 'Elite' : 'Pro'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+        </TouchableOpacity>
+
         {/* Logout */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#f43f5e" />
+          <Ionicons name="log-out-outline" size={20} color={colors.primary} />
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
 
         {/* Version */}
-        <Text style={styles.version}>Fashion Fit v1.0.0</Text>
+        <Text style={styles.version}>Fashion Fit v2.0.0</Text>
       </ScrollView>
+
+      {/* Subscription Modal */}
+      <Modal visible={showSubscription} animationType="slide" presentationStyle="pageSheet">
+        <SubscriptionScreen onClose={() => { setShowSubscription(false); loadData(); }} />
+      </Modal>
+
+      {/* Full Analytics Modal */}
+      <Modal visible={showFullAnalytics} animationType="slide" presentationStyle="pageSheet">
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <TouchableOpacity
+            style={styles.analyticsModalClose}
+            onPress={() => setShowFullAnalytics(false)}
+          >
+            <Ionicons name="close" size={scale(28)} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <AnalyticsScreen />
+        </View>
+      </Modal>
 
       {/* Edit Profile Modal */}
       <Modal
@@ -934,7 +983,7 @@ export const ProfileScreen: React.FC = () => {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalContainer}
         >
-          <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.modalGradient}>
+          <LinearGradient colors={[...colors.gradientCard]} style={styles.modalGradient}>
             <ScrollView contentContainerStyle={styles.modalContent}>
               {/* Modal Header */}
               <View style={styles.modalHeader}>
@@ -1049,7 +1098,7 @@ export const ProfileScreen: React.FC = () => {
           onClose={() => setAlertVisible(false)}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -1058,9 +1107,12 @@ const styles = StyleSheet.create({
     flex: 1, 
     backgroundColor: colors.background,
   },
+  loadingIndicator: {
+    marginVertical: verticalScale(20),
+  },
   scroll: { 
     padding: spacing.lg, 
-    paddingBottom: 120,
+    paddingBottom: verticalScale(120),
   },
   header: { 
     alignItems: 'center', 
@@ -1083,16 +1135,16 @@ const styles = StyleSheet.create({
   email: { 
     fontSize: scale(14),
     color: colors.textMuted, 
-    marginTop: scale(4),
+    marginTop: verticalScale(4),
   },
   memberBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(251,191,36,0.15)',
+    gap: scale(6),
+    backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    borderRadius: 20,
+    borderRadius: scale(20),
     marginTop: spacing.sm,
   },
   memberText: {
@@ -1108,11 +1160,11 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: colors.card,
-    borderRadius: 16,
+    borderRadius: scale(16),
     padding: spacing.md,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.1)',
+    borderWidth: scale(1),
+    borderColor: colors.borderSubtle,
   },
   statNumber: {
     fontSize: scale(24),
@@ -1122,18 +1174,18 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: scale(12),
     color: colors.textMuted,
-    marginTop: scale(4),
+    marginTop: verticalScale(4),
   },
   featureCard: {
     marginBottom: spacing.md,
-    borderRadius: 16,
+    borderRadius: scale(16),
     overflow: 'hidden',
   },
   featureGradient: {
     padding: spacing.lg,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.1)',
+    borderRadius: scale(16),
+    borderWidth: scale(1),
+    borderColor: colors.borderSubtle,
   },
   featureHeader: {
     flexDirection: 'row',
@@ -1143,7 +1195,7 @@ const styles = StyleSheet.create({
     width: scale(44),
     height: scale(44),
     borderRadius: scale(12),
-    backgroundColor: 'rgba(99,102,241,0.15)',
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1159,7 +1211,7 @@ const styles = StyleSheet.create({
   featureSubtitle: {
     fontSize: scale(13),
     color: colors.textMuted,
-    marginTop: scale(2),
+    marginTop: verticalScale(2),
   },
   colorPalette: {
     flexDirection: 'row',
@@ -1170,14 +1222,14 @@ const styles = StyleSheet.create({
     width: scale(24),
     height: scale(24),
     borderRadius: scale(12),
-    borderWidth: 2,
-    borderColor: 'rgba(148,163,184,0.2)',
+    borderWidth: scale(2),
+    borderColor: colors.borderMedium,
   },
   sectionTitle: {
     fontSize: scale(12),
     color: colors.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: scale(1),
     marginTop: spacing.lg,
     marginBottom: spacing.md,
   },
@@ -1185,17 +1237,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.card,
-    borderRadius: 12,
+    borderRadius: scale(12),
     padding: spacing.md,
     marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.1)',
+    borderWidth: scale(1),
+    borderColor: colors.borderSubtle,
   },
   menuIcon: {
     width: scale(36),
     height: scale(36),
     borderRadius: scale(10),
-    backgroundColor: 'rgba(148,163,184,0.1)',
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1208,16 +1260,28 @@ const styles = StyleSheet.create({
   toggleOn: {
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 10,
+    paddingVertical: verticalScale(4),
+    borderRadius: scale(10),
   },
   toggleOff: {
     backgroundColor: colors.textMuted,
   },
   toggleText: {
-    fontSize: scale(12),
-    color: '#fff',
+    fontSize: scale(11),
+    color: colors.textOnPrimary,
     fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  planBadge: {
+    paddingHorizontal: scale(10),
+    paddingVertical: verticalScale(3),
+    borderRadius: scale(8),
+    marginRight: scale(4),
+  },
+  planBadgeText: {
+    fontSize: scale(11),
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -1225,16 +1289,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 12,
+    borderRadius: scale(12),
     padding: spacing.md,
     marginTop: spacing.xl,
-    borderWidth: 1,
+    borderWidth: scale(1),
     borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   logoutText: {
-    fontSize: scale(15),
+    fontSize: scale(14),
     fontWeight: '600',
-    color: '#f43f5e',
+    color: colors.danger,
+    letterSpacing: 0.3,
   },
   version: {
     fontSize: scale(12),
@@ -1244,14 +1309,14 @@ const styles = StyleSheet.create({
   },
   expandedCard: {
     backgroundColor: colors.card,
-    borderRadius: 16,
+    borderRadius: scale(16),
     padding: spacing.lg,
     marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.1)',
+    borderWidth: scale(1),
+    borderColor: colors.borderSubtle,
   },
   expandedTitle: {
-    fontSize: 14,
+    fontSize: scale(14),
     fontWeight: '600',
     color: colors.textPrimary,
     marginBottom: spacing.md,
@@ -1267,14 +1332,14 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   colorDotLarge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(148,163,184,0.2)',
+    width: scale(40),
+    height: scale(40),
+    borderRadius: scale(20),
+    borderWidth: scale(2),
+    borderColor: colors.borderSubtle,
   },
   colorName: {
-    fontSize: 11,
+    fontSize: scale(11),
     color: colors.textSecondary,
     textTransform: 'capitalize',
   },
@@ -1284,13 +1349,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   tag: {
-    backgroundColor: 'rgba(99,102,241,0.15)',
+    backgroundColor: colors.primarySoft,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    borderRadius: 20,
+    borderRadius: scale(20),
   },
   tagText: {
-    fontSize: 12,
+    fontSize: scale(12),
     color: colors.primary,
     fontWeight: '600',
     textTransform: 'capitalize',
@@ -1301,27 +1366,27 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   balanceCategory: {
-    fontSize: 12,
+    fontSize: scale(12),
     color: colors.textSecondary,
-    width: 80,
+    width: scale(80),
     textTransform: 'capitalize',
   },
   balanceBar: {
     flex: 1,
-    height: 8,
-    backgroundColor: 'rgba(148,163,184,0.1)',
-    borderRadius: 4,
+    height: verticalScale(8),
+    backgroundColor: colors.primarySoft,
+    borderRadius: scale(4),
     marginHorizontal: spacing.sm,
   },
   balanceFill: {
     height: '100%',
     backgroundColor: colors.primary,
-    borderRadius: 4,
+    borderRadius: scale(4),
   },
   balancePercent: {
-    fontSize: 12,
+    fontSize: scale(12),
     color: colors.textMuted,
-    width: 40,
+    width: scale(40),
     textAlign: 'right',
   },
   analyticsGrid: {
@@ -1334,32 +1399,32 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   analyticsNumber: {
-    fontSize: 24,
+    fontSize: scale(24),
     fontWeight: '700',
     color: colors.textPrimary,
   },
   analyticsLabel: {
-    fontSize: 12,
+    fontSize: scale(12),
     color: colors.textMuted,
   },
   categoryItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(148,163,184,0.1)',
+    borderBottomWidth: scale(1),
+    borderBottomColor: colors.borderSubtle,
   },
   categoryName: {
-    fontSize: 14,
+    fontSize: scale(14),
     color: colors.textPrimary,
     textTransform: 'capitalize',
   },
   categoryCount: {
-    fontSize: 13,
+    fontSize: scale(13),
     color: colors.textSecondary,
   },
   noDataText: {
-    fontSize: 14,
+    fontSize: scale(14),
     color: colors.textMuted,
     textAlign: 'center',
     paddingVertical: spacing.lg,
@@ -1367,18 +1432,18 @@ const styles = StyleSheet.create({
   primaryStyleContainer: {
     alignItems: 'center',
     paddingVertical: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(148,163,184,0.1)',
+    borderBottomWidth: scale(1),
+    borderBottomColor: colors.borderSubtle,
     marginBottom: spacing.md,
   },
   primaryStyleLabel: {
-    fontSize: 11,
+    fontSize: scale(11),
     color: colors.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: scale(1),
   },
   primaryStyleValue: {
-    fontSize: 28,
+    fontSize: scale(28),
     fontWeight: '700',
     color: colors.primary,
     textTransform: 'capitalize',
@@ -1388,24 +1453,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(148,163,184,0.1)',
+    borderBottomWidth: scale(1),
+    borderBottomColor: colors.borderSubtle,
   },
   scoreItem: {
     alignItems: 'center',
   },
   scoreValue: {
-    fontSize: 20,
+    fontSize: scale(20),
     fontWeight: '700',
     color: colors.textPrimary,
   },
   scoreLabel: {
-    fontSize: 11,
+    fontSize: scale(11),
     color: colors.textMuted,
-    marginTop: 2,
+    marginTop: verticalScale(2),
   },
   colorPercent: {
-    fontSize: 10,
+    fontSize: scale(10),
     color: colors.textMuted,
   },
   brandsContainer: {
@@ -1416,19 +1481,19 @@ const styles = StyleSheet.create({
   brandTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(236,72,153,0.15)',
+    backgroundColor: 'rgba(232,213,183,0.15)',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    borderRadius: 20,
+    borderRadius: scale(20),
     gap: spacing.xs,
   },
   brandText: {
-    fontSize: 12,
+    fontSize: scale(12),
     color: colors.secondary,
     fontWeight: '600',
   },
   brandCount: {
-    fontSize: 10,
+    fontSize: scale(10),
     color: colors.textMuted,
   },
   seasonalContainer: {
@@ -1440,21 +1505,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   seasonName: {
-    fontSize: 11,
+    fontSize: scale(11),
     color: colors.textSecondary,
     textTransform: 'capitalize',
     marginBottom: spacing.xs,
   },
   seasonColors: {
     flexDirection: 'row',
-    gap: 4,
+    gap: scale(4),
   },
   seasonColorDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.2)',
+    width: scale(16),
+    height: scale(16),
+    borderRadius: scale(8),
+    borderWidth: scale(1),
+    borderColor: colors.borderMedium,
   },
   // Edit Profile Modal Styles
   editButton: {
@@ -1464,21 +1529,21 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     backgroundColor: colors.cardSoft,
     borderRadius: scale(20),
-    borderWidth: 1,
+    borderWidth: scale(1),
     borderColor: colors.borderSubtle,
   },
   profileAvatar: {
     width: scale(90),
     height: scale(90),
     borderRadius: scale(45),
-    borderWidth: 3,
+    borderWidth: scale(3),
     borderColor: colors.primary,
   },
   username: {
     fontSize: scale(16),
     color: colors.primary,
     fontWeight: '600',
-    marginTop: scale(4),
+    marginTop: verticalScale(4),
   },
   modalContainer: {
     flex: 1,
@@ -1517,7 +1582,7 @@ const styles = StyleSheet.create({
     width: scale(120),
     height: scale(120),
     borderRadius: scale(60),
-    borderWidth: 3,
+    borderWidth: scale(3),
     borderColor: colors.primary,
   },
   profilePicturePlaceholder: {
@@ -1537,7 +1602,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: scale(3),
     borderColor: colors.background,
   },
   profilePictureButtons: {
@@ -1552,7 +1617,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: scale(20),
-    borderWidth: 1,
+    borderWidth: scale(1),
     borderColor: colors.borderSubtle,
   },
   pictureButtonText: {
@@ -1576,7 +1641,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     fontSize: scale(16),
     color: colors.textPrimary,
-    borderWidth: 1,
+    borderWidth: scale(1),
     borderColor: colors.borderSubtle,
   },
   inputHint: {
@@ -1599,9 +1664,38 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   saveButtonText: {
-    fontSize: scale(16),
+    fontSize: scale(14),
     fontWeight: '600',
-    color: '#fff',
+    color: colors.textOnPrimary,
+    letterSpacing: 0.5,
+  },
+  viewFullAnalyticsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: scale(12),
+    marginTop: spacing.lg,
+  },
+  viewFullAnalyticsBtnText: {
+    fontSize: scale(13),
+    fontWeight: '600',
+    color: colors.textOnPrimary,
+    letterSpacing: 0.3,
+  },
+  analyticsModalClose: {
+    position: 'absolute',
+    top: verticalScale(16),
+    right: spacing.lg,
+    zIndex: 10,
+    padding: spacing.sm,
+    backgroundColor: colors.cardSoft,
+    borderRadius: scale(20),
+    borderWidth: scale(1),
+    borderColor: colors.borderSubtle,
   },
 });
 

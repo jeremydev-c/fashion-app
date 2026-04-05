@@ -53,7 +53,6 @@ const StyleDNASchema = new mongoose.Schema(
   },
 );
 
-StyleDNASchema.index({ userId: 1 });
 
 module.exports = mongoose.model('StyleDNA', StyleDNASchema);
 

@@ -12,8 +12,7 @@ const OutfitFeedbackSchema = new mongoose.Schema(
       enum: ['saved', 'rejected', 'rated'],
       required: true,
     },
-    rating: { type: Number, min: 1, max: 5 }, // Only set if action is 'rated'
-    createdAt: { type: Date, default: Date.now },
+    rating: { type: Number, min: 1, max: 5 },
   },
   {
     timestamps: true,

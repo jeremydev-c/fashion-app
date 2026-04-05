@@ -5,48 +5,53 @@ export type SubscriptionPlan = {
   name: string;
   price: number;
   currency: string;
-  interval: 'month' | 'year';
+  interval: 'monthly' | 'annually' | null;
+  badge: string | null;
   features: string[];
+};
+
+export type PlanLimits = {
+  maxItems: number;
+  dailyRecommendations: number;
+  bulkUpload: boolean;
+  destinationWeather: boolean;
+  styleCoach: boolean;
+  analytics: boolean;
+  planner: boolean;
 };
 
 export type Subscription = {
   planId: string;
-  status: 'active' | 'cancelled' | 'expired';
+  status: 'active' | 'cancelled' | 'expired' | 'attention' | 'non-renewing';
   currentPeriodEnd?: string;
 };
 
-/**
- * Get available subscription plans
- */
 export async function getPlans(): Promise<SubscriptionPlan[]> {
   const response = await apiRequest<{ plans: SubscriptionPlan[] }>('/payments/plans');
   return response.plans;
 }
 
-/**
- * Get user's current subscription
- */
-export async function getSubscription(): Promise<Subscription> {
-  const response = await apiRequest<{ subscription: Subscription }>('/payments/subscription');
-  return response.subscription;
+export async function getSubscription(): Promise<{ subscription: Subscription; limits: PlanLimits }> {
+  return apiRequest<{ subscription: Subscription; limits: PlanLimits }>('/payments/subscription');
 }
 
-/**
- * Create Stripe checkout session
- */
-export async function createCheckout(planId: string): Promise<{ sessionId: string; url: string }> {
-  return apiRequest<{ sessionId: string; url: string }>('/payments/create-checkout', {
+export async function initializePayment(planId: string): Promise<{
+  authorizationUrl: string;
+  accessCode: string;
+  reference: string;
+}> {
+  return apiRequest('/payments/initialize', {
     method: 'POST',
     body: JSON.stringify({ planId }),
   });
 }
 
-/**
- * Cancel subscription
- */
+export async function verifyPayment(reference: string): Promise<{ success: boolean; planId: string; status: string }> {
+  return apiRequest(`/payments/verify/${reference}`);
+}
+
 export async function cancelSubscription(): Promise<{ success: boolean; message: string }> {
-  return apiRequest<{ success: boolean; message: string }>('/payments/cancel-subscription', {
+  return apiRequest('/payments/cancel-subscription', {
     method: 'POST',
   });
 }
-

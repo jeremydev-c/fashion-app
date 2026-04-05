@@ -9,18 +9,15 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const scale = (size: number) => Math.round((SCREEN_WIDTH / 393) * size);
-
+import { scale, verticalScale } from '../utils/responsive';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../services/apiClient';
 import { VerifyScreen } from './VerifyScreen';
@@ -28,6 +25,7 @@ import { VerifyScreen } from './VerifyScreen';
 type Mode = 'login' | 'signup';
 
 export const AuthScreen: React.FC = () => {
+  const colors = useThemeColors();
   const { login, setUser } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
@@ -140,7 +138,7 @@ export const AuthScreen: React.FC = () => {
   return (
     <View style={styles.root}>
       <LinearGradient
-        colors={['#050816', '#0b1020', '#111827']}
+        colors={[...colors.gradient]}
         style={StyleSheet.absoluteFillObject}
       />
 
@@ -291,8 +289,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: 80,
-    paddingBottom: 40,
+    paddingTop: verticalScale(80),
+    paddingBottom: verticalScale(40),
   },
   logoContainer: {
     alignItems: 'center',
@@ -331,7 +329,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.card,
-    borderRadius: 12,
+    borderRadius: scale(12),
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     paddingHorizontal: spacing.md,

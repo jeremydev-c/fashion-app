@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 
 interface FABAction {
@@ -28,6 +29,7 @@ export default function FloatingActionButton({
   actions,
   icon = 'add',
 }: FloatingActionButtonProps) {
+  const colors = useThemeColors();
   const [isOpen, setIsOpen] = useState(false);
   const animation = useState(new Animated.Value(0))[0];
 

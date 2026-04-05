@@ -8,19 +8,16 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Dimensions,
-  SafeAreaView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { apiRequest } from '../services/apiClient';
 import { scale } from '../utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type Props = {
   email: string;
@@ -29,6 +26,7 @@ type Props = {
 };
 
 export const VerifyScreen: React.FC<Props> = ({ email, onVerified, onBack }) => {
+  const colors = useThemeColors();
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
@@ -134,18 +132,18 @@ export const VerifyScreen: React.FC<Props> = ({ email, onVerified, onBack }) => 
   };
 
   return (
-    <SafeAreaView style={styles.root}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       <LinearGradient
-        colors={['#050816', '#0b1020', '#111827']}
+        colors={[...colors.gradient]}
         style={StyleSheet.absoluteFillObject}
       />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={[styles.container, { paddingTop: Math.max(insets.top, scale(60)) }]}
+        style={[styles.container, { paddingTop: scale(60) }]}
       >
         {/* Back button */}
-        <TouchableOpacity style={[styles.backButton, { top: Math.max(insets.top, scale(60)) }]} onPress={onBack}>
+        <TouchableOpacity style={[styles.backButton, { top: scale(60) }]} onPress={onBack}>
           <Ionicons name="arrow-back" size={scale(24)} color={colors.textSecondary} />
         </TouchableOpacity>
 
@@ -223,7 +221,7 @@ export const VerifyScreen: React.FC<Props> = ({ email, onVerified, onBack }) => 
           )}
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 

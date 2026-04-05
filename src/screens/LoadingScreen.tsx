@@ -2,360 +2,471 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
-import { spacing } from '../theme/spacing';
-import { typography } from '../theme/typography';
-import { scale } from '../utils/responsive';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { scale, verticalScale } from '../utils/responsive';
 
 const { width, height } = Dimensions.get('window');
 
+const FASHION_WORDS = ['STYLE', 'ELEGANCE', 'CURATE', 'REFINE', 'LUXE', 'BESPOKE', 'VOGUE'];
+
 export const LoadingScreen: React.FC = () => {
-  // Animation values using useRef to prevent re-creation
-  const logoScale = useRef(new Animated.Value(0)).current;
-  const logoRotation = useRef(new Animated.Value(0)).current;
+  const colors = useThemeColors();
+
+  // Core animations
+  const screenOpacity = useRef(new Animated.Value(1)).current;
+  const logoScale = useRef(new Animated.Value(0.3)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
-  const titleOpacity = useRef(new Animated.Value(0)).current;
-  const titleTranslateY = useRef(new Animated.Value(20)).current;
-  const subtitleOpacity = useRef(new Animated.Value(0)).current;
-  const progressWidth = useRef(new Animated.Value(0)).current;
-  const shimmerTranslateX = useRef(new Animated.Value(-width)).current;
-  const particle1Y = useRef(new Animated.Value(0)).current;
-  const particle2Y = useRef(new Animated.Value(0)).current;
-  const particle3Y = useRef(new Animated.Value(0)).current;
-  const particle4Y = useRef(new Animated.Value(0)).current;
-  const dot1Opacity = useRef(new Animated.Value(0.3)).current;
-  const dot2Opacity = useRef(new Animated.Value(0.3)).current;
-  const dot3Opacity = useRef(new Animated.Value(0.3)).current;
-  const screenFadeOut = useRef(new Animated.Value(1)).current;
+  const letterAnims = useRef(
+    'FASHION FIT'.split('').map(() => ({
+      opacity: new Animated.Value(0),
+      translateY: new Animated.Value(scale(30)),
+    })),
+  ).current;
+  const taglineOpacity = useRef(new Animated.Value(0)).current;
+  const taglineTranslateY = useRef(new Animated.Value(scale(15))).current;
+  const lineWidth = useRef(new Animated.Value(0)).current;
+  const lineOpacity = useRef(new Animated.Value(0)).current;
+
+  // Orbiting ring
+  const ringRotation = useRef(new Animated.Value(0)).current;
+  const ringScale = useRef(new Animated.Value(0)).current;
+  const ringOpacity = useRef(new Animated.Value(0)).current;
+
+  // Pulsing glow
+  const glowScale = useRef(new Animated.Value(0.8)).current;
+  const glowOpacity = useRef(new Animated.Value(0)).current;
+
+  // Rolling word
+  const wordIndex = useRef(0);
+  const wordOpacity = useRef(new Animated.Value(0)).current;
+  const wordTranslateY = useRef(new Animated.Value(scale(12))).current;
+  const [currentWord, setCurrentWord] = React.useState(FASHION_WORDS[0]);
+
+  // Status text
+  const statusOpacity = useRef(new Animated.Value(0)).current;
+  const statusTranslateY = useRef(new Animated.Value(scale(10))).current;
+  const [statusText, setStatusText] = React.useState('');
+
+  // Bottom accent line
+  const accentWidth = useRef(new Animated.Value(0)).current;
+
+  // Floating diamond particles
+  const diamonds = useRef(
+    Array.from({ length: 6 }, () => ({
+      x: new Animated.Value(Math.random() * width),
+      y: new Animated.Value(height + 20),
+      opacity: new Animated.Value(0),
+      rotation: new Animated.Value(0),
+    })),
+  ).current;
 
   useEffect(() => {
-    // Logo entrance animation
+    // ── Phase 1: Logo entrance (0ms – 1000ms) ──
     Animated.parallel([
       Animated.spring(logoScale, {
         toValue: 1,
-        tension: 50,
-        friction: 7,
+        tension: 35,
+        friction: 9,
         useNativeDriver: true,
       }),
       Animated.timing(logoOpacity, {
         toValue: 1,
-        duration: 600,
+        duration: 900,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
     ]).start();
 
-    // Logo rotation (continuous)
-    Animated.loop(
-      Animated.timing(logoRotation, {
+    // Orbiting ring
+    Animated.parallel([
+      Animated.timing(ringOpacity, {
+        toValue: 0.6,
+        duration: 800,
+        delay: 400,
+        useNativeDriver: true,
+      }),
+      Animated.spring(ringScale, {
         toValue: 1,
-        duration: 3000,
+        tension: 25,
+        friction: 10,
+        delay: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    Animated.loop(
+      Animated.timing(ringRotation, {
+        toValue: 1,
+        duration: 8000,
         easing: Easing.linear,
         useNativeDriver: true,
-      })
+      }),
     ).start();
 
-    // Title animation
-    Animated.parallel([
-      Animated.timing(titleOpacity, {
-        toValue: 1,
+    // Pulsing glow behind logo
+    Animated.sequence([
+      Animated.timing(glowOpacity, {
+        toValue: 0.5,
         duration: 800,
-        delay: 300,
+        delay: 500,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(glowScale, { toValue: 1.3, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(glowOpacity, { toValue: 0.25, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          ]),
+          Animated.parallel([
+            Animated.timing(glowScale, { toValue: 0.8, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(glowOpacity, { toValue: 0.6, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          ]),
+        ]),
+      ).start();
+    });
+
+    // ── Phase 2: Letter-by-letter title (1200ms) ──
+    const letterDelay = 1200;
+    letterAnims.forEach((anim, i) => {
+      Animated.parallel([
+        Animated.timing(anim.opacity, {
+          toValue: 1,
+          duration: 400,
+          delay: letterDelay + i * 80,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(anim.translateY, {
+          toValue: 0,
+          tension: 70,
+          friction: 12,
+          delay: letterDelay + i * 80,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+
+    // Gold underline sweep
+    const lineDelay = letterDelay + 'FASHION FIT'.length * 80 + 200;
+    Animated.sequence([
+      Animated.timing(lineOpacity, {
+        toValue: 1,
+        duration: 250,
+        delay: lineDelay,
+        useNativeDriver: false,
+      }),
+      Animated.timing(lineWidth, {
+        toValue: scale(140),
+        duration: 600,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]).start();
+
+    // ── Phase 3: Tagline (2800ms) ──
+    Animated.parallel([
+      Animated.timing(taglineOpacity, {
+        toValue: 1,
+        duration: 700,
+        delay: 2800,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
-      Animated.timing(titleTranslateY, {
+      Animated.spring(taglineTranslateY, {
         toValue: 0,
-        duration: 800,
-        delay: 300,
-        easing: Easing.out(Easing.cubic),
+        tension: 50,
+        friction: 12,
+        delay: 2800,
         useNativeDriver: true,
       }),
     ]).start();
 
-    // Subtitle animation
-    Animated.timing(subtitleOpacity, {
-      toValue: 1,
-      duration: 600,
-      delay: 600,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+    // ── Phase 4: Rolling fashion words (3200ms) ──
+    const cycleWord = () => {
+      Animated.parallel([
+        Animated.timing(wordOpacity, { toValue: 1, duration: 450, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.spring(wordTranslateY, { toValue: 0, tension: 70, friction: 12, useNativeDriver: true }),
+      ]).start(() => {
+        setTimeout(() => {
+          Animated.parallel([
+            Animated.timing(wordOpacity, { toValue: 0, duration: 350, useNativeDriver: true }),
+            Animated.timing(wordTranslateY, { toValue: scale(-12), duration: 350, useNativeDriver: true }),
+          ]).start(() => {
+            wordIndex.current = (wordIndex.current + 1) % FASHION_WORDS.length;
+            setCurrentWord(FASHION_WORDS[wordIndex.current]);
+            wordTranslateY.setValue(scale(12));
+            cycleWord();
+          });
+        }, 600);
+      });
+    };
+    const wordTimer = setTimeout(cycleWord, 3200);
 
-    // Progress bar animation - fill completely
-    Animated.timing(progressWidth, {
-      toValue: width * 0.6, // Match the container width
-      duration: 2000,
-      delay: 900,
-      easing: Easing.inOut(Easing.ease),
+    // Bottom accent
+    Animated.timing(accentWidth, {
+      toValue: scale(50),
+      duration: 900,
+      delay: 3000,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
 
-    // Shimmer effect (continuous)
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmerTranslateX, {
-          toValue: width * 2,
-          duration: 2000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shimmerTranslateX, {
-          toValue: -width,
-          duration: 0,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    // ── Phase 5: Status text sequence (3600ms) ──
+    const STATUS_MESSAGES = [
+      'Analyzing your style...',
+      'Preparing your wardrobe...',
+      'Almost ready...',
+    ];
+    let statusIdx = 0;
 
-    // Floating particles
-    const animateParticle = (animValue: Animated.Value, delay: number) => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(animValue, {
-            toValue: -30,
-            duration: 2000 + delay * 200,
-            delay,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-          Animated.timing(animValue, {
-            toValue: 0,
-            duration: 2000 + delay * 200,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    };
-
-    animateParticle(particle1Y, 0);
-    animateParticle(particle2Y, 200);
-    animateParticle(particle3Y, 400);
-    animateParticle(particle4Y, 600);
-
-    // Animated dots (pulsing)
-    const animateDots = () => {
-      const createDotAnimation = (animValue: Animated.Value, delay: number) => {
-        return Animated.loop(
-          Animated.sequence([
-            Animated.timing(animValue, {
-              toValue: 1,
-              duration: 600,
-              delay,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
-            }),
-            Animated.timing(animValue, {
-              toValue: 0.3,
-              duration: 600,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
-            }),
-          ])
-        );
-      };
+    const showStatus = () => {
+      if (statusIdx >= STATUS_MESSAGES.length) return;
+      setStatusText(STATUS_MESSAGES[statusIdx]);
+      statusTranslateY.setValue(scale(10));
 
       Animated.parallel([
-        createDotAnimation(dot1Opacity, 0),
-        createDotAnimation(dot2Opacity, 200),
-        createDotAnimation(dot3Opacity, 400),
-      ]).start();
+        Animated.timing(statusOpacity, { toValue: 1, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.spring(statusTranslateY, { toValue: 0, tension: 80, friction: 14, useNativeDriver: true }),
+      ]).start(() => {
+        setTimeout(() => {
+          Animated.timing(statusOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+            statusIdx++;
+            showStatus();
+          });
+        }, 600);
+      });
     };
+    const statusTimer = setTimeout(showStatus, 3600);
 
-    animateDots();
+    // ── Floating diamond particles ──
+    diamonds.forEach((d, i) => {
+      const animateDiamond = () => {
+        d.x.setValue(Math.random() * width * 0.8 + width * 0.1);
+        d.y.setValue(height + 20);
+        d.opacity.setValue(0);
+        d.rotation.setValue(0);
 
-    // Fade out at the end for smooth transition
-    Animated.timing(screenFadeOut, {
+        Animated.parallel([
+          Animated.timing(d.y, {
+            toValue: -50,
+            duration: 4500 + Math.random() * 2000,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.sequence([
+            Animated.timing(d.opacity, { toValue: 0.4 + Math.random() * 0.3, duration: 1200, useNativeDriver: true }),
+            Animated.timing(d.opacity, { toValue: 0, duration: 2800, delay: 500, useNativeDriver: true }),
+          ]),
+          Animated.timing(d.rotation, {
+            toValue: 1,
+            duration: 4500 + Math.random() * 2000,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+        ]).start(() => animateDiamond());
+      };
+
+      setTimeout(animateDiamond, 600 + i * 400);
+    });
+
+    // ── Fade out screen (5000ms) ──
+    Animated.timing(screenOpacity, {
       toValue: 0,
-      duration: 400,
-      delay: 2800,
+      duration: 600,
+      delay: 4900,
       easing: Easing.out(Easing.ease),
       useNativeDriver: true,
     }).start();
+
+    return () => {
+      clearTimeout(wordTimer);
+      clearTimeout(statusTimer);
+      // Stop all running animations on unmount
+      [logoScale, logoOpacity, ringOpacity, ringScale, ringRotation, glowScale, glowOpacity, accentWidth, screenOpacity, statusOpacity, statusTranslateY].forEach(v => v.stopAnimation());
+      diamonds.forEach(d => { d.x.stopAnimation(); d.y.stopAnimation(); d.opacity.stopAnimation(); d.rotation.stopAnimation(); });
+    };
   }, []);
 
-  const logoRotationInterpolate = logoRotation.interpolate({
+  const ringRotationInterp = ringRotation.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
 
-  const shimmerOpacity = shimmerTranslateX.interpolate({
-    inputRange: [-width, 0, width, width * 2],
-    outputRange: [0, 0.3, 0.3, 0],
-  });
+  const letters = 'FASHION FIT'.split('');
 
   return (
-    <Animated.View
-      style={[
-        StyleSheet.absoluteFill,
-        {
-          opacity: screenFadeOut,
-        },
-      ]}
-    >
+    <Animated.View style={[StyleSheet.absoluteFill, { opacity: screenOpacity }]}>
       <LinearGradient
-        colors={['#020617', '#050816', '#0f172a', '#111827']}
+        colors={[colors.background, colors.backgroundAlt, colors.background]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
       >
         <View style={styles.root}>
-      {/* Animated background particles */}
-      <Animated.View
-        style={[
-          styles.particle,
-          styles.particle1,
-          {
-            transform: [{ translateY: particle1Y }],
-            opacity: 0.4,
-          },
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.particle,
-          styles.particle2,
-          {
-            transform: [{ translateY: particle2Y }],
-            opacity: 0.3,
-          },
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.particle,
-          styles.particle3,
-          {
-            transform: [{ translateY: particle3Y }],
-            opacity: 0.35,
-          },
-        ]}
-      />
-      <Animated.View
-        style={[
-          styles.particle,
-          styles.particle4,
-          {
-            transform: [{ translateY: particle4Y }],
-            opacity: 0.25,
-          },
-        ]}
-      />
+          {/* Floating diamond particles */}
+          {diamonds.map((d, i) => (
+            <Animated.View
+              key={i}
+              style={[
+                styles.diamond,
+                {
+                  transform: [
+                    { translateX: d.x },
+                    { translateY: d.y },
+                    {
+                      rotate: d.rotation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', '360deg'],
+                      }),
+                    },
+                  ],
+                  opacity: d.opacity,
+                  borderColor: colors.primary,
+                },
+              ]}
+            />
+          ))}
 
-      {/* Main content */}
-      <View style={styles.content}>
-        {/* Logo with rotation */}
-        <Animated.View
-          style={[
-            styles.logoContainer,
-            {
-              transform: [
-                { scale: logoScale },
-                { rotate: logoRotationInterpolate },
-              ],
-              opacity: logoOpacity,
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={[colors.primary, colors.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoGradient}
-          >
-            <View style={styles.logoInner}>
-              <Ionicons name="sparkles" size={40} color="#ffffff" />
-            </View>
-          </LinearGradient>
-          {/* Glow effect */}
-          <View style={styles.logoGlow} />
-        </Animated.View>
-
-        {/* Title */}
-        <Animated.View
-          style={{
-            opacity: titleOpacity,
-            transform: [{ translateY: titleTranslateY }],
-          }}
-        >
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>Fashion Fit</Text>
-            <View style={styles.titleUnderline} />
-          </View>
-        </Animated.View>
-
-        {/* Subtitle */}
-        <Animated.View style={{ opacity: subtitleOpacity }}>
-          <Text style={styles.subtitle}>Calibrating your Style DNA</Text>
-        </Animated.View>
-
-        {/* Progress bar container */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressTrack}>
+          <View style={styles.content}>
+            {/* Glow behind logo */}
             <Animated.View
               style={[
-                styles.progressBar,
+                styles.glow,
                 {
-                  width: progressWidth,
+                  backgroundColor: colors.primary,
+                  transform: [{ scale: glowScale }],
+                  opacity: glowOpacity,
+                },
+              ]}
+            />
+
+            {/* Orbiting ring */}
+            <Animated.View
+              style={[
+                styles.orbitRing,
+                {
+                  borderColor: colors.primary,
+                  transform: [{ rotate: ringRotationInterp }, { scale: ringScale }],
+                  opacity: ringOpacity,
                 },
               ]}
             >
-              {/* Shimmer overlay */}
-              <Animated.View
+              <View style={[styles.orbitDot, { backgroundColor: colors.primary }]} />
+            </Animated.View>
+
+            {/* Logo */}
+            <Animated.View
+              style={[
+                styles.logoWrap,
+                {
+                  transform: [{ scale: logoScale }],
+                  opacity: logoOpacity,
+                },
+              ]}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.logoOuter}
+              >
+                <View style={[styles.logoInner, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.logoLetter, { color: colors.primary }]}>F</Text>
+                </View>
+              </LinearGradient>
+            </Animated.View>
+
+            {/* Letter-by-letter title */}
+            <View style={styles.titleRow}>
+              {letters.map((char, i) => (
+                <Animated.Text
+                  key={i}
+                  style={[
+                    styles.titleChar,
+                    {
+                      color: colors.textPrimary,
+                      opacity: letterAnims[i].opacity,
+                      transform: [{ translateY: letterAnims[i].translateY }],
+                    },
+                    char === ' ' && styles.titleSpace,
+                  ]}
+                >
+                  {char}
+                </Animated.Text>
+              ))}
+            </View>
+
+            {/* Gold underline */}
+            <Animated.View
+              style={[
+                styles.goldLine,
+                {
+                  backgroundColor: colors.primary,
+                  width: lineWidth,
+                  opacity: lineOpacity,
+                  shadowColor: colors.primary,
+                },
+              ]}
+            />
+
+            {/* Tagline */}
+            <Animated.View
+              style={{
+                opacity: taglineOpacity,
+                transform: [{ translateY: taglineTranslateY }],
+                marginTop: verticalScale(20),
+              }}
+            >
+              <Text style={[styles.tagline, { color: colors.textSecondary }]}>
+                Your Personal Style Intelligence
+              </Text>
+            </Animated.View>
+
+            {/* Rolling fashion word */}
+            <View style={[styles.wordContainer, { borderColor: colors.borderSubtle }]}>
+              <Ionicons name="diamond" size={scale(10)} color={colors.primary} />
+              <Animated.Text
                 style={[
-                  styles.shimmer,
+                  styles.rollingWord,
                   {
-                    transform: [{ translateX: shimmerTranslateX }],
-                    opacity: shimmerOpacity,
+                    color: colors.primary,
+                    opacity: wordOpacity,
+                    transform: [{ translateY: wordTranslateY }],
                   },
                 ]}
+              >
+                {currentWord}
+              </Animated.Text>
+              <Ionicons name="diamond" size={scale(10)} color={colors.primary} />
+            </View>
+
+            {/* Status text */}
+            {statusText !== '' && (
+              <Animated.Text
+                style={[
+                  styles.statusText,
+                  {
+                    color: colors.textMuted,
+                    opacity: statusOpacity,
+                    transform: [{ translateY: statusTranslateY }],
+                  },
+                ]}
+              >
+                {statusText}
+              </Animated.Text>
+            )}
+
+            {/* Bottom accent */}
+            <View style={styles.bottomAccent}>
+              <Animated.View
+                style={[
+                  styles.accentLine,
+                  { backgroundColor: colors.primary, width: accentWidth },
+                ]}
               />
-            </Animated.View>
+            </View>
           </View>
-        </View>
-
-        {/* Loading dots */}
-        <View style={styles.dotsContainer}>
-          <Animated.View
-            style={[
-              styles.dot,
-              {
-                opacity: dot1Opacity,
-              },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.dot,
-              {
-                opacity: dot2Opacity,
-              },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.dot,
-              {
-                opacity: dot3Opacity,
-              },
-            ]}
-          />
-        </View>
-
-        {/* Tagline */}
-        <Animated.View
-          style={[
-            styles.taglineContainer,
-            {
-              opacity: subtitleOpacity,
-            },
-          ]}
-        >
-          <Ionicons name="diamond-outline" size={14} color={colors.primary} />
-          <Text style={styles.tagline}>Your personal style assistant</Text>
-        </Animated.View>
-      </View>
         </View>
       </LinearGradient>
     </Animated.View>
@@ -367,169 +478,139 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
   content: {
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 10,
   },
-  // Particles
-  particle: {
+  // Floating diamond particles
+  diamond: {
     position: 'absolute',
-    width: scale(4),
-    height: scale(4),
-    borderRadius: scale(2),
-    backgroundColor: colors.primary,
+    width: scale(8),
+    height: scale(8),
+    borderWidth: 1,
+    transform: [{ rotate: '45deg' }],
   },
-  particle1: {
-    left: '20%',
-    top: '15%',
+  // Glow
+  glow: {
+    position: 'absolute',
+    width: scale(200),
+    height: scale(200),
+    borderRadius: scale(100),
   },
-  particle2: {
-    right: '25%',
-    top: '25%',
+  // Orbiting ring
+  orbitRing: {
+    position: 'absolute',
+    width: scale(140),
+    height: scale(140),
+    borderRadius: scale(70),
+    borderWidth: 1,
+    borderStyle: 'dashed',
   },
-  particle3: {
-    left: '30%',
-    bottom: '30%',
-  },
-  particle4: {
-    right: '20%',
-    bottom: '20%',
+  orbitDot: {
+    position: 'absolute',
+    top: -scale(4),
+    left: '50%',
+    marginLeft: -scale(4),
+    width: scale(8),
+    height: scale(8),
+    borderRadius: scale(4),
   },
   // Logo
-  logoContainer: {
-    width: scale(100),
-    height: scale(100),
-    marginBottom: spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoWrap: {
+    marginBottom: verticalScale(32),
   },
-  logoGradient: {
-    width: scale(100),
-    height: scale(100),
-    borderRadius: scale(50),
+  logoOuter: {
+    width: scale(96),
+    height: scale(96),
+    borderRadius: scale(48),
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: scale(20),
-    elevation: 10,
+    shadowOpacity: 0.6,
+    shadowRadius: scale(30),
+    elevation: 15,
   },
   logoInner: {
-    width: scale(90),
-    height: scale(90),
-    borderRadius: scale(45),
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    width: scale(82),
+    height: scale(82),
+    borderRadius: scale(41),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoGlow: {
-    position: 'absolute',
-    width: scale(120),
-    height: scale(120),
-    borderRadius: scale(60),
-    backgroundColor: colors.primarySoft,
-    zIndex: -1,
+  logoLetter: {
+    fontSize: scale(42),
+    fontWeight: '300',
+    fontStyle: 'italic',
+    letterSpacing: -2,
   },
   // Title
-  titleContainer: {
-    marginBottom: spacing.sm,
+  titleRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: verticalScale(8),
   },
-  title: {
-    ...typography.display,
-    fontSize: scale(38),
-    fontWeight: '800',
-    letterSpacing: scale(2),
-    textAlign: 'center',
-    color: colors.textPrimary,
-    textShadowColor: 'rgba(255, 107, 156, 0.6)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: scale(25),
+  titleChar: {
+    fontSize: scale(28),
+    fontWeight: '200',
+    letterSpacing: scale(6),
   },
-  titleUnderline: {
-    width: scale(60),
-    height: scale(3),
-    marginTop: spacing.xs,
-    borderRadius: scale(2),
-    backgroundColor: colors.primary,
-    shadowColor: colors.primary,
+  titleSpace: {
+    width: scale(14),
+  },
+  // Gold underline
+  goldLine: {
+    height: scale(1.5),
+    borderRadius: 1,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: scale(8),
     elevation: 5,
   },
-  // Subtitle
-  subtitle: {
-    ...typography.subtitle,
-    fontSize: scale(16),
-    fontWeight: '500',
-    textAlign: 'center',
-    color: colors.textSecondary,
-    marginBottom: spacing['2xl'],
-    letterSpacing: scale(0.5),
-  },
-  // Progress bar
-  progressContainer: {
-    width: width * 0.6,
-    marginBottom: spacing.xl,
-  },
-  progressTrack: {
-    height: scale(3),
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: scale(10),
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    borderRadius: scale(10),
-    backgroundColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 5,
-    overflow: 'hidden',
-  },
-  shimmer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    width: scale(100),
-  },
-  // Dots
-  dotsContainer: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  dot: {
-    width: scale(8),
-    height: scale(8),
-    borderRadius: scale(4),
-    backgroundColor: colors.primary,
-  },
   // Tagline
-  taglineContainer: {
+  tagline: {
+    fontSize: scale(12),
+    fontWeight: '400',
+    letterSpacing: scale(3),
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  // Rolling word
+  wordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.md,
+    gap: scale(10),
+    marginTop: verticalScale(28),
+    paddingVertical: verticalScale(8),
+    paddingHorizontal: scale(20),
+    borderWidth: 1,
+    borderRadius: scale(20),
   },
-  tagline: {
-    ...typography.caption,
+  rollingWord: {
     fontSize: scale(11),
-    color: colors.textMuted,
-    letterSpacing: scale(0.5),
+    fontWeight: '600',
+    letterSpacing: scale(5),
     textTransform: 'uppercase',
+    minWidth: scale(90),
+    textAlign: 'center',
+  },
+  // Status text
+  statusText: {
+    fontSize: scale(11),
+    fontWeight: '400',
+    letterSpacing: scale(1.5),
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    marginTop: verticalScale(24),
+  },
+  // Bottom
+  bottomAccent: {
+    marginTop: verticalScale(40),
+    alignItems: 'center',
+  },
+  accentLine: {
+    height: scale(1),
+    borderRadius: 1,
   },
 });
-
-
-

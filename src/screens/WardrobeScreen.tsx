@@ -13,19 +13,17 @@ import {
   TextInput,
   Alert,
   RefreshControl,
-  Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const scale = (size: number) => Math.round((SCREEN_WIDTH / 393) * size);
-
+import { scale, verticalScale } from '../utils/responsive';
 import { ClothingItem, createClothingItem, deleteClothingItem, fetchWardrobeItems, ClothingCategory } from '../services/wardrobeApi';
 import { smartCategorizeImage, type EnhancedAiCategorizationResponse } from '../services/aiCategorization';
 import { uploadImageFile } from '../services/uploadService';
@@ -35,10 +33,13 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useUserId } from '../hooks/useUserId';
 import CameraScreen from './CameraScreen';
 import BulkCameraScreen from './BulkCameraScreen';
+import { apiClient } from '../services/apiClient';
 
 const CATEGORIES: (ClothingCategory | 'all')[] = ['all', 'top', 'bottom', 'dress', 'shoes', 'outerwear', 'accessory', 'other'];
 
 export const WardrobeScreen: React.FC = () => {
+  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const userId = useUserId();
 
@@ -69,7 +70,8 @@ export const WardrobeScreen: React.FC = () => {
 
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery<ClothingItem[], Error>({
     queryKey: ['wardrobe', userId],
-    queryFn: () => fetchWardrobeItems(userId),
+    queryFn: () => fetchWardrobeItems(userId!),
+    enabled: !!userId,
   });
 
   // Filter and search items
@@ -117,7 +119,7 @@ export const WardrobeScreen: React.FC = () => {
           mediumUrl = uploadResult.image.mediumUrl;
           cloudinaryPublicId = uploadResult.image.publicId;
         } catch (error) {
-          console.error('Cloudinary upload failed:', error);
+          console.log('Cloudinary upload failed:', error);
           // Continue with local URI if upload fails
         } finally {
           setUploading(false);
@@ -341,13 +343,13 @@ export const WardrobeScreen: React.FC = () => {
   }
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingTop: spacing['2xl'] + insets.top }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -409,7 +411,7 @@ export const WardrobeScreen: React.FC = () => {
 
           {/* Stats Row */}
           <View style={styles.row}>
-            <View style={styles.summaryCard}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
               <Text style={styles.summaryLabel}>Total Items</Text>
               <Text style={styles.summaryValue}>{data?.length || 0}</Text>
               <Text style={styles.summaryHint}>
@@ -418,7 +420,7 @@ export const WardrobeScreen: React.FC = () => {
                   : `${filteredItems.length} shown`}
               </Text>
             </View>
-            <View style={styles.summaryCard}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
               <Text style={styles.summaryLabel}>View Mode</Text>
               <View style={styles.viewModeToggle}>
                 <TouchableOpacity
@@ -496,7 +498,7 @@ export const WardrobeScreen: React.FC = () => {
                   contentContainerStyle={{ gap: spacing.md }}
                   renderItem={({ item }) => (
                     <TouchableOpacity
-                      style={styles.itemCard}
+                      style={[styles.itemCard, { backgroundColor: colors.card }]}
                       onPress={() => setSelectedItem(item)}
                       activeOpacity={0.7}
                     >
@@ -613,21 +615,33 @@ export const WardrobeScreen: React.FC = () => {
                 style={styles.fabOption} 
                 onPress={() => { setShowAddOptions(false); setCameraOpen(true); }}
               >
-                <Ionicons name="camera" size={20} color="#fff" />
+                <Ionicons name="camera" size={20} color={colors.textPrimary} />
                 <Text style={styles.fabOptionText}>Camera</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.fabOption} 
-                onPress={() => { setShowAddOptions(false); setBulkCameraOpen(true); }}
+                onPress={async () => {
+                  setShowAddOptions(false);
+                  try {
+                    await apiClient.get(`/wardrobe/can-bulk?userId=${userId}`);
+                    setBulkCameraOpen(true);
+                  } catch (e: any) {
+                    if (e?.message?.includes('upgrade') || e?.message?.includes('requires')) {
+                      Alert.alert('Pro Feature', 'Bulk Upload requires a Pro plan. Upgrade to add multiple items at once.');
+                    } else {
+                      setBulkCameraOpen(true);
+                    }
+                  }
+                }}
               >
-                <Ionicons name="images" size={20} color="#fff" />
+                <Ionicons name="images" size={20} color={colors.textPrimary} />
                 <Text style={styles.fabOptionText}>Bulk Add</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.fabOption} 
                 onPress={() => { setShowAddOptions(false); setAddOpen(true); }}
               >
-                <Ionicons name="create" size={20} color="#fff" />
+                <Ionicons name="create" size={20} color={colors.textPrimary} />
                 <Text style={styles.fabOptionText}>Manual</Text>
               </TouchableOpacity>
             </View>
@@ -636,7 +650,7 @@ export const WardrobeScreen: React.FC = () => {
             style={[styles.fab, showAddOptions && styles.fabActive]}
             onPress={() => setShowAddOptions(!showAddOptions)}
           >
-            <Ionicons name={showAddOptions ? "close" : "add"} size={28} color="#fff" />
+            <Ionicons name={showAddOptions ? "close" : "add"} size={24} color={colors.textOnPrimary} />
           </TouchableOpacity>
         </>
       )}
@@ -644,7 +658,10 @@ export const WardrobeScreen: React.FC = () => {
       {/* Item Detail Modal */}
       {selectedItem && (
         <View style={styles.modalOverlay}>
-          <Card variant="elevated" style={styles.modalCard}>
+          <Card
+            variant="elevated"
+            style={StyleSheet.flatten([styles.modalCard, { backgroundColor: colors.card }])}
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Item Details</Text>
               <TouchableOpacity onPress={() => setSelectedItem(null)}>
@@ -744,7 +761,7 @@ export const WardrobeScreen: React.FC = () => {
       {/* Full-screen Add overlay */}
       {addOpen && (
         <View style={styles.addOverlay}>
-          <View style={styles.addOverlayCard}>
+          <View style={[styles.addOverlayCard, { backgroundColor: colors.card }]}>
             <View style={styles.addOverlayHeader}>
               <Text style={styles.addPanelTitle}>Add wardrobe item</Text>
               <TouchableOpacity
@@ -895,7 +912,7 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    borderRadius: 18,
+    borderRadius: scale(18),
     padding: spacing.lg,
     backgroundColor: colors.cardSoft,
     borderWidth: 1,
@@ -924,7 +941,7 @@ const styles = StyleSheet.create({
   gridEmpty: {
     marginTop: spacing['2xl'],
     padding: spacing['2xl'],
-    borderRadius: 20,
+    borderRadius: scale(20),
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     backgroundColor: colors.cardSoft,
@@ -943,8 +960,8 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     flex: 1,
-    borderRadius: 20,
-    backgroundColor: colors.cardSoft,
+    borderRadius: scale(14),
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     overflow: 'hidden',
@@ -960,7 +977,7 @@ const styles = StyleSheet.create({
     borderRadius: scale(10),
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(15,23,42,0.8)',
+    backgroundColor: colors.overlay,
   },
   deleteBadgeText: {
     ...typography.caption,
@@ -978,7 +995,7 @@ const styles = StyleSheet.create({
   },
   itemName: {
     ...typography.bodyBold,
-    marginBottom: 2,
+    marginBottom: verticalScale(2),
   },
   itemMeta: {
     ...typography.caption,
@@ -990,8 +1007,8 @@ const styles = StyleSheet.create({
   },
   typeChip: {
     paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: 999,
+    paddingVertical: verticalScale(2),
+    borderRadius: scale(999),
     backgroundColor: colors.primarySoft,
   },
   typeChipText: {
@@ -1022,17 +1039,18 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: spacing.xl,
-    bottom: scale(100),
-    width: scale(56),
-    height: scale(56),
-    borderRadius: scale(28),
+    bottom: verticalScale(100),
+    width: scale(52),
+    height: scale(52),
+    borderRadius: scale(26),
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
     shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: scale(4) },
+    shadowOpacity: 0.25,
+    shadowRadius: scale(12),
+    shadowOffset: { width: 0, height: verticalScale(4) },
+    elevation: 8,
     zIndex: 100,
   },
   fabActive: {
@@ -1041,7 +1059,7 @@ const styles = StyleSheet.create({
   fabOptions: {
     position: 'absolute',
     right: spacing.xl,
-    bottom: 170,
+    bottom: verticalScale(170),
     gap: spacing.sm,
     zIndex: 99,
   },
@@ -1051,14 +1069,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: 12,
+    borderRadius: scale(12),
     gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
   },
   fabOptionText: {
     ...typography.body,
-    color: '#fff',
+    color: colors.textPrimary,
   },
   fabPlus: {
     ...typography.bodyBold,
@@ -1072,7 +1090,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15,23,42,0.9)',
+    backgroundColor: colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
@@ -1080,7 +1098,7 @@ const styles = StyleSheet.create({
   addOverlayCard: {
     width: '100%',
     maxHeight: '85%',
-    borderRadius: 24,
+    borderRadius: scale(24),
     padding: spacing.lg,
     backgroundColor: colors.cardSoft,
     borderWidth: 1,
@@ -1110,7 +1128,7 @@ const styles = StyleSheet.create({
   photoButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderRadius: 999,
+    borderRadius: scale(999),
     borderWidth: 1,
     borderColor: colors.primary,
     backgroundColor: colors.primarySoft,
@@ -1126,7 +1144,7 @@ const styles = StyleSheet.create({
   },
   aiSummary: {
     marginTop: spacing.md,
-    borderRadius: 14,
+    borderRadius: scale(14),
     padding: spacing.md,
     backgroundColor: colors.cardSoft,
     borderWidth: 1,
@@ -1149,13 +1167,13 @@ const styles = StyleSheet.create({
   },
   tagInput: {
     marginTop: spacing.xs,
-    borderRadius: 10,
+    borderRadius: scale(10),
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     color: colors.textPrimary,
-    backgroundColor: '#020617',
+    backgroundColor: colors.inputBg,
   },
   aiHint: {
     ...typography.caption,
@@ -1168,7 +1186,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     marginTop: spacing.sm,
-    borderRadius: 999,
+    borderRadius: scale(999),
     paddingVertical: spacing.md,
     paddingHorizontal: spacing['2xl'],
     alignItems: 'center',
@@ -1181,7 +1199,7 @@ const styles = StyleSheet.create({
   },
   aiButton: {
     marginTop: spacing.md,
-    borderRadius: 999,
+    borderRadius: scale(999),
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     backgroundColor: colors.secondary,
@@ -1204,7 +1222,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.md,
     backgroundColor: colors.cardSoft,
-    borderRadius: 12,
+    borderRadius: scale(12),
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     paddingHorizontal: spacing.md,
@@ -1233,7 +1251,7 @@ const styles = StyleSheet.create({
   categoryTab: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    borderRadius: 999,
+    borderRadius: scale(999),
     backgroundColor: colors.cardSoft,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
@@ -1257,9 +1275,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   viewModeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: scale(32),
+    height: scale(32),
+    borderRadius: scale(8),
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.cardSoft,
@@ -1286,12 +1304,12 @@ const styles = StyleSheet.create({
     marginRight: spacing.xs,
   },
   categoryBadgeText: {
-    fontSize: 9,
+    fontSize: scale(9),
   },
   colorDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: scale(12),
+    height: scale(12),
+    borderRadius: scale(6),
     borderWidth: 1,
     borderColor: colors.borderSubtle,
   },
@@ -1300,9 +1318,9 @@ const styles = StyleSheet.create({
   },
   itemSubcategory: {
     ...typography.caption,
-    fontSize: 11,
+    fontSize: scale(11),
     color: colors.textMuted,
-    marginTop: 2,
+    marginTop: verticalScale(2),
   },
   // List view
   listContainer: {
@@ -1311,14 +1329,14 @@ const styles = StyleSheet.create({
   listItem: {
     flexDirection: 'row',
     backgroundColor: colors.cardSoft,
-    borderRadius: 16,
+    borderRadius: scale(16),
     borderWidth: 1,
     borderColor: colors.borderSubtle,
     overflow: 'hidden',
   },
   listItemImage: {
-    width: 80,
-    height: 100,
+    width: scale(80),
+    height: scale(100),
   },
   listItemInfo: {
     flex: 1,
@@ -1341,7 +1359,7 @@ const styles = StyleSheet.create({
   },
   listItemSubcategory: {
     ...typography.caption,
-    fontSize: 11,
+    fontSize: scale(11),
     color: colors.textMuted,
     marginBottom: spacing.xs,
   },
@@ -1356,11 +1374,11 @@ const styles = StyleSheet.create({
   },
   listItemColor: {
     ...typography.caption,
-    fontSize: 11,
+    fontSize: scale(11),
   },
   listItemStyle: {
     ...typography.caption,
-    fontSize: 11,
+    fontSize: scale(11),
     color: colors.textMuted,
   },
   // Modal
@@ -1370,7 +1388,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15,23,42,0.95)',
+    backgroundColor: colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
@@ -1379,7 +1397,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxHeight: '85%',
-    borderRadius: 24,
+    borderRadius: scale(24),
     padding: 0,
     overflow: 'hidden',
   },
@@ -1393,11 +1411,11 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     ...typography.title,
-    fontSize: 20,
+    fontSize: scale(20),
   },
   modalImage: {
     width: '100%',
-    height: 300,
+    height: verticalScale(300),
     backgroundColor: colors.cardSoft,
   },
   modalContent: {
@@ -1405,7 +1423,7 @@ const styles = StyleSheet.create({
   },
   modalItemName: {
     ...typography.title,
-    fontSize: 22,
+    fontSize: scale(22),
     marginBottom: spacing.xs,
   },
   modalSubcategory: {
@@ -1424,7 +1442,7 @@ const styles = StyleSheet.create({
   },
   modalLabel: {
     ...typography.bodyBold,
-    minWidth: 100,
+    minWidth: scale(100),
   },
   modalValue: {
     ...typography.body,
@@ -1436,9 +1454,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   modalColorDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: scale(16),
+    height: scale(16),
+    borderRadius: scale(8),
     borderWidth: 1,
     borderColor: colors.borderSubtle,
   },
@@ -1467,10 +1485,10 @@ const styles = StyleSheet.create({
   },
   bigPhotoArea: {
     width: '100%',
-    height: 200,
-    borderRadius: 16,
+    height: verticalScale(200),
+    borderRadius: scale(16),
     backgroundColor: colors.cardSoft,
-    borderWidth: 2,
+    borderWidth: scale(2),
     borderColor: colors.borderSubtle,
     borderStyle: 'dashed',
     alignItems: 'center',
@@ -1480,7 +1498,7 @@ const styles = StyleSheet.create({
   bigPhoto: {
     width: '100%',
     height: '100%',
-    borderRadius: 14,
+    borderRadius: scale(14),
   },
 });
 

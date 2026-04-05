@@ -1,11 +1,14 @@
 const express = require('express');
 const { getCurrentWeather, getWeatherByCity, getWeatherForecast } = require('../utils/weather');
 
+const { requireFeature } = require('../middleware/planLimits');
+const { optionalAuth } = require('../middleware/auth');
+
 const router = express.Router();
 
 /**
  * GET /weather/current?lat=40.7128&lon=-74.0060
- * Get current weather by coordinates
+ * Get current weather by coordinates (available on all plans)
  */
 router.get('/current', async (req, res) => {
   try {
@@ -25,9 +28,9 @@ router.get('/current', async (req, res) => {
 
 /**
  * GET /weather/city?city=London
- * Get current weather by city name
+ * Get current weather by city name (destination = Pro Yearly+)
  */
-router.get('/city', async (req, res) => {
+router.get('/city', optionalAuth, requireFeature('destinationWeather'), async (req, res) => {
   try {
     const { city } = req.query;
 
@@ -45,9 +48,9 @@ router.get('/city', async (req, res) => {
 
 /**
  * GET /weather/forecast?city=Mombasa
- * Get weather forecast for a city (morning, afternoon, evening)
+ * Get weather forecast for a city (Pro Yearly+)
  */
-router.get('/forecast', async (req, res) => {
+router.get('/forecast', optionalAuth, requireFeature('destinationWeather'), async (req, res) => {
   try {
     const { city } = req.query;
 

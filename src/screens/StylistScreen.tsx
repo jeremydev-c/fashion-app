@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,26 +7,32 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  SafeAreaView,
-  Dimensions,
+  Alert,
+  Animated,
+  Easing,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
+import { scale, verticalScale, SCREEN_WIDTH } from '../utils/responsive';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const scale = (size: number) => Math.round((SCREEN_WIDTH / 393) * size);
+const CONTENT_WIDTH = SCREEN_WIDTH - scale(32);
+const ITEM_SIZE = Math.min(scale(70), Math.floor((CONTENT_WIDTH - scale(36)) / 4));
 
-import { fetchClothingItems, ClothingItem } from '../services/wardrobeApi';
+import { fetchWardrobeItems, ClothingItem } from '../services/wardrobeApi';
 import { getRecommendations } from '../services/recommendationsService';
 import { submitOutfitFeedback } from '../services/stylistFeedback';
+import { createOutfit, fetchOutfits } from '../services/outfitApi';
 import { useUserId } from '../hooks/useUserId';
 import { getCurrentWeather, WeatherData, WeatherForecast } from '../services/weatherService';
 import { DestinationPicker } from '../components/DestinationPicker';
 import { AIMisuseWarning, hasAcknowledgedWarning } from '../components/AIMisuseWarning';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+
 
 const OCCASIONS = ['Casual', 'Work', 'Date', 'Party', 'Gym', 'Formal'];
 const TIMES = ['Morning', 'Afternoon', 'Evening', 'Night'];
@@ -36,13 +42,203 @@ interface OutfitSuggestion {
   items: ClothingItem[];
   occasion: string;
   reasoning: string;
+  title?: string;
+  description?: string;
 }
 
+const STYLING_TIPS = [
+  'Analyzing your wardrobe palette...',
+  'Matching colors & textures...',
+  'Scoring outfit combinations...',
+  'Checking weather compatibility...',
+  'Finding your perfect look...',
+  'Curating with AI styling engine...',
+  'Balancing patterns & silhouettes...',
+  'Personalizing to your Style DNA...',
+];
+
+const StylingLoader: React.FC<{ occasion: string; timeOfDay: string; done: boolean; onFinished: () => void }> = ({ occasion, timeOfDay, done, onFinished }) => {
+  const colors = useThemeColors();
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const iconRotate = useRef(new Animated.Value(0)).current;
+  const [tipIndex, setTipIndex] = useState(0);
+  const tipFade = useRef(new Animated.Value(1)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const containerOpacity = useRef(new Animated.Value(1)).current;
+  const [doneText, setDoneText] = useState(false);
+  const dotAnims = [
+    useRef(new Animated.Value(0)).current,
+    useRef(new Animated.Value(0)).current,
+    useRef(new Animated.Value(0)).current,
+  ];
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.timing(shimmerAnim, { toValue: 1, duration: 1800, easing: Easing.linear, useNativeDriver: true })
+    ).start();
+
+    Animated.loop(
+      Animated.timing(iconRotate, { toValue: 1, duration: 3000, easing: Easing.linear, useNativeDriver: true })
+    ).start();
+
+    // Progress creeps to 70% slowly — waits for the real data
+    Animated.timing(progressAnim, { toValue: 0.7, duration: 15000, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+
+    dotAnims.forEach((anim, i) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 200),
+          Animated.timing(anim, { toValue: 1, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0, duration: 400, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        ])
+      ).start();
+    });
+
+    const interval = setInterval(() => {
+      Animated.timing(tipFade, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => {
+        setTipIndex(prev => (prev + 1) % STYLING_TIPS.length);
+        Animated.timing(tipFade, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+      });
+    }, 2800);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // When data arrives: snap bar to 100%, show "Done!", then fade out and reveal results
+  useEffect(() => {
+    if (!done) return;
+    progressAnim.stopAnimation(() => {
+      Animated.timing(progressAnim, { toValue: 1, duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: false }).start(() => {
+        setDoneText(true);
+        setTimeout(() => {
+          Animated.timing(containerOpacity, { toValue: 0, duration: 350, useNativeDriver: true }).start(() => {
+            onFinished();
+          });
+        }, 600);
+      });
+    });
+  }, [done]);
+
+  const pulseScale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
+  const pulseOpacity = pulseAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 1, 0.6] });
+  const spin = iconRotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const shimmerTranslate = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [-SCREEN_WIDTH, SCREEN_WIDTH] });
+
+  return (
+    <Animated.View style={[loaderStyles.container, { opacity: containerOpacity }]}>
+      {/* Central icon */}
+      <View style={loaderStyles.iconArea}>
+        <Animated.View style={[loaderStyles.outerRing, { borderColor: doneText ? colors.success || '#22c55e' : colors.primary, transform: [{ scale: pulseScale }], opacity: pulseOpacity }]} />
+        <Animated.View style={[loaderStyles.iconCircle, { backgroundColor: colors.primarySoft, transform: [{ rotate: doneText ? '0deg' : spin }] }]}>
+          <Ionicons name={doneText ? 'checkmark-circle' : 'sparkles'} size={scale(28)} color={doneText ? colors.success || '#22c55e' : colors.primary} />
+        </Animated.View>
+      </View>
+
+      {/* Status text */}
+      <Text style={[loaderStyles.title, { color: colors.textPrimary }]}>
+        {doneText ? 'Your outfits are ready!' : `Styling for ${occasion.toLowerCase()} ${timeOfDay.toLowerCase()}`}
+      </Text>
+
+      {/* Rotating tips */}
+      {!doneText && (
+        <Animated.Text style={[loaderStyles.tip, { color: colors.textMuted, opacity: tipFade }]}>
+          {STYLING_TIPS[tipIndex]}
+        </Animated.Text>
+      )}
+
+      {/* Bouncing dots */}
+      {!doneText && (
+        <View style={loaderStyles.dotsRow}>
+          {dotAnims.map((anim, i) => (
+            <Animated.View
+              key={i}
+              style={[
+                loaderStyles.dot,
+                { backgroundColor: colors.primary, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) }] },
+              ]}
+            />
+          ))}
+        </View>
+      )}
+
+      {/* Progress bar */}
+      <View style={[loaderStyles.progressTrack, { backgroundColor: colors.borderSubtle }]}>
+        <Animated.View
+          style={[
+            loaderStyles.progressFill,
+            { backgroundColor: doneText ? colors.success || '#22c55e' : colors.primary, width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
+          ]}
+        />
+        {!doneText && (
+          <Animated.View style={[loaderStyles.shimmer, { transform: [{ translateX: shimmerTranslate }] }]}>
+            <LinearGradient
+              colors={['transparent', 'rgba(255,255,255,0.3)', 'transparent']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={loaderStyles.shimmerGradient}
+            />
+          </Animated.View>
+        )}
+      </View>
+
+      {/* Skeleton outfit cards */}
+      {!doneText && [0, 1, 2].map(i => (
+        <Animated.View
+          key={i}
+          style={[
+            loaderStyles.skeletonCard,
+            { backgroundColor: colors.card, borderColor: colors.borderSubtle, opacity: pulseOpacity },
+          ]}
+        >
+          <View style={[loaderStyles.skeletonLine, { backgroundColor: colors.borderSubtle, width: '55%' }]} />
+          <View style={loaderStyles.skeletonItemsRow}>
+            {[0, 1, 2, 3].map(j => (
+              <View key={j} style={[loaderStyles.skeletonThumb, { backgroundColor: colors.surface }]} />
+            ))}
+          </View>
+          <View style={[loaderStyles.skeletonLine, { backgroundColor: colors.borderSubtle, width: '80%', marginTop: scale(10) }]} />
+        </Animated.View>
+      ))}
+    </Animated.View>
+  );
+};
+
+const loaderStyles = StyleSheet.create({
+  container: { alignItems: 'center', paddingTop: verticalScale(24), paddingBottom: verticalScale(40) },
+  iconArea: { alignItems: 'center', justifyContent: 'center', marginBottom: verticalScale(16), width: scale(72), height: scale(72) },
+  outerRing: { position: 'absolute', width: scale(72), height: scale(72), borderRadius: scale(36), borderWidth: 2 },
+  iconCircle: { width: scale(52), height: scale(52), borderRadius: scale(26), alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: scale(16), fontWeight: '600', letterSpacing: 0.2, marginBottom: verticalScale(6) },
+  tip: { fontSize: scale(13), letterSpacing: 0.3, marginBottom: verticalScale(14), textAlign: 'center' },
+  dotsRow: { flexDirection: 'row', gap: scale(6), marginBottom: verticalScale(16) },
+  dot: { width: scale(7), height: scale(7), borderRadius: scale(4) },
+  progressTrack: { width: '80%', height: verticalScale(4), borderRadius: scale(2), overflow: 'hidden', marginBottom: verticalScale(20) },
+  progressFill: { height: '100%', borderRadius: scale(2) },
+  shimmer: { position: 'absolute', top: 0, bottom: 0, width: scale(60) },
+  shimmerGradient: { flex: 1 },
+  skeletonCard: { width: '100%', borderRadius: scale(16), padding: scale(16), marginBottom: verticalScale(12), borderWidth: 1 },
+  skeletonLine: { height: verticalScale(12), borderRadius: scale(6) },
+  skeletonItemsRow: { flexDirection: 'row', gap: scale(10), marginTop: verticalScale(12) },
+  skeletonThumb: { width: ITEM_SIZE - scale(8), height: ITEM_SIZE - scale(8), borderRadius: scale(10) },
+});
+
 export const StylistScreen: React.FC = () => {
+  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const userId = useUserId();
   const [wardrobe, setWardrobe] = useState<ClothingItem[]>([]);
   const [outfits, setOutfits] = useState<OutfitSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [dataReady, setDataReady] = useState(false);
+  const [showResults, setShowResults] = useState(true);
   const [occasion, setOccasion] = useState('Casual');
   const [showWarning, setShowWarning] = useState(false);
   const [pendingGenerate, setPendingGenerate] = useState(false);
@@ -73,7 +269,8 @@ export const StylistScreen: React.FC = () => {
   useEffect(() => {
     loadWardrobe();
     loadCurrentLocationWeather();
-  }, []);
+    loadSavedOutfitsFromDB();
+  }, [userId]);
 
   const loadCurrentLocationWeather = async () => {
     try {
@@ -91,7 +288,7 @@ export const StylistScreen: React.FC = () => {
       setCurrentLocationWeather(weatherData);
       setIsCurrentLocation(true);
     } catch (error) {
-      console.error('Failed to get weather:', error);
+      console.log('Weather unavailable, continuing without it');
     } finally {
       setLoadingWeather(false);
     }
@@ -107,10 +304,42 @@ export const StylistScreen: React.FC = () => {
 
   const loadWardrobe = async () => {
     try {
-      const items = await fetchClothingItems();
+      if (!userId) return;
+      const items = await fetchWardrobeItems(userId);
       setWardrobe(items);
     } catch (err) {
-      console.error('Failed to load wardrobe', err);
+      console.log('Failed to load wardrobe', err);
+    }
+  };
+
+  const loadSavedOutfitsFromDB = async () => {
+    try {
+      if (!userId) return;
+      const dbOutfits = await fetchOutfits(userId);
+      if (dbOutfits.length > 0) {
+        const ids = new Set<string>();
+        const mapped: OutfitSuggestion[] = [];
+        for (const o of dbOutfits) {
+          ids.add(o._id);
+          mapped.push({
+            id: o._id,
+            items: o.items.map((i: any) => {
+              const populated = i.itemId;
+              if (populated && typeof populated === 'object') {
+                return { ...populated, _id: populated._id?.toString?.() || i.itemId } as ClothingItem;
+              }
+              return { _id: i.itemId?.toString?.() || i.itemId, category: i.category, name: i.category } as ClothingItem;
+            }),
+            occasion: o.occasion || 'casual',
+            reasoning: o.description || 'Saved outfit',
+            title: o.name,
+          });
+        }
+        setSavedOutfits(ids);
+        setSavedOutfitsList(mapped);
+      }
+    } catch {
+      // Saved outfits are optional
     }
   };
 
@@ -137,39 +366,43 @@ export const StylistScreen: React.FC = () => {
       return;
     }
     setLoading(true);
+    setDataReady(false);
+    setShowResults(false);
     try {
-      // Get weather context for forecast
+      const rainConditions = ['rain', 'drizzle', 'thunderstorm', 'shower'];
+      const fSummary = forecast?.summary;
       const weatherContext = weather ? {
-        needsLayers: weather.temperature < 15,
-        hasRainRisk: weather.condition === 'rain',
-        tempSwing: forecast?.tempSwing || 0,
+        needsLayers: weather.temperature < 15 || (fSummary?.tempSwing && fSummary.tempSwing > 8),
+        hasRainRisk: rainConditions.some(r => weather.condition?.toLowerCase().includes(r)) || (fSummary?.hasRainRisk ?? false),
+        tempSwing: fSummary?.tempSwing || 0,
       } : undefined;
 
       const recommendations = await getRecommendations({
         userId,
         occasion: occasion.toLowerCase(),
         timeOfDay: timeOfDay.toLowerCase(),
-        weather: weather ? (weather.temperature > 20 ? 'warm' : weather.temperature > 10 ? 'cool' : 'cold') : undefined,
+        weather: weather ? (weather.temperature > 25 ? 'hot' : weather.temperature > 20 ? 'warm' : weather.temperature > 10 ? 'cool' : 'cold') : undefined,
         limit: 3,
         forecast: weatherContext,
+        weatherDetail: weather ? {
+          category: weather.weatherCategory,
+          temperature: weather.temperature,
+          condition: weather.condition,
+          humidity: weather.humidity,
+          windSpeed: weather.windSpeed,
+        } : undefined,
       });
 
-      // Map backend response to frontend format
       const mappedOutfits: OutfitSuggestion[] = recommendations.map((rec) => {
-        // Map items - backend returns items with id, we need to find them in wardrobe
         const mappedItems: ClothingItem[] = rec.items.map((item) => {
-          // Try to find the item in wardrobe by ID
           const fullItem = wardrobe.find(w => 
             w._id?.toString() === item.id || 
             w._id === item.id ||
             (w.name === item.name && w.category === item.category)
           );
           
-          if (fullItem) {
-            return fullItem;
-          }
+          if (fullItem) return fullItem;
           
-          // If not found, create a minimal item from the recommendation
           return {
             _id: item.id,
             name: item.name || 'Unknown Item',
@@ -186,73 +419,116 @@ export const StylistScreen: React.FC = () => {
           id: rec.id,
           items: mappedItems,
           occasion: rec.occasion || occasion,
-          reasoning: rec.reasons?.join('. ') || 'Perfectly styled outfit for you',
+          reasoning: rec.description || rec.reasons?.join('. ') || 'Perfectly styled outfit for you',
+          title: rec.title,
+          description: rec.description,
         };
       });
 
       setOutfits(mappedOutfits);
+      // Signal the loader that data is ready — it will animate to 100% then reveal
+      setDataReady(true);
     } catch (err: any) {
-      console.error('Failed to generate outfits', err);
-      console.error('Error details:', {
+      console.log('Failed to generate outfits', err);
+      console.log('Error details:', {
         message: err?.message,
         status: err?.status,
         data: err?.data,
         stack: err?.stack,
       });
       
-      // More detailed error message
-      let errorMessage = 'Could not generate outfits. Try again.';
-      if (err?.data?.error) {
-        errorMessage = err.data.error;
-      } else if (err?.message) {
-        errorMessage = err.message;
-      } else if (err?.status === 500) {
-        errorMessage = 'Server error. Please try again later.';
-      } else if (err?.status === 400) {
-        errorMessage = 'Invalid request. Please check your wardrobe.';
-      } else if (err?.status === 401) {
-        errorMessage = 'Please log in again.';
+      if (err?.status === 403 && (err?.data?.error === 'daily_limit_reached' || err?.data?.error === 'upgrade_required')) {
+        Alert.alert(
+          'Daily Limit Reached',
+          err?.data?.message || 'You\'ve used all your free recommendations for today. Upgrade to Pro for unlimited.',
+        );
+      } else {
+        let errorMessage = 'Could not generate outfits. Try again.';
+        if (err?.data?.error) {
+          errorMessage = err.data.error;
+        } else if (err?.message) {
+          errorMessage = err.message;
+        } else if (err?.status === 500) {
+          errorMessage = 'Server error. Please try again later.';
+        } else if (err?.status === 400) {
+          errorMessage = 'Invalid request. Please check your wardrobe.';
+        } else if (err?.status === 401) {
+          errorMessage = 'Please log in again.';
+        }
+        Alert.alert('Oops', errorMessage);
       }
-      
-      alert(errorMessage);
-    } finally {
+      // On error, immediately clear loading
       setLoading(false);
+      setShowResults(true);
     }
   };
 
+  const getItemIds = (outfit: OutfitSuggestion): string[] =>
+    outfit.items.map((i: any) => i._id || i.id).filter(Boolean);
+
   const handleSave = async (outfit: OutfitSuggestion) => {
+    if (!userId) return;
     setSavedOutfits((prev) => new Set(prev).add(outfit.id));
     setSavedOutfitsList((prev) => {
       if (prev.find(o => o.id === outfit.id)) return prev;
       return [...prev, outfit];
     });
-    await submitOutfitFeedback({
+
+    const itemIds = getItemIds(outfit);
+
+    // Persist to database so outfit survives navigation
+    try {
+      await createOutfit({
+        userId,
+        name: outfit.title || `${outfit.occasion} outfit`,
+        description: outfit.reasoning,
+        items: outfit.items.map(i => ({
+          itemId: i._id,
+          category: i.category,
+        })),
+        occasion: occasion.toLowerCase(),
+        weather: weather?.weatherCategory,
+        tags: [timeOfDay.toLowerCase()],
+      });
+    } catch (err: any) {
+      if (err?.status !== 409) {
+        console.log('Failed to persist outfit:', err?.message);
+      }
+    }
+
+    // Record feedback for ML learning
+    submitOutfitFeedback({
+      userId,
       outfitId: outfit.id,
-      itemIds: outfit.items.map((i) => i._id),
-      occasion,
-      timeOfDay,
+      itemIds,
+      occasion: occasion.toLowerCase(),
+      timeOfDay: timeOfDay.toLowerCase(),
       action: 'saved',
-    });
+    }).catch(() => {});
   };
 
   const handleReject = async (outfit: OutfitSuggestion) => {
+    if (!userId) return;
     setOutfits((prev) => prev.filter((o) => o.id !== outfit.id));
     await submitOutfitFeedback({
+      userId,
       outfitId: outfit.id,
-      itemIds: outfit.items.map((i) => i._id),
-      occasion,
-      timeOfDay,
+      itemIds: getItemIds(outfit),
+      occasion: occasion.toLowerCase(),
+      timeOfDay: timeOfDay.toLowerCase(),
       action: 'rejected',
     });
   };
 
   const handleRate = async (outfit: OutfitSuggestion, rating: number) => {
+    if (!userId) return;
     setRatings((prev) => ({ ...prev, [outfit.id]: rating }));
     await submitOutfitFeedback({
+      userId,
       outfitId: outfit.id,
-      itemIds: outfit.items.map((i) => i._id),
-      occasion,
-      timeOfDay,
+      itemIds: getItemIds(outfit),
+      occasion: occasion.toLowerCase(),
+      timeOfDay: timeOfDay.toLowerCase(),
       action: 'rated',
       rating,
     });
@@ -267,7 +543,7 @@ export const StylistScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       {/* AI Misuse Warning */}
       <AIMisuseWarning
         visible={showWarning}
@@ -277,15 +553,15 @@ export const StylistScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.title}>AI Stylist</Text>
-            <Text style={styles.subtitle}>Get outfit suggestions from your wardrobe</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>AI Stylist</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>Curated outfits from your wardrobe</Text>
           </View>
           {savedOutfitsList.length > 0 && (
             <TouchableOpacity 
               style={styles.savedButton} 
               onPress={() => setShowSaved(!showSaved)}
             >
-              <Ionicons name={showSaved ? "sparkles" : "heart"} size={18} color="#fff" />
+              <Ionicons name={showSaved ? "sparkles" : "heart"} size={16} color={colors.primary} />
               <Text style={styles.savedButtonText}>
                 {showSaved ? 'New' : `Saved (${savedOutfitsList.length})`}
               </Text>
@@ -295,7 +571,7 @@ export const StylistScreen: React.FC = () => {
 
         {/* Weather Card */}
         <TouchableOpacity 
-          style={styles.weatherCard} 
+          style={[styles.weatherCard, { backgroundColor: colors.card }]} 
           onPress={() => setShowDestinationPicker(true)}
         >
           <View style={styles.weatherLeft}>
@@ -335,15 +611,15 @@ export const StylistScreen: React.FC = () => {
           <View style={styles.forecastPreview}>
             <View style={styles.forecastItem}>
               <Ionicons name="sunny-outline" size={14} color={colors.accent} />
-              <Text style={styles.forecastText}>AM: {forecast.periods.morning?.avgTemp}°</Text>
+              <Text style={styles.forecastText}>AM: {forecast.periods.morning?.avgTemp ?? '—'}°</Text>
             </View>
             <View style={styles.forecastItem}>
               <Ionicons name="sunny" size={14} color={colors.warning} />
-              <Text style={styles.forecastText}>PM: {forecast.periods.afternoon?.avgTemp}°</Text>
+              <Text style={styles.forecastText}>PM: {forecast.periods.afternoon?.avgTemp ?? '—'}°</Text>
             </View>
             <View style={styles.forecastItem}>
               <Ionicons name="moon-outline" size={14} color={colors.secondary} />
-              <Text style={styles.forecastText}>Eve: {forecast.periods.evening?.avgTemp}°</Text>
+              <Text style={styles.forecastText}>Eve: {forecast.periods.evening?.avgTemp ?? '—'}°</Text>
             </View>
             {forecast.summary.hasRainRisk && (
               <View style={styles.forecastItem}>
@@ -364,7 +640,7 @@ export const StylistScreen: React.FC = () => {
 
         {/* Occasion Pills */}
         <Text style={styles.label}>Occasion</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled style={styles.pillRow} contentContainerStyle={{ paddingRight: 8 }}>
           {OCCASIONS.map((o) => (
             <TouchableOpacity
               key={o}
@@ -378,7 +654,7 @@ export const StylistScreen: React.FC = () => {
 
         {/* Time Pills */}
         <Text style={styles.label}>Time of Day</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled style={styles.pillRow} contentContainerStyle={{ paddingRight: 8 }}>
           {TIMES.map((t) => (
             <TouchableOpacity
               key={t}
@@ -391,21 +667,32 @@ export const StylistScreen: React.FC = () => {
         </ScrollView>
 
         {/* Generate Button */}
-        <TouchableOpacity style={styles.generateBtn} onPress={generateOutfits} disabled={loading}>
-          {loading ? (
-            <LoadingSpinner size="small" color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="sparkles" size={20} color="#fff" />
-              <Text style={styles.generateText}>Generate Outfits</Text>
-            </>
-          )}
+        <TouchableOpacity
+          style={[styles.generateBtn, { backgroundColor: loading ? colors.textMuted : colors.primary }]}
+          onPress={generateOutfits}
+          disabled={loading}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="sparkles" size={18} color={colors.textOnPrimary} />
+          <Text style={[styles.generateText, { color: colors.textOnPrimary }]}>
+            {loading ? 'STYLING IN PROGRESS...' : 'GENERATE OUTFITS'}
+          </Text>
         </TouchableOpacity>
 
+        {/* Loading Animation */}
+        {loading && (
+          <StylingLoader
+            occasion={occasion}
+            timeOfDay={timeOfDay}
+            done={dataReady}
+            onFinished={() => { setLoading(false); setShowResults(true); }}
+          />
+        )}
+
         {/* Outfit Cards */}
-        {(showSaved ? savedOutfitsList : outfits).map((outfit) => (
-          <View key={outfit.id} style={styles.outfitCard}>
-            <Text style={styles.outfitTitle}>Outfit for {outfit.occasion}</Text>
+        {showResults && (showSaved ? savedOutfitsList : outfits).map((outfit) => (
+          <View key={outfit.id} style={[styles.outfitCard, { backgroundColor: colors.card }]}>
+            <Text style={styles.outfitTitle}>{outfit.title || `Outfit for ${outfit.occasion}`}</Text>
             <View style={styles.itemsRow}>
               {outfit.items.map((item) => {
                 // Try multiple image sources in order of preference
@@ -461,13 +748,14 @@ export const StylistScreen: React.FC = () => {
               >
                 <Ionicons
                   name={savedOutfits.has(outfit.id) ? 'heart' : 'heart-outline'}
-                  size={20}
-                  color={savedOutfits.has(outfit.id) ? '#f43f5e' : '#fff'}
+                  size={18}
+                  color={savedOutfits.has(outfit.id) ? colors.primary : colors.textSecondary}
                 />
                 <Text style={styles.actionText}>Save</Text>
               </TouchableOpacity>
+
               <TouchableOpacity style={styles.actionBtn} onPress={() => handleReject(outfit)}>
-                <Ionicons name="close-circle-outline" size={20} color="#fff" />
+                <Ionicons name="close-circle-outline" size={18} color={colors.textMuted} />
                 <Text style={styles.actionText}>Skip</Text>
               </TouchableOpacity>
             </View>
@@ -479,7 +767,7 @@ export const StylistScreen: React.FC = () => {
                   <Ionicons
                     name={(ratings[outfit.id] || 0) >= star ? 'star' : 'star-outline'}
                     size={24}
-                    color="#facc15"
+                    color={colors.primary}
                   />
                 </TouchableOpacity>
               ))}
@@ -487,28 +775,28 @@ export const StylistScreen: React.FC = () => {
           </View>
         ))}
 
-        {outfits.length === 0 && !loading && (
+        {outfits.length === 0 && !loading && showResults && (
           <Text style={styles.emptyText}>
             Tap "Generate Outfits" to get AI suggestions based on your wardrobe.
           </Text>
         )}
       </ScrollView>
-    </SafeAreaView>
+
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: 20, paddingBottom: 100 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  // Weather styles
+  scroll: { paddingHorizontal: scale(18), paddingTop: verticalScale(12), paddingBottom: verticalScale(120) },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: verticalScale(18) },
   weatherCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: spacing.md,
+    borderRadius: scale(14),
+    padding: scale(14),
     marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
@@ -516,118 +804,131 @@ const styles = StyleSheet.create({
   weatherLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: scale(10),
   },
   weatherInfo: {
-    marginLeft: spacing.sm,
+    marginLeft: scale(4),
   },
   weatherTemp: {
-    fontSize: scale(20),
-    fontWeight: '700',
+    fontSize: scale(18),
+    fontWeight: '300',
+    letterSpacing: -0.3,
     color: colors.textPrimary,
   },
   weatherCity: {
-    fontSize: scale(13),
-    color: colors.textSecondary,
+    fontSize: scale(12),
+    color: colors.textMuted,
+    letterSpacing: 0.2,
   },
   weatherRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: scale(4),
   },
   weatherAction: {
-    fontSize: scale(13),
+    fontSize: scale(11),
     color: colors.primary,
     fontWeight: '600',
+    letterSpacing: 0.5,
   },
   forecastPreview: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: scale(6),
     marginBottom: spacing.md,
   },
   forecastItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: scale(4),
     backgroundColor: colors.cardSoft,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: scale(10),
+    paddingVertical: verticalScale(5),
+    borderRadius: scale(10),
   },
   forecastText: {
-    fontSize: scale(12),
+    fontSize: scale(11),
     color: colors.textSecondary,
+    letterSpacing: 0.1,
   },
-  savedButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6, 
-    backgroundColor: colors.primary, 
-    paddingHorizontal: 12, 
-    paddingVertical: 8, 
-    borderRadius: 20 
+  savedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(5),
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(7),
+    borderRadius: scale(20),
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
-  savedButtonText: { color: '#fff', fontSize: scale(13), fontWeight: '600' },
-  title: { fontSize: scale(28), fontWeight: '700', color: colors.textPrimary, marginBottom: scale(4) },
-  subtitle: { fontSize: scale(14), color: colors.textMuted, marginBottom: scale(20) },
-  label: { fontSize: scale(14), color: colors.textSecondary, marginBottom: scale(8), marginTop: scale(12) },
-  pillRow: { flexDirection: 'row', marginBottom: 8 },
+  savedButtonText: { color: colors.primary, fontSize: scale(12), fontWeight: '600', letterSpacing: 0.3 },
+  title: { fontSize: scale(22), fontWeight: '300', letterSpacing: -0.5, color: colors.textPrimary, marginBottom: verticalScale(2) },
+  subtitle: { fontSize: scale(12), color: colors.textMuted, letterSpacing: 0.2, marginBottom: verticalScale(14) },
+  label: { fontSize: scale(10), color: colors.textMuted, fontWeight: '600', letterSpacing: 1.8, textTransform: 'uppercase', marginBottom: verticalScale(8), marginTop: verticalScale(14) },
+  pillRow: { flexDirection: 'row', marginBottom: verticalScale(6), flexGrow: 0 },
   pill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(148,163,184,0.15)',
-    borderRadius: 20,
-    marginRight: 8,
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(8),
+    backgroundColor: 'transparent',
+    borderRadius: scale(20),
+    marginRight: scale(6),
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
-  pillActive: { backgroundColor: colors.primary },
-  pillText: { color: colors.textSecondary, fontSize: scale(14) },
-  pillTextActive: { color: '#fff', fontWeight: '600' },
+  pillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  pillText: { color: colors.textMuted, fontSize: scale(13), fontWeight: '500', letterSpacing: 0.1 },
+  pillTextActive: { color: colors.textOnPrimary, fontWeight: '600' },
   generateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 20,
-    gap: 8,
+    paddingVertical: verticalScale(14),
+    borderRadius: scale(12),
+    marginTop: verticalScale(18),
+    marginBottom: verticalScale(4),
+    gap: scale(8),
   },
-  generateText: { color: '#fff', fontSize: scale(16), fontWeight: '600' },
+  generateText: { color: colors.textOnPrimary, fontSize: scale(14), fontWeight: '600', letterSpacing: 0.8 },
   outfitCard: {
     backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 20,
+    borderRadius: scale(16),
+    padding: scale(16),
+    marginTop: verticalScale(18),
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
-  outfitTitle: { fontSize: scale(18), fontWeight: '600', color: colors.textPrimary, marginBottom: scale(12) },
-  itemsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: scale(12) },
-  itemThumb: { alignItems: 'center', width: scale(70) },
-  itemImage: { width: scale(60), height: scale(60), borderRadius: scale(8), backgroundColor: '#1e293b' },
+  outfitTitle: { fontSize: scale(16), fontWeight: '600', letterSpacing: -0.2, color: colors.textPrimary, marginBottom: verticalScale(12) },
+  itemsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: scale(10) },
+  itemThumb: { alignItems: 'center', width: ITEM_SIZE },
+  itemImage: { width: ITEM_SIZE - scale(8), height: ITEM_SIZE - scale(8), borderRadius: scale(10), backgroundColor: colors.surface },
   itemPlaceholder: {
-    width: scale(60),
-    height: scale(60),
-    borderRadius: scale(8),
-    backgroundColor: '#1e293b',
+    width: ITEM_SIZE - scale(8),
+    height: ITEM_SIZE - scale(8),
+    borderRadius: scale(10),
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  itemName: { fontSize: scale(11), color: colors.textMuted, marginTop: scale(4), textAlign: 'center' },
-  reasoning: { fontSize: scale(13), color: colors.textSecondary, marginTop: scale(12), lineHeight: scale(18) },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  itemName: { fontSize: scale(10), color: colors.textMuted, marginTop: verticalScale(4), textAlign: 'center', letterSpacing: 0.1 },
+  reasoning: { fontSize: scale(12), color: colors.textSecondary, marginTop: verticalScale(14), lineHeight: scale(18), letterSpacing: 0.1 },
+  actions: { flexDirection: 'row', gap: scale(10), marginTop: verticalScale(16) },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(148,163,184,0.15)',
-    borderRadius: 20,
+    gap: scale(6),
+    paddingVertical: verticalScale(9),
+    paddingHorizontal: scale(18),
+    backgroundColor: 'transparent',
+    borderRadius: scale(20),
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
-  savedBtn: { backgroundColor: 'rgba(244,63,94,0.2)' },
-  actionText: { color: '#fff', fontSize: scale(14) },
-  ratingRow: { flexDirection: 'row', gap: scale(4), marginTop: scale(12), justifyContent: 'center' },
-  emptyText: { color: colors.textMuted, textAlign: 'center', marginTop: scale(40), fontSize: scale(14) },
+  savedBtn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  actionText: { color: colors.textSecondary, fontSize: scale(13), fontWeight: '500', letterSpacing: 0.2 },
+  ratingRow: { flexDirection: 'row', gap: scale(6), marginTop: verticalScale(14), justifyContent: 'center' },
+  emptyText: { color: colors.textMuted, textAlign: 'center', marginTop: verticalScale(48), fontSize: scale(13), letterSpacing: 0.2, lineHeight: scale(20) },
 });
 
 export default StylistScreen;

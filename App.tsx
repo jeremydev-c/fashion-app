@@ -22,7 +22,7 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     // Allow all loading animations to complete
-    const timer = setTimeout(() => setBooting(false), 3200);
+    const timer = setTimeout(() => setBooting(false), 5500);
     return () => clearTimeout(timer);
   }, []);
 

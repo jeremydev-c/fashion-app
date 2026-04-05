@@ -4,13 +4,15 @@ const Outfit = require('../models/Outfit');
 const StyleDNA = require('../models/StyleDNA');
 const UserPreferences = require('../models/UserPreferences');
 
+const { requireFeature } = require('../middleware/planLimits');
+
 const router = express.Router();
 
 /**
  * GET /analytics/wardrobe?userId=123
  * Get comprehensive wardrobe analytics
  */
-router.get('/wardrobe', async (req, res) => {
+router.get('/wardrobe', requireFeature('analytics'), async (req, res) => {
   try {
     const { userId } = req.query;
 
@@ -119,7 +121,7 @@ router.get('/wardrobe', async (req, res) => {
  * GET /analytics/outfits?userId=123
  * Get outfit analytics
  */
-router.get('/outfits', async (req, res) => {
+router.get('/outfits', requireFeature('analytics'), async (req, res) => {
   try {
     const { userId } = req.query;
 
@@ -184,7 +186,7 @@ router.get('/outfits', async (req, res) => {
  * GET /analytics/insights?userId=123
  * Get personalized insights and recommendations
  */
-router.get('/insights', async (req, res) => {
+router.get('/insights', requireFeature('analytics'), async (req, res) => {
   try {
     const { userId } = req.query;
 
@@ -261,12 +263,12 @@ router.get('/insights', async (req, res) => {
       const latest = styleDNA.styleEvolution[styleDNA.styleEvolution.length - 1];
       const previous = styleDNA.styleEvolution[styleDNA.styleEvolution.length - 2];
       
-      if (latest.primaryStyle !== previous.primaryStyle) {
+      if (latest.style !== previous.style) {
         insights.push({
           type: 'style_evolution',
           priority: 'low',
           title: 'Style Evolution',
-          message: `Your style has evolved from ${previous.primaryStyle} to ${latest.primaryStyle}!`,
+          message: `Your style has evolved from ${previous.style} to ${latest.style}!`,
         });
       }
     }

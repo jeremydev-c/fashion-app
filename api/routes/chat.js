@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const OpenAI = require('openai');
+const { requireFeature } = require('../middleware/planLimits');
 const ChatHistory = require('../models/ChatHistory');
 const ClothingItem = require('../models/ClothingItem');
 
@@ -116,7 +117,7 @@ router.post('/new', async (req, res) => {
 });
 
 // Send message
-router.post('/message', async (req, res) => {
+router.post('/message', requireFeature('styleCoach'), async (req, res) => {
   try {
     const { userId, message, conversationId, language = 'en' } = req.body;
 
@@ -379,7 +380,7 @@ Respond in ${language} language.`;
       temperature: 0.7,
     });
 
-    let assistantMessage = completion.choices[0].message.content;
+    let assistantMessage = completion.choices?.[0]?.message?.content || 'I couldn\'t generate a response right now. Please try again.';
 
     // Track API usage for chat
     try {

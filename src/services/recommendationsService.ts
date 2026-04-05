@@ -33,6 +33,14 @@ export type ForecastContext = {
   maxTemp?: number;
 };
 
+export type WeatherContext = {
+  category?: string;
+  temperature?: number;
+  condition?: string;
+  humidity?: number;
+  windSpeed?: number;
+};
+
 /**
  * Get AI-powered outfit recommendations
  */
@@ -43,6 +51,7 @@ export async function getRecommendations(params: {
   weather?: string;
   limit?: number;
   forecast?: ForecastContext;
+  weatherDetail?: WeatherContext;
 }): Promise<OutfitRecommendation[]> {
   const queryParams = new URLSearchParams({
     userId: params.userId,
@@ -50,10 +59,13 @@ export async function getRecommendations(params: {
     ...(params.timeOfDay && { timeOfDay: params.timeOfDay }),
     ...(params.weather && { weather: params.weather }),
     limit: (params.limit || 3).toString(),
-    // Add forecast context
     ...(params.forecast?.needsLayers !== undefined && { needsLayers: params.forecast.needsLayers.toString() }),
     ...(params.forecast?.hasRainRisk !== undefined && { hasRainRisk: params.forecast.hasRainRisk.toString() }),
     ...(params.forecast?.tempSwing !== undefined && { tempSwing: params.forecast.tempSwing.toString() }),
+    ...(params.weatherDetail?.temperature !== undefined && { temperature: params.weatherDetail.temperature.toString() }),
+    ...(params.weatherDetail?.condition && { condition: params.weatherDetail.condition }),
+    ...(params.weatherDetail?.humidity !== undefined && { humidity: params.weatherDetail.humidity.toString() }),
+    ...(params.weatherDetail?.windSpeed !== undefined && { windSpeed: params.weatherDetail.windSpeed.toString() }),
   });
 
   try {

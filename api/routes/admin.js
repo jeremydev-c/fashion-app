@@ -128,7 +128,7 @@ router.get('/analytics', async (req, res) => {
       database: 'connected',
       cloudinary: process.env.CLOUDINARY_CLOUD_NAME ? 'configured' : 'not configured',
       openai: process.env.OPENAI_API_KEY ? 'configured' : 'not configured',
-      stripe: process.env.STRIPE_SECRET_KEY ? 'configured' : 'not configured (beta mode)',
+      paystack: process.env.PAYSTACK_SECRET_KEY ? 'configured' : 'not configured',
       uptime: process.uptime(),
       memory: {
         used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),

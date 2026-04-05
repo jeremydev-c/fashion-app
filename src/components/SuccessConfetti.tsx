@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Dimensions } from 'react-native';
-import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 
 const { width, height } = Dimensions.get('window');
 
@@ -18,6 +18,7 @@ interface SuccessConfettiProps {
 }
 
 export default function SuccessConfetti({ visible, duration = 3000 }: SuccessConfettiProps) {
+  const colors = useThemeColors();
   const pieces = useRef<ConfettiPiece[]>([]);
 
   useEffect(() => {
@@ -58,7 +59,7 @@ export default function SuccessConfetti({ visible, duration = 3000 }: SuccessCon
         ]).start();
       });
     }
-  }, [visible, duration]);
+  }, [visible, duration, colors]);
 
   if (!visible) return null;
 

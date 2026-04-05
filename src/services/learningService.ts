@@ -17,17 +17,12 @@ export async function recordInteraction(data: {
   sessionId?: string;
 }): Promise<void> {
   try {
-    // Fire and forget - learning should never block the UI
-    fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.104:4000'}/learning/interaction`, {
+    apiRequest('/learning/interaction', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
-    }).catch(err => {
-      console.error('Learning recording failed (non-blocking):', err);
-    });
-  } catch (error) {
+    }).catch(() => {});
+  } catch {
     // Silent fail - learning should never break the app
-    console.error('Error recording interaction:', error);
   }
 }
 

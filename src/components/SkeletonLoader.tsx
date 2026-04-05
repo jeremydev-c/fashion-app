@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, ViewStyle } from 'react-native';
-import { colors } from '../theme/colors';
+import { StyleSheet, Animated, ViewStyle } from 'react-native';
+import { useThemeColors } from '../theme/ThemeProvider';
 
 interface SkeletonLoaderProps {
   width?: number | string;
@@ -15,6 +15,7 @@ export default function SkeletonLoader({
   borderRadius = 8,
   style,
 }: SkeletonLoaderProps) {
+  const colors = useThemeColors();
   const shimmerValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -46,7 +47,7 @@ export default function SkeletonLoader({
   return (
     <Animated.View
       style={[
-        styles.skeleton,
+        { backgroundColor: colors.card },
         {
           width,
           height,
@@ -58,10 +59,4 @@ export default function SkeletonLoader({
     />
   );
 }
-
-const styles = StyleSheet.create({
-  skeleton: {
-    backgroundColor: colors.card,
-  },
-});
 

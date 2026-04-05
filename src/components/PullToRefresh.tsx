@@ -1,6 +1,6 @@
 import React from 'react';
 import { RefreshControl } from 'react-native';
-import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 
 interface PullToRefreshProps {
   refreshing: boolean;
@@ -8,6 +8,7 @@ interface PullToRefreshProps {
 }
 
 export default function PullToRefresh({ refreshing, onRefresh }: PullToRefreshProps) {
+  const colors = useThemeColors();
   return (
     <RefreshControl
       refreshing={refreshing}

@@ -58,14 +58,14 @@ async function recordInteraction({
 }
 
 /**
- * Continuous learning update - runs after every interaction
+ * Continuous learning update - runs after every interaction.
+ * Aggregates weighted preference signals into UserPreferences.
  */
 async function updateContinuousLearning(userId) {
   try {
-    // Get recent interactions (last 100)
     const recentInteractions = await LearningHistory.find({ userId })
       .sort({ timestamp: -1 })
-      .limit(100)
+      .limit(200)
       .lean();
 
     if (recentInteractions.length === 0) return;
@@ -82,100 +82,150 @@ async function updateContinuousLearning(userId) {
       });
     }
 
-    // Analyze patterns from recent interactions
-    const positiveSignals = recentInteractions.filter(
-      i => i.interactionType === 'swipe_right' || 
-           i.interactionType === 'save' || 
-           (i.interactionType === 'rate' && i.rating >= 4)
-    );
+    const isPositive = i =>
+      i.interactionType === 'swipe_right' ||
+      i.interactionType === 'save' || i.interactionType === 'saved' ||
+      ((i.interactionType === 'rate' || i.interactionType === 'rated') && i.rating >= 4);
 
-    const negativeSignals = recentInteractions.filter(
-      i => i.interactionType === 'swipe_left' || 
-           i.interactionType === 'reject' || 
-           (i.interactionType === 'rate' && i.rating <= 2)
-    );
+    const isNegative = i =>
+      i.interactionType === 'swipe_left' ||
+      i.interactionType === 'reject' || i.interactionType === 'rejected' ||
+      ((i.interactionType === 'rate' || i.interactionType === 'rated') && i.rating <= 2);
 
-    // Learn from positive signals (weighted by recency)
-    const colorFrequency = {};
-    const styleFrequency = {};
-    const occasionFrequency = {};
-    const categoryFrequency = {};
+    const positiveSignals = recentInteractions.filter(isPositive);
+    const negativeSignals = recentInteractions.filter(isNegative);
+
+    // ── Weighted frequency counters (recency-weighted) ──
+    const colorW = {};
+    const styleW = {};
+    const categoryW = {};
+    const patternW = {};
+    const occasionW = {};
+    const timeW = {};
+    const occasionPrefs = {};
+
+    function addWeight(map, key, weight) {
+      if (key) map[key] = (map[key] || 0) + weight;
+    }
+
+    // Rating gives extra signal strength (5-star = 1.5x, 4-star = 1.2x)
+    function ratingMultiplier(signal) {
+      if (signal.rating === 5) return 1.5;
+      if (signal.rating === 4) return 1.2;
+      return 1.0;
+    }
 
     positiveSignals.forEach((signal, index) => {
-      const recencyWeight = 1 / (index + 1); // More recent = higher weight
-      
-      if (signal.metadata?.colors) {
-        signal.metadata.colors.forEach(color => {
-          colorFrequency[color] = (colorFrequency[color] || 0) + recencyWeight;
-        });
-      }
-      
-      if (signal.metadata?.styles) {
-        signal.metadata.styles.forEach(style => {
-          styleFrequency[style] = (styleFrequency[style] || 0) + recencyWeight;
-        });
-      }
-      
+      const recency = 1 / (1 + index * 0.1);
+      const rMult = ratingMultiplier(signal);
+      const w = recency * rMult;
+
+      (signal.metadata?.colors || []).forEach(c => addWeight(colorW, c, w));
+      (signal.metadata?.styles || []).forEach(s => addWeight(styleW, s, w));
+      (signal.metadata?.categories || []).forEach(c => addWeight(categoryW, c, w));
+      (signal.metadata?.patterns || []).forEach(p => addWeight(patternW, p, w));
+
       if (signal.occasion) {
-        occasionFrequency[signal.occasion] = (occasionFrequency[signal.occasion] || 0) + recencyWeight;
+        const occ = signal.occasion.toLowerCase();
+        addWeight(occasionW, occ, w);
+
+        if (!occasionPrefs[occ]) {
+          occasionPrefs[occ] = { colors: {}, styles: {}, categories: {}, pos: 0, neg: 0 };
+        }
+        occasionPrefs[occ].pos += 1;
+        (signal.metadata?.colors || []).forEach(c => addWeight(occasionPrefs[occ].colors, c, w));
+        (signal.metadata?.styles || []).forEach(s => addWeight(occasionPrefs[occ].styles, s, w));
+        (signal.metadata?.categories || []).forEach(c => addWeight(occasionPrefs[occ].categories, c, w));
       }
-      
-      if (signal.metadata?.categories) {
-        signal.metadata.categories.forEach(cat => {
-          categoryFrequency[cat] = (categoryFrequency[cat] || 0) + recencyWeight;
-        });
-      }
+
+      if (signal.timeOfDay) addWeight(timeW, signal.timeOfDay.toLowerCase(), w);
     });
 
-    // Update preferred colors (top 10 most frequent)
-    const topColors = Object.entries(colorFrequency)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([color]) => color);
-    
-    // Merge with existing, keeping top preferences
-    const allColors = [...new Set([...prefs.preferredColors, ...topColors])];
-    prefs.preferredColors = allColors.slice(0, 15); // Keep top 15
+    // Negative signals reduce weights
+    negativeSignals.forEach((signal, index) => {
+      const recency = 1 / (1 + index * 0.1);
+      const w = recency * 0.6;
 
-    // Update preferred styles
-    const topStyles = Object.entries(styleFrequency)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 8)
-      .map(([style]) => style);
-    
-    const allStyles = [...new Set([...prefs.preferredStyles, ...topStyles])];
-    prefs.preferredStyles = allStyles.slice(0, 12);
+      (signal.metadata?.colors || []).forEach(c => addWeight(colorW, c, -w));
+      (signal.metadata?.styles || []).forEach(s => addWeight(styleW, s, -w));
+      (signal.metadata?.categories || []).forEach(c => addWeight(categoryW, c, -w));
+      (signal.metadata?.patterns || []).forEach(p => addWeight(patternW, p, -w));
 
-    // Update preferred occasions
-    const topOccasions = Object.entries(occasionFrequency)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([occasion]) => occasion);
-    
-    const allOccasions = [...new Set([...prefs.preferredOccasions, ...topOccasions])];
-    prefs.preferredOccasions = allOccasions.slice(0, 8);
-
-    // Learn from negative signals - avoid these combinations
-    negativeSignals.forEach(signal => {
       if (signal.metadata?.colors && signal.metadata.colors.length >= 2) {
-        const combo = signal.metadata.colors.sort().join('+');
+        const combo = [...new Set(signal.metadata.colors)].sort().join('+');
         if (!prefs.avoidedCombinations.includes(combo)) {
           prefs.avoidedCombinations.push(combo);
         }
       }
+
+      if (signal.occasion) {
+        const occ = signal.occasion.toLowerCase();
+        if (!occasionPrefs[occ]) {
+          occasionPrefs[occ] = { colors: {}, styles: {}, categories: {}, pos: 0, neg: 0 };
+        }
+        occasionPrefs[occ].neg += 1;
+      }
     });
 
-    // Keep avoided combinations list manageable (top 20)
-    prefs.avoidedCombinations = prefs.avoidedCombinations.slice(0, 20);
+    // ── Derive top-N lists from weighted scores ──
+    function topKeys(map, n) {
+      return Object.entries(map)
+        .filter(([, v]) => v > 0)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, n)
+        .map(([k]) => k);
+    }
 
-    // Update feedback count
+    // Merge learned with onboarding (onboarding values stay, learned ones get added)
+    const onboardingColors = new Set((prefs.preferredColors || []).filter(Boolean));
+    const learnedColors = topKeys(colorW, 12);
+    prefs.preferredColors = [...new Set([...onboardingColors, ...learnedColors])].slice(0, 20);
+
+    const onboardingStyles = new Set((prefs.preferredStyles || []).filter(Boolean));
+    const learnedStyles = topKeys(styleW, 10);
+    prefs.preferredStyles = [...new Set([...onboardingStyles, ...learnedStyles])].slice(0, 15);
+
+    prefs.preferredCategories = topKeys(categoryW, 8);
+    prefs.preferredPatterns = topKeys(patternW, 6);
+
+    const onboardingOccasions = new Set((prefs.preferredOccasions || []).filter(Boolean));
+    const learnedOccasions = topKeys(occasionW, 6);
+    prefs.preferredOccasions = [...new Set([...onboardingOccasions, ...learnedOccasions])].slice(0, 10);
+
+    // Avoided styles: styles that appear more in negative than positive
+    const avoidedStyles = Object.entries(styleW)
+      .filter(([, v]) => v < -0.3)
+      .map(([k]) => k);
+    prefs.avoidedStyles = avoidedStyles.slice(0, 10);
+
+    // Save weighted maps for the recommendation engine
+    prefs.colorWeights = colorW;
+    prefs.styleWeights = styleW;
+    prefs.categoryWeights = categoryW;
+    prefs.patternWeights = patternW;
+    prefs.occasionWeights = occasionW;
+    prefs.timeWeights = timeW;
+
+    // Save per-occasion preferences
+    const occasionPrefsMap = {};
+    for (const [occ, data] of Object.entries(occasionPrefs)) {
+      occasionPrefsMap[occ] = {
+        preferredColors: topKeys(data.colors, 5),
+        preferredStyles: topKeys(data.styles, 4),
+        preferredCategories: topKeys(data.categories, 4),
+        positiveCount: data.pos,
+        negativeCount: data.neg,
+      };
+    }
+    prefs.occasionPreferences = occasionPrefsMap;
+
+    prefs.avoidedCombinations = prefs.avoidedCombinations.slice(0, 30);
     prefs.feedbackCount = recentInteractions.length;
     prefs.lastUpdated = new Date();
     
     await prefs.save();
   } catch (error) {
     console.error('Error in continuous learning update:', error);
-    // Don't throw - learning should be resilient
   }
 }
 
@@ -198,22 +248,18 @@ async function getLearningInsights(userId) {
       };
     }
 
-    // Calculate learning metrics
-    const positiveRate = interactions.filter(
-      i => i.interactionType === 'swipe_right' || i.interactionType === 'save'
-    ).length / interactions.length;
+    const isPosSignal = i =>
+      i.interactionType === 'swipe_right' ||
+      i.interactionType === 'save' || i.interactionType === 'saved' ||
+      ((i.interactionType === 'rate' || i.interactionType === 'rated') && i.rating >= 4);
 
-    // Recent vs older performance (last 50 vs previous 50)
+    const positiveRate = interactions.filter(isPosSignal).length / interactions.length;
+
     const recent = interactions.slice(0, 50);
     const older = interactions.slice(50, 100);
     
-    const recentPositiveRate = recent.filter(
-      i => i.interactionType === 'swipe_right' || i.interactionType === 'save'
-    ).length / (recent.length || 1);
-    
-    const olderPositiveRate = older.filter(
-      i => i.interactionType === 'swipe_right' || i.interactionType === 'save'
-    ).length / (older.length || 1);
+    const recentPositiveRate = recent.filter(isPosSignal).length / (recent.length || 1);
+    const olderPositiveRate = older.filter(isPosSignal).length / (older.length || 1);
 
     const improvement = recentPositiveRate - olderPositiveRate;
     
@@ -262,7 +308,9 @@ async function analyzeUserPatterns(userId) {
     };
 
     const positiveInteractions = interactions.filter(
-      i => i.interactionType === 'swipe_right' || i.interactionType === 'save'
+      i => i.interactionType === 'swipe_right' ||
+           i.interactionType === 'save' || i.interactionType === 'saved' ||
+           ((i.interactionType === 'rate' || i.interactionType === 'rated') && i.rating >= 4)
     );
 
     positiveInteractions.forEach(interaction => {

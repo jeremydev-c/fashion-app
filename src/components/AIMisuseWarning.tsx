@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
+import type { ThemeColors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -31,6 +32,8 @@ export const AIMisuseWarning: React.FC<AIMisuseWarningProps> = ({
   visible,
   onAcknowledge,
 }) => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [acknowledged, setAcknowledged] = useState(false);
 
   const handleAcknowledge = async () => {
@@ -59,7 +62,7 @@ export const AIMisuseWarning: React.FC<AIMisuseWarningProps> = ({
                 colors={['#ef4444', '#dc2626']}
                 style={styles.iconGradient}
               >
-                <Ionicons name="warning" size={scale(40)} color="#fff" />
+                <Ionicons name="warning" size={scale(40)} color={colors.textOnPrimary} />
               </LinearGradient>
             </View>
 
@@ -110,10 +113,10 @@ export const AIMisuseWarning: React.FC<AIMisuseWarningProps> = ({
                 >
                   {acknowledged ? (
                     <LinearGradient
-                      colors={['#ff6b9c', '#7f5dff']}
+                      colors={[...colors.gradientAccent]}
                       style={styles.checkboxGradient}
                     >
-                      <Ionicons name="checkmark" size={scale(16)} color="#fff" />
+                      <Ionicons name="checkmark" size={scale(16)} color={colors.textOnPrimary} />
                     </LinearGradient>
                   ) : (
                     <View style={styles.checkboxEmpty} />
@@ -138,7 +141,7 @@ export const AIMisuseWarning: React.FC<AIMisuseWarningProps> = ({
             >
               {acknowledged ? (
                 <LinearGradient
-                  colors={['#ff6b9c', '#7f5dff']}
+                  colors={[...colors.gradientAccent]}
                   style={styles.buttonGradient}
                 >
                   <Text style={styles.buttonText}>I Understand & Continue</Text>
@@ -168,7 +171,8 @@ export const hasAcknowledgedWarning = async (): Promise<boolean> => {
   }
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'center',
@@ -326,7 +330,7 @@ const styles = StyleSheet.create({
   buttonText: {
     ...typography.bodyBold,
     fontSize: scale(16),
-    color: '#fff',
+    color: colors.textOnPrimary,
   },
   buttonTextDisabled: {
     ...typography.body,
@@ -334,4 +338,5 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
 });
+
 

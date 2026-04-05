@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 
@@ -19,6 +19,7 @@ export const Badge: React.FC<BadgeProps> = ({
   style,
   textStyle,
 }) => {
+  const colors = useThemeColors();
   const variantStyles = {
     primary: {
       backgroundColor: colors.primarySoft,

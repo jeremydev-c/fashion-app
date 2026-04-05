@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { Card } from './Card';
@@ -37,6 +38,7 @@ export const SwipeableRecommendationCard: React.FC<SwipeableRecommendationCardPr
   isSaved,
   getColorHex,
 }) => {
+  const colors = useThemeColors();
   const translateX = useSharedValue(0);
   const opacity = useSharedValue(1);
   const scale = useSharedValue(1);

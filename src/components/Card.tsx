@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
-import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 
 type CardVariant = 'elevated' | 'outlined' | 'filled';
@@ -18,6 +18,7 @@ export const Card: React.FC<CardProps> = ({
   style,
   onPress,
 }) => {
+  const colors = useThemeColors();
   const variantStyles = {
     elevated: {
       backgroundColor: colors.cardSoft,

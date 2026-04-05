@@ -4,14 +4,15 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   RefreshControl,
   Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { apiClient } from '../services/apiClient';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -62,7 +63,7 @@ interface AnalyticsData {
     database: string;
     cloudinary: string;
     openai: string;
-    stripe: string;
+    paystack: string;
     uptime: number;
     memory: {
       used: number;
@@ -98,6 +99,8 @@ interface AnalyticsData {
 }
 
 export const AdminDashboardScreen: React.FC = () => {
+  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -109,7 +112,7 @@ export const AdminDashboardScreen: React.FC = () => {
       const response = await apiClient.get(`/admin/analytics?secret=${ADMIN_SECRET}`);
       setAnalytics(response.data);
     } catch (err: any) {
-      console.error('Failed to load analytics:', err);
+      console.log('Failed to load analytics:', err);
       setError(err?.data?.error || err?.message || 'Failed to load analytics');
     } finally {
       setLoading(false);
@@ -135,17 +138,17 @@ export const AdminDashboardScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={styles.loadingContainer}>
           <LoadingSpinner size="large" message="Loading analytics..." />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={scale(48)} color={colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
@@ -153,7 +156,7 @@ export const AdminDashboardScreen: React.FC = () => {
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -162,8 +165,11 @@ export const AdminDashboardScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.gradient}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <LinearGradient
+        colors={[colors.background, colors.card]}
+        style={[styles.gradient, { backgroundColor: colors.background }]}
+      >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
@@ -188,30 +194,30 @@ export const AdminDashboardScreen: React.FC = () => {
           </View>
 
           {/* Users Section */}
-          <View style={styles.section}>
+          <View style={[styles.section, { backgroundColor: colors.card }]}>
             <Text style={styles.sectionTitle}>👥 Users</Text>
             <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.users.total}</Text>
                 <Text style={styles.statLabel}>Total Users</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.users.verified}</Text>
                 <Text style={styles.statLabel}>Verified</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.users.active}</Text>
                 <Text style={styles.statLabel}>Active</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.users.premium}</Text>
                 <Text style={styles.statLabel}>Premium</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.users.recent}</Text>
                 <Text style={styles.statLabel}>Last 7 Days</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.users.onboarded}</Text>
                 <Text style={styles.statLabel}>Onboarded</Text>
               </View>
@@ -238,14 +244,14 @@ export const AdminDashboardScreen: React.FC = () => {
           </View>
 
           {/* Wardrobe Section */}
-          <View style={styles.section}>
+          <View style={[styles.section, { backgroundColor: colors.card }]}>
             <Text style={styles.sectionTitle}>👔 Wardrobe</Text>
             <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.wardrobe.totalItems}</Text>
                 <Text style={styles.statLabel}>Total Items</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.wardrobe.avgItemsPerUser}</Text>
                 <Text style={styles.statLabel}>Avg per User</Text>
               </View>
@@ -290,14 +296,14 @@ export const AdminDashboardScreen: React.FC = () => {
           </View>
 
           {/* Outfits Section */}
-          <View style={styles.section}>
+          <View style={[styles.section, { backgroundColor: colors.card }]}>
             <Text style={styles.sectionTitle}>✨ Outfits</Text>
             <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.outfits.total}</Text>
                 <Text style={styles.statLabel}>Total Outfits</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.outfits.saved}</Text>
                 <Text style={styles.statLabel}>Saved</Text>
               </View>
@@ -305,22 +311,22 @@ export const AdminDashboardScreen: React.FC = () => {
           </View>
 
           {/* AI Usage Section */}
-          <View style={styles.section}>
+          <View style={[styles.section, { backgroundColor: colors.card }]}>
             <Text style={styles.sectionTitle}>🤖 AI Usage</Text>
             <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.ai.totalCategorizations}</Text>
                 <Text style={styles.statLabel}>Categorizations</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.ai.totalOutfitGenerations}</Text>
                 <Text style={styles.statLabel}>Outfit Generations</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.ai.totalChatMessages}</Text>
                 <Text style={styles.statLabel}>Chat Messages</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.ai.totalStyleDNACalculations}</Text>
                 <Text style={styles.statLabel}>Style DNA</Text>
               </View>
@@ -328,18 +334,18 @@ export const AdminDashboardScreen: React.FC = () => {
           </View>
 
           {/* Chat Section */}
-          <View style={styles.section}>
+          <View style={[styles.section, { backgroundColor: colors.card }]}>
             <Text style={styles.sectionTitle}>💬 Chat</Text>
             <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.chat.totalConversations}</Text>
                 <Text style={styles.statLabel}>Conversations</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.chat.totalMessages}</Text>
                 <Text style={styles.statLabel}>Messages</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.chat.avgMessagesPerConversation}</Text>
                 <Text style={styles.statLabel}>Avg per Chat</Text>
               </View>
@@ -347,7 +353,7 @@ export const AdminDashboardScreen: React.FC = () => {
           </View>
 
           {/* System Health Section */}
-          <View style={styles.section}>
+          <View style={[styles.section, { backgroundColor: colors.card }]}>
             <Text style={styles.sectionTitle}>⚙️ System Health</Text>
             <View style={styles.systemContainer}>
               <View style={styles.systemItem}>
@@ -369,9 +375,9 @@ export const AdminDashboardScreen: React.FC = () => {
                 </View>
               </View>
               <View style={styles.systemItem}>
-                <Text style={styles.systemLabel}>Stripe</Text>
-                <View style={[styles.statusBadge, analytics.system.stripe === 'configured' && styles.statusBadgeSuccess]}>
-                  <Text style={styles.statusText}>{analytics.system.stripe}</Text>
+                <Text style={styles.systemLabel}>Paystack</Text>
+                <View style={[styles.statusBadge, analytics.system.paystack === 'configured' && styles.statusBadgeSuccess]}>
+                  <Text style={styles.statusText}>{analytics.system.paystack}</Text>
                 </View>
               </View>
               <View style={styles.systemItem}>
@@ -388,14 +394,14 @@ export const AdminDashboardScreen: React.FC = () => {
           </View>
 
           {/* Style DNA Section */}
-          <View style={styles.section}>
+          <View style={[styles.section, { backgroundColor: colors.card }]}>
             <Text style={styles.sectionTitle}>🧬 Style DNA</Text>
             <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.styleDNA.total}</Text>
                 <Text style={styles.statLabel}>Calculated</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card }]}>
                 <Text style={styles.statValue}>{analytics.styleDNA.coverage}%</Text>
                 <Text style={styles.statLabel}>Coverage</Text>
               </View>
@@ -404,11 +410,11 @@ export const AdminDashboardScreen: React.FC = () => {
 
           {/* API Costs Section */}
           {analytics.apiCosts && (
-            <View style={styles.section}>
+            <View style={[styles.section, { backgroundColor: colors.card }]}>
               <Text style={styles.sectionTitle}>💰 API Costs & Usage</Text>
               
               {/* OpenAI Costs */}
-              <View style={styles.costCard}>
+              <View style={[styles.costCard, { backgroundColor: colors.card }]}>
                 <View style={styles.costHeader}>
                   <Ionicons name="sparkles" size={scale(20)} color={colors.primary} />
                   <Text style={styles.costTitle}>OpenAI</Text>
@@ -464,10 +470,10 @@ export const AdminDashboardScreen: React.FC = () => {
 
           {/* Cloudinary Storage Section */}
           {analytics.apiCosts?.cloudinary && (
-            <View style={styles.section}>
+            <View style={[styles.section, { backgroundColor: colors.card }]}>
               <Text style={styles.sectionTitle}>☁️ Cloudinary Storage</Text>
               
-              <View style={styles.storageCard}>
+              <View style={[styles.storageCard, { backgroundColor: colors.card }]}>
                 <View style={styles.storageHeader}>
                   <Ionicons name="cloud-outline" size={scale(20)} color={colors.secondary} />
                   <Text style={styles.storageTitle}>Storage Usage</Text>
@@ -486,7 +492,7 @@ export const AdminDashboardScreen: React.FC = () => {
                                 (analytics.apiCosts.cloudinary.storageUsedPercent || 0) > 80
                                   ? colors.danger
                                   : (analytics.apiCosts.cloudinary.storageUsedPercent || 0) > 60
-                                  ? '#f59e0b'
+                                  ? colors.primary
                                   : colors.primary,
                             },
                           ]}
@@ -560,7 +566,7 @@ export const AdminDashboardScreen: React.FC = () => {
           )}
         </ScrollView>
       </LinearGradient>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -603,7 +609,7 @@ const styles = StyleSheet.create({
   retryButtonText: {
     fontSize: scale(16),
     fontWeight: '600',
-    color: '#fff',
+    color: colors.textOnPrimary,
   },
   header: {
     flexDirection: 'row',
@@ -711,7 +717,7 @@ const styles = StyleSheet.create({
   rankText: {
     fontSize: scale(12),
     fontWeight: '700',
-    color: '#fff',
+    color: colors.textOnPrimary,
   },
   userInfo: {
     flex: 1,
@@ -826,12 +832,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerSoft,
   },
   statusBadgeSuccess: {
-    backgroundColor: colors.successSoft || '#10b981',
+    backgroundColor: colors.successSoft || '#4ade80',
   },
   statusText: {
     fontSize: scale(11),
     fontWeight: '600',
-    color: '#fff',
+    color: colors.textOnPrimary,
     textTransform: 'capitalize',
   },
   // API Costs Styles

@@ -10,6 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 
 interface AnimatedButtonProps {
@@ -35,6 +36,7 @@ export default function AnimatedButton({
   textStyle,
   icon,
 }: AnimatedButtonProps) {
+  const colors = useThemeColors();
   const handlePress = () => {
     if (!disabled && !loading) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -63,11 +65,11 @@ export default function AnimatedButton({
           end={{ x: 1, y: 1 }}
         >
           {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={colors.textOnPrimary} />
           ) : (
             <>
               {icon}
-              <Text style={[styles.text, styles.primaryText, textStyle]}>{title}</Text>
+              <Text style={[styles.text, { color: colors.textOnPrimary }, textStyle]}>{title}</Text>
             </>
           )}
         </LinearGradient>
@@ -144,9 +146,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  primaryText: {
-    color: '#fff',
   },
   secondaryText: {
     color: colors.textPrimary,

@@ -1,5 +1,6 @@
 const express = require('express');
 const ClothingItem = require('../models/ClothingItem');
+const { enforceItemLimit, requireFeature } = require('../middleware/planLimits');
 
 const router = express.Router();
 
@@ -19,7 +20,7 @@ router.get('/items', async (req, res) => {
 });
 
 // POST /wardrobe/items
-router.post('/items', async (req, res) => {
+router.post('/items', enforceItemLimit(), async (req, res) => {
   try {
     const { userId, name, category, color, brand, size, imageUrl, tags, favorite } = req.body;
     if (!userId || !name || !category) {
@@ -79,6 +80,10 @@ router.delete('/items/:id', async (req, res) => {
   }
 });
 
+// GET /wardrobe/can-bulk?userId=123
+// Check if user's plan allows bulk upload (used by frontend before opening bulk camera)
+router.get('/can-bulk', requireFeature('bulkUpload'), (_req, res) => {
+  res.json({ allowed: true });
+});
+
 module.exports = router;
-
-

@@ -14,7 +14,7 @@ import { Dimensions, PixelRatio, Platform, ScaledSize } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Get initial dimensions
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+export const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Base dimensions (iPhone 14 Pro as reference - mobile-first)
 const BASE_WIDTH = 393;

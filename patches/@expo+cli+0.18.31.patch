@@ -1,0 +1,31 @@
+diff --git a/node_modules/@expo/cli/build/src/start/server/AsyncNgrok.js b/node_modules/@expo/cli/build/src/start/server/AsyncNgrok.js
+index 1295ae3..b0ebaf6 100644
+--- a/node_modules/@expo/cli/build/src/start/server/AsyncNgrok.js
++++ b/node_modules/@expo/cli/build/src/start/server/AsyncNgrok.js
+@@ -92,7 +92,7 @@ const NGROK_CONFIG = {
+     authToken: "5W1bR67GNbWcXqmxZzBG1_56GezNeaX6sSRvn8npeQ8",
+     domain: "exp.direct"
+ };
+-const TUNNEL_TIMEOUT = 10 * 1000;
++const TUNNEL_TIMEOUT = 60 * 1000;
+ class AsyncNgrok {
+     constructor(projectRoot, port){
+         this.projectRoot = projectRoot;
+@@ -198,10 +198,15 @@ class AsyncNgrok {
+             // Global config path.
+             const configPath = _path().join(_userSettings.default.getDirectory(), "ngrok.yml");
+             debug("Global config path:", configPath);
+-            const urlProps = await this._getConnectionPropsAsync();
++            const ngrokAuthToken = process.env.EXPO_NGROK_AUTHTOKEN || process.env.NGROK_AUTHTOKEN || NGROK_CONFIG.authToken;
++            const usePersonalToken = Boolean(process.env.EXPO_NGROK_AUTHTOKEN || process.env.NGROK_AUTHTOKEN);
++            const urlProps = usePersonalToken ? {} : await this._getConnectionPropsAsync();
++            if (usePersonalToken) {
++                _log.log(_chalk().default.cyan("Using personal ngrok token; tunnel URL will be a random ngrok address (not exp.direct)."));
++            }
+             const url = await instance.connect({
+                 ...urlProps,
+-                authtoken: NGROK_CONFIG.authToken,
++                authtoken: ngrokAuthToken,
+                 configPath,
+                 onStatusChange (status) {
+                     if (status === "closed") {

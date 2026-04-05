@@ -7,17 +7,15 @@ import {
   ActivityIndicator,
   Image,
   TouchableOpacity,
-  Dimensions,
-  SafeAreaView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { scale } from '../utils/responsive';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import {
   getWardrobeAnalytics,
   getOutfitAnalytics,
@@ -31,27 +29,32 @@ import { Badge } from '../components/Badge';
 import { useUserId } from '../hooks/useUserId';
 
 export const AnalyticsScreen: React.FC = () => {
+  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const userId = useUserId();
   const { data: wardrobeAnalytics, isLoading: wardrobeLoading } = useQuery<WardrobeAnalytics>({
     queryKey: ['wardrobeAnalytics', userId],
-    queryFn: () => getWardrobeAnalytics(userId),
+    queryFn: () => getWardrobeAnalytics(userId!),
+    enabled: !!userId,
   });
 
   const { data: outfitAnalytics, isLoading: outfitLoading } = useQuery<OutfitAnalytics>({
     queryKey: ['outfitAnalytics', userId],
-    queryFn: () => getOutfitAnalytics(userId),
+    queryFn: () => getOutfitAnalytics(userId!),
+    enabled: !!userId,
   });
 
   const { data: insightsData, isLoading: insightsLoading } = useQuery<InsightsData>({
     queryKey: ['insights', userId],
-    queryFn: () => getInsights(userId),
+    queryFn: () => getInsights(userId!),
+    enabled: !!userId,
   });
 
   const isLoading = wardrobeLoading || outfitLoading || insightsLoading;
 
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <ActivityIndicator color={colors.primary} size="large" />
         <Text style={styles.loadingText}>Loading your analytics...</Text>
       </View>
@@ -59,7 +62,7 @@ export const AnalyticsScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -72,7 +75,11 @@ export const AnalyticsScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>💡 Personalized Insights</Text>
           {insightsData.insights.map((insight, index) => (
-            <Card key={index} variant="elevated" style={styles.insightCard}>
+            <Card
+              key={index}
+              variant="elevated"
+              style={StyleSheet.flatten([styles.insightCard, { backgroundColor: colors.card }])}
+            >
               <View style={styles.insightHeader}>
                 <Ionicons
                   name={
@@ -106,7 +113,10 @@ export const AnalyticsScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📊 Wardrobe Statistics</Text>
           
-          <Card variant="elevated" style={styles.statsCard}>
+          <Card
+            variant="elevated"
+            style={StyleSheet.flatten([styles.statsCard, { backgroundColor: colors.card }])}
+          >
             <View style={styles.statsGrid}>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{wardrobeAnalytics.totalItems}</Text>
@@ -128,7 +138,10 @@ export const AnalyticsScreen: React.FC = () => {
           </Card>
 
           {/* Category Distribution */}
-          <Card variant="elevated" style={styles.distributionCard}>
+          <Card
+            variant="elevated"
+            style={StyleSheet.flatten([styles.distributionCard, { backgroundColor: colors.card }])}
+          >
             <Text style={styles.cardTitle}>Category Distribution</Text>
             <View style={styles.distributionList}>
               {Object.entries(wardrobeAnalytics.categoryDistribution)
@@ -141,7 +154,7 @@ export const AnalyticsScreen: React.FC = () => {
                         style={[
                           styles.distributionBar,
                           {
-                            width: `${(count / wardrobeAnalytics.totalItems) * 100}%`,
+                            width: `${wardrobeAnalytics.totalItems > 0 ? (count / wardrobeAnalytics.totalItems) * 100 : 0}%`,
                             backgroundColor: colors.primary,
                           },
                         ]}
@@ -155,7 +168,10 @@ export const AnalyticsScreen: React.FC = () => {
 
           {/* Most Worn Items */}
           {wardrobeAnalytics.mostWorn.length > 0 && (
-            <Card variant="elevated" style={styles.listCard}>
+            <Card
+              variant="elevated"
+              style={StyleSheet.flatten([styles.listCard, { backgroundColor: colors.card }])}
+            >
               <Text style={styles.cardTitle}>⭐ Most Worn Items</Text>
               {wardrobeAnalytics.mostWorn.map((item) => (
                 <View key={item.id} style={styles.itemRow}>
@@ -183,7 +199,10 @@ export const AnalyticsScreen: React.FC = () => {
 
           {/* Unused Items */}
           {wardrobeAnalytics.unusedItems.length > 0 && (
-            <Card variant="elevated" style={styles.listCard}>
+            <Card
+              variant="elevated"
+              style={StyleSheet.flatten([styles.listCard, { backgroundColor: colors.card }])}
+            >
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>⚠️ Unused Items</Text>
                 <Badge label={`${wardrobeAnalytics.unusedItems.length} items`} variant="warning" />
@@ -218,7 +237,10 @@ export const AnalyticsScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>👔 Outfit Analytics</Text>
           
-          <Card variant="elevated" style={styles.statsCard}>
+          <Card
+            variant="elevated"
+            style={StyleSheet.flatten([styles.statsCard, { backgroundColor: colors.card }])}
+          >
             <View style={styles.statsGrid}>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{outfitAnalytics.totalOutfits}</Text>
@@ -241,7 +263,10 @@ export const AnalyticsScreen: React.FC = () => {
 
           {/* Occasion Distribution */}
           {Object.keys(outfitAnalytics.occasionDistribution).length > 0 && (
-            <Card variant="elevated" style={styles.distributionCard}>
+            <Card
+              variant="elevated"
+              style={StyleSheet.flatten([styles.distributionCard, { backgroundColor: colors.card }])}
+            >
               <Text style={styles.cardTitle}>Occasion Distribution</Text>
               <View style={styles.distributionList}>
                 {Object.entries(outfitAnalytics.occasionDistribution)
@@ -254,7 +279,7 @@ export const AnalyticsScreen: React.FC = () => {
                           style={[
                             styles.distributionBar,
                             {
-                              width: `${(count / outfitAnalytics.totalOutfits) * 100}%`,
+                              width: `${outfitAnalytics.totalOutfits > 0 ? (count / outfitAnalytics.totalOutfits) * 100 : 0}%`,
                               backgroundColor: colors.secondary,
                             },
                           ]}
@@ -269,7 +294,7 @@ export const AnalyticsScreen: React.FC = () => {
         </View>
       )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

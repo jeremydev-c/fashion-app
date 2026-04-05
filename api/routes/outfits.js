@@ -68,7 +68,10 @@ router.post('/', async (req, res) => {
     }
 
     // Check for duplicate outfit (same items)
-    const itemIds = items.map((item) => item.itemId.toString()).sort();
+    const itemIds = items
+      .filter((item) => item && item.itemId)
+      .map((item) => item.itemId.toString())
+      .sort();
     const existingOutfits = await Outfit.find({ userId });
     
     const duplicate = existingOutfits.find((outfit) => {

@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { supportedLanguages, saveLanguage } from '../i18n/config';
 
@@ -20,6 +21,7 @@ interface LanguageSwitcherProps {
 }
 
 export default function LanguageSwitcher({ visible, onClose }: LanguageSwitcherProps) {
+  const colors = useThemeColors();
   const { i18n, t } = useTranslation();
 
   const handleLanguageSelect = async (langCode: string) => {

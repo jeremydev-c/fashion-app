@@ -10,10 +10,8 @@ import {
   Platform,
   ActivityIndicator,
   Animated,
-  Dimensions,
   Modal,
   ScrollView,
-  SafeAreaView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,9 +22,9 @@ import { useUserId } from '../hooks/useUserId';
 import { useAuth } from '../context/AuthContext';
 import { AIMisuseWarning, hasAcknowledgedWarning } from '../components/AIMisuseWarning';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-
-const { width, width: SCREEN_WIDTH } = Dimensions.get('window');
-const scale = (size: number) => Math.round((SCREEN_WIDTH / 393) * size);
+import { scale, verticalScale, SCREEN_WIDTH } from '../utils/responsive';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { colors } from '../theme/colors';
 
 interface Message {
   id: string;
@@ -58,6 +56,7 @@ const BADGES = [
 ];
 
 export default function ChatScreen() {
+  const colors = useThemeColors();
   const userId = useUserId();
   const { user } = useAuth();
   const userName = user?.name?.split(' ')[0] || 'Your';
@@ -167,7 +166,7 @@ export default function ChatScreen() {
         setConversationId(null);
       }
     } catch (error) {
-      console.error('Delete failed');
+      console.log('Delete failed');
     }
   };
 
@@ -221,11 +220,15 @@ export default function ChatScreen() {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
       }
-    } catch (error) {
+    } catch (error: any) {
+      let content = 'Sorry, something went wrong. Please try again.';
+      if (error?.status === 403 && (error?.data?.error === 'upgrade_required' || error?.message?.includes('upgrade'))) {
+        content = '🔒 The AI Style Coach is a Pro feature. Upgrade your plan to chat with your personal stylist.';
+      }
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
         role: 'assistant',
-        content: 'Sorry, something went wrong. Please try again.',
+        content,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -274,7 +277,7 @@ export default function ChatScreen() {
     return (
       <View style={[styles.msgRow, isUser && styles.msgRowUser]}>
         {!isUser && (
-          <LinearGradient colors={['#ff6b9c', '#7f5dff']} style={styles.avatar}>
+          <LinearGradient colors={[...colors.gradientAccent]} style={styles.avatar}>
             <Ionicons name="sparkles" size={14} color="#fff" />
           </LinearGradient>
         )}
@@ -298,7 +301,7 @@ export default function ChatScreen() {
   const renderEmpty = () => (
     <ScrollView contentContainerStyle={styles.emptyScroll} showsVerticalScrollIndicator={false}>
       <Animated.View style={[styles.emptyBox, { opacity: fadeAnim }]}>
-        <LinearGradient colors={['#ff6b9c', '#7f5dff']} style={styles.emptyIcon}>
+        <LinearGradient colors={[...colors.gradientAccent]} style={styles.emptyIcon}>
           <Ionicons name="sparkles" size={36} color="#fff" />
         </LinearGradient>
         
@@ -339,7 +342,7 @@ export default function ChatScreen() {
     if (!isLoading) return null;
     return (
       <View style={[styles.msgRow]}>
-        <LinearGradient colors={['#ff6b9c', '#7f5dff']} style={styles.avatar}>
+        <LinearGradient colors={[...colors.gradientAccent]} style={styles.avatar}>
           <Ionicons name="sparkles" size={14} color="#fff" />
         </LinearGradient>
         <View style={[styles.bubble, styles.bubbleAssistant, styles.typingBubble]}>
@@ -350,8 +353,11 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.container}>
+    <View style={[styles.safe, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <LinearGradient
+        colors={[colors.background, colors.card]}
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
         
         {/* AI Misuse Warning */}
         <AIMisuseWarning
@@ -361,8 +367,8 @@ export default function ChatScreen() {
         
         {/* History Modal */}
         <Modal visible={showHistory} animationType="slide" presentationStyle="pageSheet">
-          <SafeAreaView style={styles.modal}>
-            <View style={[styles.modalHeader, { paddingTop: Math.max(insets.top, scale(20)) }]}>
+          <View style={[styles.modal, { paddingTop: insets.top }]}>
+            <View style={[styles.modalHeader, { paddingTop: verticalScale(20) }]}>
               <Text style={styles.modalTitle}>Chat History</Text>
               <TouchableOpacity onPress={() => setShowHistory(false)}>
                 <Ionicons name="close" size={scale(28)} color="#fff" />
@@ -370,7 +376,7 @@ export default function ChatScreen() {
             </View>
             
             <TouchableOpacity style={styles.newBtn} onPress={startNewChat}>
-              <LinearGradient colors={['#ff6b9c', '#7f5dff']} style={styles.newBtnGrad}>
+              <LinearGradient colors={[...colors.gradientAccent]} style={styles.newBtnGrad}>
                 <Ionicons name="add" size={scale(20)} color="#fff" />
                 <Text style={styles.newBtnText}>New Chat</Text>
               </LinearGradient>
@@ -386,7 +392,7 @@ export default function ChatScreen() {
                     style={[styles.convItem, conversationId === c.conversationId && styles.convActive]}
                     onPress={() => selectConversation(c)}
                   >
-                    <Ionicons name="chatbubble" size={scale(18)} color="#94a3b8" />
+                    <Ionicons name="chatbubble" size={scale(18)} color="#a8a29e" />
                     <View style={styles.convInfo}>
                       <Text style={styles.convTitle} numberOfLines={1}>{c.title}</Text>
                       <Text style={styles.convDate}>{new Date(c.updatedAt).toLocaleDateString()}</Text>
@@ -398,17 +404,17 @@ export default function ChatScreen() {
                 ))
               )}
             </ScrollView>
-          </SafeAreaView>
+          </View>
         </Modal>
 
         {/* Header with safe area insets */}
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, scale(12)) }]}>
+        <View style={[styles.header, { paddingTop: verticalScale(12) }]}>
           <TouchableOpacity style={styles.headerBtn} onPress={() => setShowHistory(true)}>
             <Ionicons name="menu" size={scale(24)} color="#fff" />
           </TouchableOpacity>
           
           <View style={styles.headerMid}>
-            <LinearGradient colors={['#ff6b9c', '#7f5dff']} style={styles.headerAvatar}>
+            <LinearGradient colors={[...colors.gradientAccent]} style={styles.headerAvatar}>
               <Ionicons name="sparkles" size={scale(16)} color="#fff" />
             </LinearGradient>
             <View>
@@ -452,18 +458,18 @@ export default function ChatScreen() {
           )}
         </View>
 
-        {/* Input with safe area insets */}
+        {/* Input — extra bottom padding to clear the floating tab bar */}
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
-          <View style={[styles.inputBox, { paddingBottom: Math.max(insets.bottom, scale(12)) }]}>
+          <View style={[styles.inputBox, { paddingBottom: verticalScale(56) + Math.max(insets.bottom, verticalScale(12)) }]}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.surface }]}
               value={inputText}
               onChangeText={setInputText}
               placeholder="Ask about style, colors, trends..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#78716c"
               multiline
               maxLength={500}
             />
@@ -473,7 +479,7 @@ export default function ChatScreen() {
               disabled={!inputText.trim() || isLoading}
             >
               <LinearGradient
-                colors={inputText.trim() ? ['#ff6b9c', '#7f5dff'] : ['#334155', '#334155']}
+                colors={inputText.trim() ? [...colors.gradientAccent] : [colors.surface, colors.surface]}
                 style={styles.sendGrad}
               >
                 <Ionicons name="arrow-up" size={scale(20)} color="#fff" />
@@ -483,14 +489,14 @@ export default function ChatScreen() {
         </KeyboardAvoidingView>
         
       </LinearGradient>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.card,
   },
   container: {
     flex: 1,
@@ -502,7 +508,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: scale(16),
-    paddingVertical: scale(12),
+    paddingVertical: verticalScale(12),
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.1)',
   },
@@ -517,7 +523,7 @@ const styles = StyleSheet.create({
   headerMid: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: scale(10),
   },
   headerAvatar: {
     width: scale(40),
@@ -529,12 +535,12 @@ const styles = StyleSheet.create({
   headerName: {
     fontSize: scale(16),
     fontWeight: '700',
-    color: '#fff',
+    color: colors.textPrimary,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: scale(4),
   },
   statusDot: {
     width: scale(6),
@@ -544,7 +550,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: scale(11),
-    color: '#94a3b8',
+    color: '#a8a29e',
   },
   
   // Messages Container
@@ -556,14 +562,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   msgList: {
-    padding: scale(16),
-    paddingBottom: scale(80),
+    paddingHorizontal: scale(16),
+    paddingTop: verticalScale(16),
+    paddingBottom: verticalScale(20),
     flexGrow: 1,
   },
   msgRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: 12,
+    marginBottom: verticalScale(12),
   },
   msgRowUser: {
     justifyContent: 'flex-end',
@@ -580,7 +587,7 @@ const styles = StyleSheet.create({
     width: scale(28),
     height: scale(28),
     borderRadius: scale(14),
-    backgroundColor: '#334155',
+    backgroundColor: '#333333',
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: scale(8),
@@ -588,30 +595,30 @@ const styles = StyleSheet.create({
   avatarLetter: {
     fontSize: scale(12),
     fontWeight: '700',
-    color: '#fff',
+    color: colors.textPrimary,
   },
   bubble: {
     maxWidth: '72%',
-    padding: 12,
-    borderRadius: 16,
+    padding: scale(12),
+    borderRadius: scale(16),
   },
   bubbleUser: {
-    backgroundColor: '#ff6b9c',
-    borderBottomRightRadius: 4,
+    backgroundColor: colors.primary,
+    borderBottomRightRadius: scale(4),
   },
   bubbleAssistant: {
-    backgroundColor: '#1e293b',
-    borderBottomLeftRadius: 4,
+    backgroundColor: colors.surface,
+    borderBottomLeftRadius: scale(4),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
   typingBubble: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    paddingVertical: verticalScale(14),
+    paddingHorizontal: scale(20),
   },
   msgText: {
     fontSize: scale(15),
-    color: '#e2e8f0',
+    color: '#f5f0eb',
     lineHeight: scale(21),
   },
   msgTextUser: {
@@ -619,8 +626,8 @@ const styles = StyleSheet.create({
   },
   time: {
     fontSize: scale(10),
-    color: '#64748b',
-    marginTop: scale(4),
+    color: '#78716c',
+    marginTop: verticalScale(4),
   },
   timeUser: {
     color: 'rgba(255,255,255,0.7)',
@@ -630,13 +637,13 @@ const styles = StyleSheet.create({
   // Empty State
   emptyScroll: {
     flex: 1,
-    paddingVertical: scale(20),
-    paddingBottom: scale(80),
+    paddingVertical: verticalScale(20),
+    paddingBottom: verticalScale(20),
     justifyContent: 'center',
   },
   emptyBox: {
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: scale(24),
   },
   emptyIcon: {
     width: scale(80),
@@ -644,72 +651,72 @@ const styles = StyleSheet.create({
     borderRadius: scale(40),
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: scale(16),
+    marginBottom: verticalScale(16),
   },
   emptyTitle: {
     fontSize: scale(22),
     fontWeight: '700',
-    color: '#fff',
-    marginBottom: scale(4),
+    color: colors.textPrimary,
+    marginBottom: verticalScale(4),
   },
   emptyDesc: {
     fontSize: scale(14),
-    color: '#94a3b8',
-    marginBottom: scale(20),
+    color: '#a8a29e',
+    marginBottom: verticalScale(20),
   },
   badges: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 8,
-    marginBottom: 24,
+    gap: scale(8),
+    marginBottom: verticalScale(24),
   },
   badge: {
     backgroundColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(6),
+    borderRadius: scale(16),
   },
   badgeText: {
     fontSize: scale(12),
-    color: '#cbd5e1',
+    color: '#d4bc94',
   },
   promptLabel: {
     fontSize: scale(12),
     fontWeight: '600',
-    color: '#64748b',
+    color: '#78716c',
     textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: scale(12),
+    letterSpacing: scale(1),
+    marginBottom: verticalScale(12),
   },
   promptGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 10,
-    marginBottom: 24,
+    gap: scale(10),
+    marginBottom: verticalScale(24),
   },
   promptBtn: {
     width: (SCREEN_WIDTH - scale(78)) / 3,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: scale(12),
-    paddingVertical: scale(14),
+    paddingVertical: verticalScale(14),
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
   promptEmoji: {
     fontSize: scale(24),
-    marginBottom: scale(6),
+    marginBottom: verticalScale(6),
   },
   promptText: {
     fontSize: scale(11),
-    color: '#94a3b8',
+    color: '#a8a29e',
     fontWeight: '500',
   },
   tip: {
     fontSize: scale(12),
-    color: '#64748b',
+    color: '#78716c',
     textAlign: 'center',
     lineHeight: scale(18),
     paddingHorizontal: scale(20),
@@ -719,22 +726,22 @@ const styles = StyleSheet.create({
   inputBox: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: scale(12),
-    paddingTop: scale(12),
+    paddingHorizontal: scale(12),
+    paddingTop: verticalScale(12),
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.card,
     gap: scale(10),
   },
   input: {
     flex: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: colors.surface,
     borderRadius: scale(20),
     paddingHorizontal: scale(16),
-    paddingVertical: scale(10),
-    color: '#fff',
+    paddingVertical: verticalScale(10),
+    color: colors.textPrimary,
     fontSize: scale(15),
-    maxHeight: scale(100),
+    maxHeight: verticalScale(100),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
@@ -756,72 +763,72 @@ const styles = StyleSheet.create({
   // Modal
   modal: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.card,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: scale(20),
-    paddingBottom: scale(20),
+    paddingHorizontal: scale(20),
+    paddingBottom: verticalScale(20),
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   modalTitle: {
     fontSize: scale(20),
     fontWeight: '700',
-    color: '#fff',
+    color: colors.textPrimary,
   },
   newBtn: {
-    margin: 16,
+    margin: scale(16),
   },
   newBtnGrad: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 12,
+    gap: scale(8),
+    paddingVertical: verticalScale(14),
+    borderRadius: scale(12),
   },
   newBtnText: {
     fontSize: scale(16),
     fontWeight: '600',
-    color: '#fff',
+    color: colors.textPrimary,
   },
   convList: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: scale(16),
   },
   noConv: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: scale(14),
+    color: '#78716c',
     textAlign: 'center',
-    marginTop: 40,
+    marginTop: verticalScale(40),
   },
   convItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.05)',
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 8,
-    gap: 12,
+    padding: scale(14),
+    borderRadius: scale(12),
+    marginBottom: verticalScale(8),
+    gap: scale(12),
   },
   convActive: {
     borderWidth: 1,
-    borderColor: '#ff6b9c',
+    borderColor: colors.primary,
   },
   convInfo: {
     flex: 1,
   },
   convTitle: {
-    fontSize: 14,
+    fontSize: scale(14),
     fontWeight: '600',
-    color: '#fff',
+    color: colors.textPrimary,
   },
   convDate: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 2,
+    fontSize: scale(11),
+    color: '#78716c',
+    marginTop: verticalScale(2),
   },
 });

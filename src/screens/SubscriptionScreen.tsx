@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,92 +8,154 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  RefreshControl,
+  AppState,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
-import { spacing } from '../theme/spacing';
-import { typography } from '../theme/typography';
-import { getPlans, getSubscription, createCheckout, cancelSubscription, type SubscriptionPlan, type Subscription } from '../services/paymentService';
-import { useAuth } from '../context/AuthContext';
-import { Dimensions } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useThemeColors } from '../theme/ThemeProvider';
+import {
+  getPlans,
+  getSubscription,
+  initializePayment,
+  verifyPayment,
+  cancelSubscription,
+  type SubscriptionPlan,
+  type Subscription,
+} from '../services/paymentService';
+import { scale, verticalScale, SCREEN_WIDTH } from '../utils/responsive';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const scale = (size: number) => Math.round((SCREEN_WIDTH / 393) * size);
+const PENDING_REF_KEY = 'paystack_pending_ref';
 
-export const SubscriptionScreen: React.FC = () => {
-  const { user } = useAuth();
+export const SubscriptionScreen: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
+  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
+  const [currentSub, setCurrentSub] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [pendingRef, setPendingRef] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const appState = useRef(AppState.currentState);
+  const hasAutoVerified = useRef(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
-      const [plansData, subscriptionData] = await Promise.all([
+      const [plansData, subData] = await Promise.all([
         getPlans(),
         getSubscription(),
       ]);
       setPlans(plansData);
-      setCurrentSubscription(subscriptionData);
+      setCurrentSub(subData.subscription);
     } catch (error) {
-      console.error('Failed to load subscription data:', error);
-      Alert.alert('Error', 'Failed to load subscription plans');
+      console.log('Failed to load subscription data:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
+
+  // Restore pending reference from storage
+  useEffect(() => {
+    loadData();
+    AsyncStorage.getItem(PENDING_REF_KEY).then(ref => {
+      if (ref) setPendingRef(ref);
+    });
+  }, [loadData]);
+
+  // Auto-verify when app comes back to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (nextState) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        const ref = pendingRef || await AsyncStorage.getItem(PENDING_REF_KEY);
+        if (ref && !hasAutoVerified.current) {
+          hasAutoVerified.current = true;
+          console.log('App foregrounded — auto-verifying payment:', ref);
+          setPendingRef(ref);
+          try {
+            const result = await verifyPayment(ref);
+            if (result.success) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('You\'re In!', 'Your premium plan is now active!');
+              await AsyncStorage.removeItem(PENDING_REF_KEY);
+              setPendingRef(null);
+              loadData();
+            }
+          } catch {
+            // Verification failed — user can tap verify manually
+          }
+          hasAutoVerified.current = false;
+        }
+      }
+      appState.current = nextState;
+    });
+    return () => sub.remove();
+  }, [pendingRef, loadData]);
 
   const handleSubscribe = async (planId: string) => {
-    if (planId === 'free') {
-      Alert.alert('Free Plan', 'You are already on the free plan!');
-      return;
-    }
-
+    if (planId === 'free') return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setProcessing(planId);
+
     try {
-      const { url } = await createCheckout(planId);
-      
-      // Open Stripe checkout in browser
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-        Alert.alert(
-          'Checkout Opened',
-          'Complete your payment in the browser. Your subscription will activate automatically.',
-          [{ text: 'OK', onPress: () => loadData() }]
-        );
-      } else {
-        Alert.alert('Error', 'Could not open checkout page');
-      }
+      const { authorizationUrl, reference } = await initializePayment(planId);
+      setPendingRef(reference);
+      await AsyncStorage.setItem(PENDING_REF_KEY, reference);
+      hasAutoVerified.current = false;
+
+      await Linking.openURL(authorizationUrl);
     } catch (error: any) {
-      console.error('Checkout error:', error);
-      Alert.alert('Error', error.message || 'Failed to start checkout');
+      Alert.alert('Error', error.message || 'Failed to start payment');
+      setPendingRef(null);
+      await AsyncStorage.removeItem(PENDING_REF_KEY);
     } finally {
       setProcessing(null);
     }
   };
 
-  const handleCancel = async () => {
+  const handleVerify = async () => {
+    if (!pendingRef) return;
+    setProcessing('verify');
+    try {
+      const result = await verifyPayment(pendingRef);
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert('You\'re In!', 'Your premium plan is now active. Enjoy all features!');
+        setPendingRef(null);
+        await AsyncStorage.removeItem(PENDING_REF_KEY);
+        loadData();
+      } else {
+        Alert.alert('Not Yet', 'Payment hasn\'t been confirmed yet. Complete the payment in your browser, then tap verify again.');
+      }
+    } catch {
+      Alert.alert('Try Again', 'Couldn\'t verify yet. If you already paid, wait a moment and try again.');
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleCancel = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Alert.alert(
       'Cancel Subscription',
-      'Are you sure you want to cancel your subscription? You will continue to have access until the end of your billing period.',
+      'Are you sure? You\'ll keep access until the end of your billing period.',
       [
-        { text: 'No', style: 'cancel' },
+        { text: 'Keep Plan', style: 'cancel' },
         {
-          text: 'Yes, Cancel',
+          text: 'Cancel Plan',
           style: 'destructive',
           onPress: async () => {
             try {
               await cancelSubscription();
-              Alert.alert('Success', 'Subscription cancelled successfully');
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              Alert.alert('Cancelled', 'Your subscription has been cancelled.');
               loadData();
             } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to cancel subscription');
+              Alert.alert('Error', error.message || 'Failed to cancel');
             }
           },
         },
@@ -101,326 +163,250 @@ export const SubscriptionScreen: React.FC = () => {
     );
   };
 
+  const isPremium = currentSub && currentSub.planId !== 'free' && currentSub.status === 'active';
+
   if (loading) {
     return (
-      <LinearGradient colors={['#020617', '#050816', '#0b1020']} style={styles.container}>
-        <View style={styles.loadingContainer}>
+      <View style={[styles.loadingWrap, { backgroundColor: colors.background }]}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading plans...</Text>
+        <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading plans...</Text>
         </View>
-      </LinearGradient>
     );
   }
 
-  const isPremium = currentSubscription?.planId !== 'free' && currentSubscription?.status === 'active';
-
   return (
-    <LinearGradient colors={['#020617', '#050816', '#0b1020']} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      {/* Header */}
         <View style={styles.header}>
-          <View style={styles.betaBanner}>
-            <Text style={styles.betaBannerText}>🚀 BETA MODE - ALL FEATURES FREE</Text>
-          </View>
-          <Text style={styles.title}>Premium Coming Soon</Text>
-          <Text style={styles.subtitle}>
-            During beta, everything is free! We're focused on making Fashion Fit amazing.
-          </Text>
-          <Text style={styles.betaMessage}>
-            Once we validate the app with real users, we'll introduce subscription plans. For now, enjoy unlimited access to all features! 🎉
+        {onClose && (
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <Ionicons name="close" size={scale(24)} color={colors.textPrimary} />
+          </TouchableOpacity>
+        )}
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Choose Your Plan</Text>
+        <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
+          Unlock the full power of AI styling
           </Text>
         </View>
 
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.primary} />}
+      >
+        {/* Current plan banner */}
         {isPremium && (
-          <View style={styles.currentPlan}>
-            <Ionicons name="checkmark-circle" size={scale(24)} color={colors.primary} />
-            <Text style={styles.currentPlanText}>
-              You're on {plans.find(p => p.id === currentSubscription?.planId)?.name || 'Premium'}
-            </Text>
-            {currentSubscription?.currentPeriodEnd && (
-              <Text style={styles.currentPlanDate}>
-                Renews: {new Date(currentSubscription.currentPeriodEnd).toLocaleDateString()}
+          <View style={[styles.activeBanner, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+            <Ionicons name="checkmark-circle" size={scale(20)} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.activePlanName, { color: colors.primary }]}>
+                {plans.find(p => p.id === currentSub?.planId)?.name || 'Premium'} — Active
               </Text>
-            )}
-            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-              <Text style={styles.cancelButtonText}>Cancel Subscription</Text>
+            </View>
+            <TouchableOpacity onPress={handleCancel}>
+              <Text style={[styles.cancelLink, { color: colors.danger }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        <View style={styles.plansContainer}>
+        {/* Plan cards */}
           {plans.map((plan) => {
-            const isCurrentPlan = currentSubscription?.planId === plan.id && currentSubscription?.status === 'active';
+          const isCurrent = currentSub?.planId === plan.id && currentSub?.status === 'active';
             const isFree = plan.id === 'free';
-            const isPopular = plan.id === 'premium';
+          const isPopular = plan.badge === 'MOST POPULAR';
+          const isBestValue = plan.badge === 'BEST VALUE';
+          const isElite = plan.id === 'elite';
+          const isProcessing = processing === plan.id;
 
             return (
               <View
                 key={plan.id}
                 style={[
-                  styles.planCard,
-                  isPopular && styles.planCardPopular,
-                  isCurrentPlan && styles.planCardCurrent,
-                ]}
-              >
-                {isPopular && (
-                  <View style={styles.popularBadge}>
-                    <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
-                  </View>
-                )}
-
-                <View style={styles.planHeader}>
-                  <Text style={styles.planName}>{plan.name}</Text>
-                  <View style={styles.priceContainer}>
-                    <Text style={styles.price}>${plan.price}</Text>
-                    <Text style={styles.priceInterval}>/{plan.interval === 'year' ? 'year' : 'mo'}</Text>
-                  </View>
-                  {plan.interval === 'year' && (
-                    <Text style={styles.saveBadge}>Save 33%</Text>
-                  )}
-                </View>
-
-                <View style={styles.featuresContainer}>
-                  {plan.features.map((feature, index) => (
-                    <View key={index} style={styles.feature}>
-                      <Ionicons name="checkmark" size={scale(16)} color={colors.primary} />
-                      <Text style={styles.featureText}>{feature}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.subscribeButton,
-                    isCurrentPlan && styles.subscribeButtonCurrent,
-                    isFree && styles.subscribeButtonFree,
-                  ]}
-                  onPress={() => {
-                    Alert.alert(
-                      'Beta Mode',
-                      'All features are free during beta! Payments will be enabled after we validate the app with users.',
-                      [{ text: 'Got it!' }]
-                    );
-                  }}
-                  disabled={processing !== null}
+                styles.card,
+                { backgroundColor: colors.card, borderColor: colors.borderSubtle },
+                isPopular && { borderColor: colors.primary, borderWidth: scale(2) },
+                isElite && { borderColor: colors.accent, borderWidth: scale(2) },
+                isCurrent && { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+              ]}
+            >
+              {/* Badge */}
+              {plan.badge && (
+                <LinearGradient
+                  colors={isElite ? ['#8B5CF6', '#6D28D9'] : isBestValue ? ['#059669', '#047857'] : [...colors.gradientAccent]}
+                  style={styles.badge}
                 >
-                  <Text style={styles.subscribeButtonText}>
-                    {isCurrentPlan ? 'Current Plan' : isFree ? 'Free Forever' : 'Coming Soon'}
+                  <Text style={styles.badgeText}>{plan.badge}</Text>
+                </LinearGradient>
+              )}
+
+              {/* Plan info */}
+              <Text style={[styles.planName, { color: colors.textPrimary }]}>{plan.name}</Text>
+
+              <View style={styles.priceRow}>
+                {isFree ? (
+                  <Text style={[styles.priceBig, { color: colors.textPrimary }]}>Free</Text>
+                ) : (
+                  <>
+                    <Text style={[styles.priceCurrency, { color: colors.textMuted }]}>KES</Text>
+                    <Text style={[styles.priceBig, { color: colors.primary }]}>{plan.price.toLocaleString()}</Text>
+                    <Text style={[styles.priceInterval, { color: colors.textMuted }]}>
+                      /{plan.interval === 'annually' ? 'year' : 'mo'}
+                    </Text>
+                  </>
+                )}
+              </View>
+
+              {plan.id === 'pro-yearly' && (
+                <Text style={[styles.saveLine, { color: colors.accent }]}>
+                  KES 333/mo — save KES 1,989 vs monthly
+                </Text>
+              )}
+
+              {/* Features */}
+              <View style={styles.features}>
+                {plan.features.map((feat, i) => (
+                  <View key={i} style={styles.featRow}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={scale(16)}
+                      color={isElite ? '#8B5CF6' : colors.primary}
+                    />
+                    <Text style={[styles.featText, { color: colors.textSecondary }]}>{feat}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* CTA */}
+              {isFree ? (
+                <View style={[styles.ctaBtn, { backgroundColor: colors.surface }]}>
+                  <Text style={[styles.ctaText, { color: colors.textMuted }]}>
+                    {isCurrent ? 'Current Plan' : 'Free Forever'}
                   </Text>
+                </View>
+              ) : isCurrent ? (
+                <View style={[styles.ctaBtn, { backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primary }]}>
+                  <Text style={[styles.ctaText, { color: colors.primary }]}>Current Plan ✓</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => handleSubscribe(plan.id)}
+                  disabled={isProcessing || processing !== null}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={isElite ? ['#8B5CF6', '#6D28D9'] : [...colors.gradientAccent]}
+                    style={styles.ctaBtn}
+                  >
+                    {isProcessing ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={[styles.ctaText, { color: '#fff', fontWeight: '700' }]}>
+                        Get {plan.name}
+                  </Text>
+                    )}
+                  </LinearGradient>
                 </TouchableOpacity>
+              )}
               </View>
             );
           })}
-        </View>
 
+        {/* Pending verification */}
+        {pendingRef && (
+          <View style={{ gap: verticalScale(8), marginBottom: verticalScale(16) }}>
+            <TouchableOpacity
+              style={[styles.verifyBanner, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
+              onPress={handleVerify}
+              disabled={processing === 'verify'}
+            >
+              {processing === 'verify' ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Ionicons name="checkmark-circle" size={scale(20)} color={colors.primary} />
+              )}
+              <Text style={[styles.verifyText, { color: colors.primary }]}>
+                {processing === 'verify' ? 'Verifying...' : 'I\'ve paid — Verify my payment'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={async () => { setPendingRef(null); await AsyncStorage.removeItem(PENDING_REF_KEY); }}>
+              <Text style={[styles.footerText, { color: colors.textMuted, textAlign: 'center', textDecorationLine: 'underline' }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+        </View>
+        )}
+
+        {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            🎉 Beta Mode: Everything is free! Focus on building the best fashion app.
+          <Text style={[styles.footerText, { color: colors.textMuted }]}>
+            Secure payments powered by Paystack
           </Text>
-          <Text style={styles.footerText}>
-            Payments will be enabled after beta testing. Your feedback helps us improve!
+          <Text style={[styles.footerText, { color: colors.textMuted }]}>
+            Cancel anytime. No hidden fees.
           </Text>
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  root: { flex: 1 },
+  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: verticalScale(12) },
+  loadingText: { fontSize: scale(14) },
+
+  header: { paddingHorizontal: scale(20), paddingTop: verticalScale(16), paddingBottom: verticalScale(12) },
+  closeBtn: { position: 'absolute', right: scale(16), top: verticalScale(16), zIndex: 1 },
+  headerTitle: { fontSize: scale(26), fontWeight: '800', letterSpacing: -0.5 },
+  headerSub: { fontSize: scale(14), marginTop: verticalScale(4), letterSpacing: 0.2 },
+
+  scroll: { paddingHorizontal: scale(16), paddingBottom: verticalScale(100) },
+
+  activeBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: scale(10),
+    padding: scale(14), borderRadius: scale(12), borderWidth: 1,
+    marginBottom: verticalScale(16),
   },
-  scrollContent: {
-    padding: spacing.lg,
-    paddingBottom: spacing['3xl'],
+  activePlanName: { fontSize: scale(14), fontWeight: '700' },
+  cancelLink: { fontSize: scale(12), fontWeight: '600', textDecorationLine: 'underline' },
+
+  card: {
+    borderRadius: scale(16), padding: scale(20), marginBottom: verticalScale(16),
+    borderWidth: 1, position: 'relative', overflow: 'visible',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacing.md,
+  badge: {
+    position: 'absolute', top: scale(-11), alignSelf: 'center', left: '25%', right: '25%',
+    paddingVertical: verticalScale(4), borderRadius: scale(10), alignItems: 'center',
   },
-  loadingText: {
-    ...typography.body,
-    color: colors.textMuted,
+  badgeText: { color: '#fff', fontSize: scale(10), fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
+
+  planName: { fontSize: scale(20), fontWeight: '700', marginTop: verticalScale(4), marginBottom: verticalScale(8) },
+
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: scale(4), marginBottom: verticalScale(4) },
+  priceCurrency: { fontSize: scale(14), fontWeight: '500' },
+  priceBig: { fontSize: scale(36), fontWeight: '800', letterSpacing: -1 },
+  priceInterval: { fontSize: scale(14), fontWeight: '500' },
+  saveLine: { fontSize: scale(12), fontWeight: '600', marginBottom: verticalScale(8) },
+
+  features: { marginTop: verticalScale(12), marginBottom: verticalScale(16), gap: verticalScale(10) },
+  featRow: { flexDirection: 'row', alignItems: 'center', gap: scale(8) },
+  featText: { fontSize: scale(13), flex: 1, lineHeight: scale(18) },
+
+  ctaBtn: {
+    borderRadius: scale(12), paddingVertical: verticalScale(14),
+    alignItems: 'center', justifyContent: 'center',
   },
-  header: {
-    marginBottom: spacing.xl,
-    alignItems: 'center',
+  ctaText: { fontSize: scale(15), fontWeight: '600', letterSpacing: 0.3 },
+
+  verifyBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: scale(10),
+    padding: scale(14), borderRadius: scale(12), borderWidth: 1,
+    marginBottom: verticalScale(16),
   },
-  betaBanner: {
-    backgroundColor: '#22c55e',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: scale(20),
-    marginBottom: spacing.lg,
-  },
-  betaBannerText: {
-    ...typography.bodyBold,
-    fontSize: scale(12),
-    color: '#fff',
-    letterSpacing: 1,
-  },
-  betaMessage: {
-    ...typography.body,
-    fontSize: scale(14),
-    textAlign: 'center',
-    color: colors.textSecondary,
-    marginTop: spacing.md,
-    lineHeight: scale(20),
-  },
-  title: {
-    ...typography.display,
-    fontSize: scale(32),
-    marginBottom: spacing.sm,
-    textAlign: 'center',
-  },
-  subtitle: {
-    ...typography.body,
-    fontSize: scale(16),
-    textAlign: 'center',
-    color: colors.textSecondary,
-  },
-  currentPlan: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: scale(16),
-    padding: spacing.lg,
-    marginBottom: spacing.xl,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  currentPlanText: {
-    ...typography.bodyBold,
-    fontSize: scale(16),
-    marginTop: spacing.sm,
-    color: colors.primary,
-  },
-  currentPlanDate: {
-    ...typography.caption,
-    marginTop: spacing.xs,
-    color: colors.textMuted,
-  },
-  cancelButton: {
-    marginTop: spacing.md,
-    paddingVertical: scale(8),
-    paddingHorizontal: scale(16),
-  },
-  cancelButtonText: {
-    ...typography.caption,
-    color: colors.danger,
-    textDecorationLine: 'underline',
-  },
-  plansContainer: {
-    gap: spacing.lg,
-  },
-  planCard: {
-    backgroundColor: colors.cardSoft,
-    borderRadius: scale(20),
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    position: 'relative',
-  },
-  planCardPopular: {
-    borderColor: colors.primary,
-    borderWidth: 2,
-    backgroundColor: colors.primarySoft,
-  },
-  planCardCurrent: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: scale(-12),
-    alignSelf: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: scale(16),
-    paddingVertical: scale(4),
-    borderRadius: scale(12),
-  },
-  popularBadgeText: {
-    ...typography.caption,
-    fontSize: scale(10),
-    fontWeight: '700',
-    color: '#fff',
-    letterSpacing: 1,
-  },
-  planHeader: {
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  planName: {
-    ...typography.title,
-    fontSize: scale(24),
-    marginBottom: spacing.sm,
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: spacing.xs,
-  },
-  price: {
-    ...typography.display,
-    fontSize: scale(40),
-    color: colors.primary,
-  },
-  priceInterval: {
-    ...typography.body,
-    fontSize: scale(16),
-    color: colors.textMuted,
-    marginLeft: scale(4),
-  },
-  saveBadge: {
-    ...typography.caption,
-    color: colors.accent,
-    fontWeight: '600',
-    marginTop: spacing.xs,
-  },
-  featuresContainer: {
-    gap: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  feature: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  featureText: {
-    ...typography.body,
-    flex: 1,
-  },
-  subscribeButton: {
-    backgroundColor: colors.primary,
-    borderRadius: scale(12),
-    paddingVertical: scale(16),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  subscribeButtonCurrent: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  subscribeButtonFree: {
-    backgroundColor: colors.card,
-  },
-  subscribeButtonText: {
-    ...typography.bodyBold,
-    fontSize: scale(16),
-    color: '#fff',
-  },
-  footer: {
-    marginTop: spacing.xl,
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  footerText: {
-    ...typography.caption,
-    textAlign: 'center',
-    color: colors.textMuted,
-  },
+  verifyText: { fontSize: scale(14), fontWeight: '600' },
+
+  footer: { alignItems: 'center', marginTop: verticalScale(8), gap: verticalScale(4) },
+  footerText: { fontSize: scale(11), letterSpacing: 0.3 },
 });
 
 export default SubscriptionScreen;
-

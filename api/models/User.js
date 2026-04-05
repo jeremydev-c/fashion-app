@@ -54,22 +54,26 @@ const UserSchema = new mongoose.Schema(
       planId: {
         type: String,
         default: 'free',
-        enum: ['free', 'premium', 'premium-yearly'],
+        enum: ['free', 'pro', 'pro-yearly', 'elite'],
       },
       status: {
         type: String,
         default: 'active',
-        enum: ['active', 'cancelled', 'expired'],
+        enum: ['active', 'cancelled', 'expired', 'attention', 'non-renewing'],
       },
       currentPeriodEnd: {
         type: Date,
         default: null,
       },
-      stripeCustomerId: {
+      paystackCustomerCode: {
         type: String,
         default: null,
       },
-      stripeSubscriptionId: {
+      paystackSubscriptionCode: {
+        type: String,
+        default: null,
+      },
+      paystackReference: {
         type: String,
         default: null,
       },

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   ScrollView,
   Alert,
   FlatList,
-  Dimensions,
   Animated,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -18,14 +17,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
-import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { apiClient } from '../services/apiClient';
 import { useUserId } from '../hooks/useUserId';
 import { useAuth } from '../context/AuthContext';
-import { scale } from '../utils/responsive';
-
-const { width, height } = Dimensions.get('window');
+import { scale, verticalScale } from '../utils/responsive';
 
 interface CapturedItem {
   id: string;
@@ -45,97 +42,21 @@ interface BulkCameraScreenProps {
 // Slideshow content - Complete feature showcase of Fashion Fit
 // First slide is dynamic with user's name, handled separately
 const SLIDESHOW_CONTENT = [
-  // FEATURE 1: AI Wardrobe Management
-  {
-    icon: '📸',
-    title: "AI Wardrobe Management",
-    subtitle: "We auto-detect category, color, style, pattern, fit & brand",
-    tip: "Bulk import up to 30 items at once! Rapid-fire camera or gallery import. Cloud storage with Cloudinary CDN.",
-    gradient: ['#7f5dff', '#6366f1'],
-  },
-  // FEATURE 2: 7 Intelligence Algorithms
-  {
-    icon: '🧠',
-    title: "7 Style Algorithms",
-    subtitle: "Color Harmony • Pattern Mixing • Texture Compatibility",
-    tip: "Plus: Occasion Rules, Seasonal Palettes, Body Type Optimization & Color Season Matching. Your outfits are SCIENTIFICALLY styled!",
-    gradient: ['#06b6d4', '#0891b2'],
-  },
-  // FEATURE 3: Smart Recommendations
-  {
-    icon: '✨',
-    title: "AI Outfit Recommendations",
-    subtitle: "Swipe right to save, left to reject. We learn from YOU",
-    tip: "3-color rule enforced. Pattern mixing done right. Every outfit uses YOUR actual clothes!",
-    gradient: ['#f97316', '#ea580c'],
-  },
-  // FEATURE 4: Weather Integration
-  {
-    icon: '🌤️',
-    title: "Weather-Smart Styling",
-    subtitle: "Current location OR destination weather forecast",
-    tip: "Traveling? Get morning, afternoon & evening forecasts with rain probability. We dress you for ANY weather!",
-    gradient: ['#22c55e', '#16a34a'],
-  },
-  // FEATURE 5: Style Coach
-  {
-    icon: '👑',
-    title: "Your Personal Style Coach",
-    subtitle: "AI that SEES your wardrobe and knows YOUR style",
-    tip: "Wardrobe audits, style education, trend insights, shopping advice. Named after YOU. No judgment, only celebration!",
-    gradient: ['#ec4899', '#db2777'],
-  },
-  // FEATURE 6: Style DNA & Analytics
-  {
-    icon: '🧬',
-    title: "Style DNA & Analytics",
-    subtitle: "Your unique style profile, scientifically analyzed",
-    tip: "Primary style, color preferences, brand affinity, uniqueness score, style consistency & trend alignment. Know yourself!",
-    gradient: ['#8b5cf6', '#7c3aed'],
-  },
-  // FEATURE 7: Outfit Planning
-  {
-    icon: '📅',
-    title: "Outfit Planner",
-    subtitle: "Plan outfits for future dates, track what you've worn",
-    tip: "Save outfits, mark as worn, see your most-worn pieces. Never repeat the same look twice (unless you want to)!",
-    gradient: ['#14b8a6', '#0d9488'],
-  },
-  // FEATURE 8: 30 Languages
-  {
-    icon: '🌍',
-    title: "30 Languages Supported",
-    subtitle: "English, Spanish, Chinese, French, Arabic, Hindi & 24 more",
-    tip: "Full UI translation + AI Coach responds in YOUR language. Style has no borders!",
-    gradient: ['#f43f5e', '#e11d48'],
-  },
-  // FEATURE 9: Continuous Learning
-  {
-    icon: '📈',
-    title: "AI That Learns From You",
-    subtitle: "Every swipe, save & reject makes us smarter",
-    tip: "Jaccard similarity, item freshness scoring, outfit variety tracking. The more you use it, the better it gets!",
-    gradient: ['#fbbf24', '#f59e0b'],
-  },
-  // FEATURE 10: Premium Experience
-  {
-    icon: '💎',
-    title: "Premium Experience",
-    subtitle: "Glassmorphism, haptic feedback, smooth animations",
-    tip: "Custom fonts, skeleton loaders, pull-to-refresh, animated tab bar, floating orbs. You deserve the BEST!",
-    gradient: ['#a855f7', '#9333ea'],
-  },
-  // CLOSING: Hype
-  {
-    icon: '🔥',
-    title: "You're About to SHINE",
-    subtitle: "Everybody should see your amazing style",
-    tip: "Fashion Fit doesn't change you - we help you become MORE of yourself. Confident, sexy, unstoppable!",
-    gradient: ['#ff6b9c', '#7f5dff'],
-  },
+  { icon: '📸', title: "AI Wardrobe Management", subtitle: "We auto-detect category, color, style, pattern, fit & brand", tip: "Bulk import up to 30 items at once! Rapid-fire camera or gallery import. Cloud storage with Cloudinary CDN.", gradientKey: 'primary' as const },
+  { icon: '🧠', title: "12 Style Algorithms", subtitle: "Color Harmony • Pattern Mixing • Texture Compatibility", tip: "Plus: Occasion Rules, Seasonal Palettes, Style Coherence, Trend Alignment, Wow Factor & more. Your outfits are SCIENTIFICALLY styled!", gradientKey: 'secondary' as const },
+  { icon: '✨', title: "AI Outfit Recommendations", subtitle: "Swipe right to save, left to reject. We learn from YOU", tip: "3-color rule enforced. Pattern mixing done right. Every outfit uses YOUR actual clothes!", gradientKey: 'accent' as const },
+  { icon: '🌤️', title: "Weather-Smart Styling", subtitle: "Current location OR destination weather forecast", tip: "Traveling? Get morning, afternoon & evening forecasts with rain probability. We dress you for ANY weather!", gradientKey: 'primary' as const },
+  { icon: '👑', title: "Your Personal Style Coach", subtitle: "AI that SEES your wardrobe and knows YOUR style", tip: "Wardrobe audits, style education, trend insights, shopping advice. Named after YOU. No judgment, only celebration!", gradientKey: 'secondary' as const },
+  { icon: '🧬', title: "Style DNA & Analytics", subtitle: "Your unique style profile, scientifically analyzed", tip: "Primary style, color preferences, brand affinity, uniqueness score, style consistency & trend alignment. Know yourself!", gradientKey: 'accent' as const },
+  { icon: '📅', title: "Outfit Planner", subtitle: "Plan outfits for future dates, track what you've worn", tip: "Save outfits, mark as worn, see your most-worn pieces. Never repeat the same look twice (unless you want to)!", gradientKey: 'primary' as const },
+  { icon: '🌍', title: "30 Languages Supported", subtitle: "English, Spanish, Chinese, French, Arabic, Hindi & 24 more", tip: "Full UI translation + AI Coach responds in YOUR language. Style has no borders!", gradientKey: 'secondary' as const },
+  { icon: '📈', title: "AI That Learns From You", subtitle: "Every swipe, save & reject makes us smarter", tip: "Jaccard similarity, item freshness scoring, outfit variety tracking. The more you use it, the better it gets!", gradientKey: 'accent' as const },
+  { icon: '💎', title: "Premium Experience", subtitle: "Glassmorphism, haptic feedback, smooth animations", tip: "Custom fonts, skeleton loaders, pull-to-refresh, animated tab bar, floating orbs. You deserve the BEST!", gradientKey: 'primary' as const },
+  { icon: '🔥', title: "You're About to SHINE", subtitle: "Everybody should see your amazing style", tip: "Fashion Fit doesn't change you - we help you become MORE of yourself. Confident, sexy, unstoppable!", gradientKey: 'secondary' as const },
 ];
 
 export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScreenProps) {
+  const colors = useThemeColors();
   const userId = useUserId();
   const { user } = useAuth();
   const userName = user?.name?.split(' ')[0] || 'Friend';
@@ -301,7 +222,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
         setCapturedItems(prev => [...prev, newItem]);
       }
     } catch (error: any) {
-      console.error('Failed to take picture:', error?.message || error);
+      console.log('Failed to take picture:', error?.message || error);
     }
   };
 
@@ -522,7 +443,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
   // Permission loading
   if (!permission) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.card }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -530,16 +451,24 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
 
   // PROCESSING MODE - Full screen immersive slideshow experience!
   if (mode === 'processing') {
-    // First slide is personalized welcome
+    const gradientMap: Record<string, [string, string]> = {
+      primary: [colors.primary, colors.secondary],
+      secondary: [colors.secondary, colors.accent],
+      accent: [colors.accent, colors.primary],
+    };
+
     const welcomeSlide = {
       icon: '👋',
       title: `Hey ${userName}!`,
       subtitle: "Jump in to see what we got in store for you as you wait",
       tip: "Your wardrobe is about to get a serious upgrade. Let's make magic together!",
-      gradient: ['#ff6b9c', '#ec4899'] as [string, string],
+      gradient: [colors.primary, colors.secondary] as [string, string],
     };
     
-    const allSlides = [welcomeSlide, ...SLIDESHOW_CONTENT];
+    const allSlides = [welcomeSlide, ...SLIDESHOW_CONTENT.map(slide => ({
+      ...slide,
+      gradient: gradientMap[slide.gradientKey] || gradientMap.primary,
+    }))];
     const slide = allSlides[currentSlide % allSlides.length];
     const savedCount = capturedItems.filter(i => i.status === 'saved').length;
     const readyCount = capturedItems.filter(i => i.status === 'ready').length;
@@ -550,7 +479,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
       <View style={styles.processingContainer}>
         {/* Full screen gradient background that changes with slides */}
         <LinearGradient
-          colors={[slide.gradient[0], slide.gradient[1], '#0f172a']}
+          colors={[slide.gradient[0], slide.gradient[1], colors.card]}
           style={StyleSheet.absoluteFillObject}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -599,7 +528,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
               <Text style={styles.bigIcon}>{slide.icon}</Text>
             </View>
             
-            <Text style={styles.bigTitle}>{slide.title}</Text>
+            <Text style={[styles.bigTitle, { color: colors.textOnPrimary }]}>{slide.title}</Text>
             <Text style={styles.bigSubtitle}>{slide.subtitle}</Text>
             
             {/* Tip card */}
@@ -699,12 +628,12 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
   // SELECT MODE
   if (mode === 'select') {
     return (
-      <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.container}>
+      <LinearGradient colors={[colors.card, colors.surface]} style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.headerButton}>
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Bulk Add</Text>
+          <Text style={[styles.headerTitle, { color: colors.textOnPrimary }]}>Bulk Add</Text>
           <View style={styles.headerButton} />
         </View>
 
@@ -719,19 +648,19 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
               }
             }}
           >
-            <LinearGradient colors={['#ff6b9c', '#ec4899']} style={styles.selectIcon}>
+            <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.selectIcon}>
               <Ionicons name="camera" size={32} color="#fff" />
             </LinearGradient>
-            <Text style={styles.selectTitle}>Rapid Fire Camera</Text>
-            <Text style={styles.selectSubtitle}>Take multiple photos quickly</Text>
+            <Text style={[styles.selectTitle, { color: colors.textOnPrimary }]}>Rapid Fire Camera</Text>
+            <Text style={[styles.selectSubtitle, { color: colors.textMuted }]}>Take multiple photos quickly</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.selectOption} onPress={pickImages}>
-            <LinearGradient colors={['#7f5dff', '#6366f1']} style={styles.selectIcon}>
+            <LinearGradient colors={[colors.secondary, colors.accent]} style={styles.selectIcon}>
               <Ionicons name="images" size={32} color="#fff" />
             </LinearGradient>
-            <Text style={styles.selectTitle}>Import from Gallery</Text>
-            <Text style={styles.selectSubtitle}>Select up to 30 photos</Text>
+            <Text style={[styles.selectTitle, { color: colors.textOnPrimary }]}>Import from Gallery</Text>
+            <Text style={[styles.selectSubtitle, { color: colors.textMuted }]}>Select up to 30 photos</Text>
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -741,7 +670,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
   // CAMERA MODE
   if (mode === 'camera') {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.card }]}>
         <CameraView ref={cameraRef} style={styles.camera} facing="back" />
         
         <View style={styles.overlay}>
@@ -749,7 +678,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
             <TouchableOpacity onPress={() => setMode('select')} style={styles.headerButton}>
               <Ionicons name="arrow-back" size={28} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.headerTitleLight}>
+            <Text style={[styles.headerTitleLight, { color: colors.textOnPrimary }]}>
               {capturedItems.length}/30 items
             </Text>
             <TouchableOpacity
@@ -757,7 +686,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
               style={styles.headerButton}
               disabled={capturedItems.length === 0}
             >
-              <Text style={[styles.doneText, capturedItems.length === 0 && styles.doneTextDisabled]}>
+              <Text style={[styles.doneText, { color: colors.primary }, capturedItems.length === 0 && styles.doneTextDisabled]}>
                 Done
               </Text>
             </TouchableOpacity>
@@ -790,12 +719,12 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
   const rejectedCount = capturedItems.filter(i => i.status === 'rejected').length;
 
   return (
-    <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.container}>
+    <LinearGradient colors={[colors.card, colors.surface]} style={styles.container}>
       {/* Warning banner for rejected items */}
       {rejectedCount > 0 && (
         <View style={styles.rejectedBanner}>
           <Ionicons name="warning" size={20} color="#fff" />
-          <Text style={styles.rejectedBannerText}>
+          <Text style={[styles.rejectedBannerText, { color: colors.textOnPrimary }]}>
             {rejectedCount} item{rejectedCount > 1 ? 's' : ''} rejected - Only clothing and accessories allowed
           </Text>
         </View>
@@ -805,12 +734,12 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
         <TouchableOpacity onPress={() => setMode('select')} style={styles.headerButton}>
           <Ionicons name="arrow-back" size={28} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Review ({capturedItems.length} items)</Text>
+        <Text style={[styles.headerTitle, { color: colors.textOnPrimary }]}>Review ({capturedItems.length} items)</Text>
         <TouchableOpacity 
           onPress={() => setIsSelectMode(!isSelectMode)} 
           style={styles.headerButton}
         >
-          <Text style={[styles.selectModeText, isSelectMode && styles.selectModeActive]}>
+          <Text style={[styles.selectModeText, isSelectMode && { color: colors.primary }]}>
             {isSelectMode ? 'Cancel' : 'Select'}
           </Text>
         </TouchableOpacity>
@@ -820,7 +749,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
       {isSelectMode && (
         <View style={styles.selectToolbar}>
           <TouchableOpacity onPress={selectAll} style={styles.selectToolbarBtn}>
-            <Text style={styles.selectToolbarText}>Select All</Text>
+            <Text style={[styles.selectToolbarText, { color: colors.secondary }]}>Select All</Text>
           </TouchableOpacity>
           <Text style={styles.selectedCount}>{selectedForDelete.size} selected</Text>
           <TouchableOpacity 
@@ -829,7 +758,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
             disabled={selectedForDelete.size === 0}
           >
             <Ionicons name="trash" size={18} color="#fff" />
-            <Text style={styles.deleteBtnText}>Delete</Text>
+            <Text style={[styles.deleteBtnText, { color: colors.textOnPrimary }]}>Delete</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -860,7 +789,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
             {item.status === 'rejected' && (
               <View style={styles.rejectedBadge}>
                 <Ionicons name="warning" size={16} color="#fff" />
-                <Text style={styles.rejectedBadgeText}>Invalid</Text>
+                <Text style={[styles.rejectedBadgeText, { color: colors.textOnPrimary }]}>Invalid</Text>
               </View>
             )}
             
@@ -875,7 +804,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
             {isSelectMode && (
               <View style={[
                 styles.selectCheckbox,
-                selectedForDelete.has(item.id) && styles.selectCheckboxActive
+                selectedForDelete.has(item.id) && { backgroundColor: colors.primary, borderColor: colors.primary }
               ]}>
                 {selectedForDelete.has(item.id) && (
                   <Ionicons name="checkmark" size={14} color="#fff" />
@@ -895,20 +824,20 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
         )}
       />
 
-      <View style={styles.bottomActions}>
+      <View style={[styles.bottomActions, { backgroundColor: colors.card }]}>
         <TouchableOpacity
           style={styles.processButton}
           onPress={startProcessing}
           disabled={capturedItems.length === 0}
         >
           <LinearGradient
-            colors={capturedItems.length > 0 ? ['#ff6b9c', '#7f5dff'] : ['#374151', '#374151']}
+            colors={capturedItems.length > 0 ? [...colors.gradientAccent] : ['#333333', '#333333']}
             style={styles.processButtonGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           >
             <Ionicons name="sparkles" size={22} color="#fff" />
-            <Text style={styles.processButtonText}>
+            <Text style={[styles.processButtonText, { color: colors.textOnPrimary }]}>
               Analyze & Save ({capturedItems.length})
             </Text>
           </LinearGradient>
@@ -921,7 +850,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#1a1a1a',
   },
   camera: {
     flex: 1,
@@ -935,7 +864,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: scale(16),
-    paddingTop: scale(56),
+    paddingTop: verticalScale(56),
   },
   headerButton: {
     minWidth: scale(44),
@@ -956,7 +885,7 @@ const styles = StyleSheet.create({
   doneText: {
     fontSize: scale(16),
     fontWeight: '600',
-    color: '#ff6b9c',
+    color: '#c9a96e',
   },
   doneTextDisabled: {
     opacity: 0.4,
@@ -972,7 +901,7 @@ const styles = StyleSheet.create({
     borderRadius: scale(20),
     padding: scale(28),
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: scale(1),
     borderColor: 'rgba(255,255,255,0.1)',
   },
   selectIcon: {
@@ -981,32 +910,32 @@ const styles = StyleSheet.create({
     borderRadius: scale(36),
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: verticalScale(16),
   },
   selectTitle: {
     fontSize: scale(18),
     fontWeight: '700',
     color: '#fff',
-    marginBottom: 4,
+    marginBottom: scale(4),
   },
   selectSubtitle: {
     fontSize: scale(14),
-    color: '#94a3b8',
+    color: '#a8a29e',
     textAlign: 'center',
   },
   thumbnailStrip: {
-    maxHeight: 80,
-    paddingHorizontal: 16,
+    maxHeight: verticalScale(80),
+    paddingHorizontal: scale(16),
   },
   thumbnail: {
     width: scale(60),
     height: scale(60),
     borderRadius: scale(8),
-    marginRight: 8,
+    marginRight: scale(8),
   },
   controls: {
     alignItems: 'center',
-    paddingBottom: 50,
+    paddingBottom: verticalScale(50),
   },
   captureButton: {
     width: scale(80),
@@ -1027,7 +956,7 @@ const styles = StyleSheet.create({
   },
   gridContent: {
     padding: scale(8),
-    paddingBottom: 120,
+    paddingBottom: verticalScale(120),
   },
   gridItem: {
     flex: 1 / 3,
@@ -1040,18 +969,18 @@ const styles = StyleSheet.create({
   },
   removeButton: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: scale(8),
+    right: scale(8),
   },
   rejectedBanner: {
     backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    borderBottomWidth: 1,
+    borderBottomWidth: scale(1),
     borderBottomColor: 'rgba(239, 68, 68, 0.4)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: scale(8),
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(12),
   },
   rejectedBannerText: {
     flex: 1,
@@ -1061,14 +990,14 @@ const styles = StyleSheet.create({
   },
   rejectedBadge: {
     position: 'absolute',
-    top: 4,
-    left: 4,
+    top: scale(4),
+    left: scale(4),
     backgroundColor: '#ef4444',
     flexDirection: 'row',
     alignItems: 'center',
     gap: scale(4),
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    paddingHorizontal: scale(6),
+    paddingVertical: verticalScale(3),
     borderRadius: scale(8),
     zIndex: 10,
   },
@@ -1079,8 +1008,8 @@ const styles = StyleSheet.create({
   },
   errorBadge: {
     position: 'absolute',
-    top: 4,
-    left: 4,
+    top: scale(4),
+    left: scale(4),
     backgroundColor: '#f59e0b',
     width: scale(24),
     height: scale(24),
@@ -1103,24 +1032,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   selectModeActive: {
-    color: '#ff6b9c',
+    color: '#c9a96e',
   },
   selectToolbar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(12),
     backgroundColor: 'rgba(255,255,255,0.05)',
-    borderBottomWidth: 1,
+    borderBottomWidth: scale(1),
     borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   selectToolbarBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: scale(12),
+    paddingVertical: verticalScale(6),
   },
   selectToolbarText: {
-    color: '#60a5fa',
+    color: '#d4bc94',
     fontSize: scale(14),
     fontWeight: '600',
   },
@@ -1134,8 +1063,8 @@ const styles = StyleSheet.create({
     gap: scale(6),
     backgroundColor: '#ef4444',
     borderRadius: scale(8),
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: scale(14),
+    paddingVertical: verticalScale(8),
   },
   deleteBtnText: {
     color: '#fff',
@@ -1144,20 +1073,20 @@ const styles = StyleSheet.create({
   },
   selectCheckbox: {
     position: 'absolute',
-    top: 8,
-    left: 8,
+    top: scale(8),
+    left: scale(8),
     width: scale(24),
     height: scale(24),
     borderRadius: scale(12),
-    borderWidth: 2,
+    borderWidth: scale(2),
     borderColor: 'rgba(255,255,255,0.6)',
     backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   selectCheckboxActive: {
-    backgroundColor: '#ff6b9c',
-    borderColor: '#ff6b9c',
+    backgroundColor: '#c9a96e',
+    borderColor: '#c9a96e',
   },
   bottomActions: {
     position: 'absolute',
@@ -1165,8 +1094,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: scale(16),
-    paddingBottom: 40,
-    backgroundColor: '#0f172a',
+    paddingBottom: verticalScale(40),
+    backgroundColor: '#1a1a1a',
   },
   processButton: {
     borderRadius: scale(16),
@@ -1176,7 +1105,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: verticalScale(16),
     gap: scale(10),
   },
   processButtonText: {
@@ -1196,34 +1125,34 @@ const styles = StyleSheet.create({
   shape: {
     position: 'absolute',
     backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 999,
+    borderRadius: scale(999),
   },
   shape1: {
     width: scale(300),
     height: scale(300),
-    top: -100,
-    right: -100,
+    top: verticalScale(-100),
+    right: scale(-100),
   },
   shape2: {
     width: scale(200),
     height: scale(200),
-    bottom: 200,
-    left: -80,
+    bottom: verticalScale(200),
+    left: scale(-80),
   },
   shape3: {
     width: scale(150),
     height: scale(150),
     top: '40%',
-    right: -50,
+    right: scale(-50),
   },
   topSection: {
-    paddingTop: 60,
-    paddingHorizontal: 24,
+    paddingTop: verticalScale(60),
+    paddingHorizontal: scale(24),
   },
   muteButton: {
     position: 'absolute',
-    top: 60,
-    right: 20,
+    top: verticalScale(60),
+    right: scale(20),
     zIndex: 10,
   },
   muteButtonInner: {
@@ -1241,25 +1170,25 @@ const styles = StyleSheet.create({
     width: '100%',
     height: scale(4),
     backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 2,
+    borderRadius: scale(2),
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: scale(2),
   },
   progressText: {
     fontSize: scale(15),
     color: 'rgba(255,255,255,0.9)',
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: verticalScale(16),
     fontWeight: '600',
   },
   centerSection: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 28,
+    paddingHorizontal: scale(28),
   },
   slideContentInner: {
     alignItems: 'center',
@@ -1268,10 +1197,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: scale(8),
-    marginTop: 20,
+    marginTop: verticalScale(20),
     backgroundColor: 'rgba(0,0,0,0.3)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(8),
     borderRadius: scale(20),
   },
   pauseText: {
@@ -1285,11 +1214,11 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    marginTop: -20,
+    paddingHorizontal: scale(8),
+    marginTop: verticalScale(-20),
   },
   navArrow: {
-    width: 44,
+    width: scale(44),
     height: scale(44),
     justifyContent: 'center',
     alignItems: 'center',
@@ -1301,7 +1230,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: verticalScale(32),
   },
   bigIcon: {
     fontSize: scale(60),
@@ -1311,17 +1240,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: verticalScale(12),
     textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowOffset: { width: 0, height: scale(2) },
+    textShadowRadius: scale(4),
   },
   bigSubtitle: {
     fontSize: scale(18),
     color: 'rgba(255,255,255,0.85)',
     textAlign: 'center',
-    lineHeight: 26,
-    marginBottom: 32,
+    lineHeight: scale(26),
+    marginBottom: verticalScale(32),
   },
   tipCard: {
     flexDirection: 'row',
@@ -1330,23 +1259,23 @@ const styles = StyleSheet.create({
     borderRadius: scale(16),
     padding: scale(16),
     gap: scale(12),
-    maxWidth: 340,
+    maxWidth: scale(340),
   },
   tipText: {
     flex: 1,
     fontSize: scale(14),
     color: 'rgba(255,255,255,0.9)',
-    lineHeight: 20,
+    lineHeight: scale(20),
   },
   bottomSection: {
-    paddingBottom: 50,
-    paddingHorizontal: 24,
+    paddingBottom: verticalScale(50),
+    paddingHorizontal: scale(24),
   },
   slideIndicators: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: scale(6),
-    marginBottom: 24,
+    marginBottom: verticalScale(24),
   },
   indicator: {
     width: scale(6),
@@ -1359,23 +1288,23 @@ const styles = StyleSheet.create({
     width: scale(20),
   },
   actionContainer: {
-    minHeight: 90,
+    minHeight: verticalScale(90),
   },
   bigButton: {
     borderRadius: scale(20),
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: verticalScale(8) },
     shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowRadius: scale(16),
+    elevation: scale(8),
   },
   bigButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 24,
-    gap: 16,
+    paddingVertical: verticalScale(20),
+    paddingHorizontal: scale(24),
+    gap: scale(16),
   },
   bigButtonEmoji: {
     fontSize: scale(36),
@@ -1383,16 +1312,16 @@ const styles = StyleSheet.create({
   bigButtonTitle: {
     fontSize: scale(20),
     fontWeight: '800',
-    color: '#1f2937',
+    color: '#2a2a2a',
   },
   bigButtonSubtitle: {
     fontSize: scale(13),
-    color: '#6b7280',
-    marginTop: 2,
+    color: '#78716c',
+    marginTop: verticalScale(2),
   },
   loadingContainer: {
     alignItems: 'center',
-    gap: 16,
+    gap: verticalScale(16),
   },
   loadingDots: {
     flexDirection: 'row',

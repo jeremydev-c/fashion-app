@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   Modal,
   ActivityIndicator,
-  FlatList,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { getWeatherByCity, getWeatherForecast, type WeatherData, type WeatherForecast } from '../services/weatherService';
@@ -42,6 +42,7 @@ export const DestinationPicker: React.FC<Props> = ({
   onSelectDestination,
   currentLocationWeather,
 }) => {
+  const colors = useThemeColors();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<WeatherData | null>(null);
@@ -65,7 +66,11 @@ export const DestinationPicker: React.FC<Props> = ({
       setSearchResult(weather);
       setForecast(forecastData);
     } catch (err: any) {
-      setError(err.message || 'City not found');
+      if (err?.status === 403 || err?.data?.error === 'upgrade_required') {
+        setError('Destination weather requires a Pro Yearly or Elite plan. Upgrade to style for any city.');
+      } else {
+        setError(err.message || 'City not found');
+      }
     } finally {
       setIsSearching(false);
     }
@@ -83,7 +88,11 @@ export const DestinationPicker: React.FC<Props> = ({
       onSelectDestination(weather, false, forecastData);
       handleClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to get weather');
+      if (err?.status === 403 || err?.data?.error === 'upgrade_required') {
+        setError('Destination weather requires a Pro Yearly or Elite plan.');
+      } else {
+        setError(err.message || 'Failed to get weather');
+      }
     } finally {
       setIsSearching(false);
     }
@@ -277,7 +286,7 @@ export const DestinationPicker: React.FC<Props> = ({
                     )}
                     {forecast.summary.hasRainRisk && (
                       <View style={styles.indicator}>
-                        <Ionicons name="rainy" size={14} color={colors.info || colors.secondary} />
+                        <Ionicons name="rainy" size={14} color={colors.secondary} />
                         <Text style={styles.indicatorText}>Rain possible</Text>
                       </View>
                     )}

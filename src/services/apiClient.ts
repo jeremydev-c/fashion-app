@@ -5,7 +5,7 @@ declare const process: any;
 // Development: Use local IP for testing
 // Production: Use Railway URL
 const DEFAULT_BASE_URL = __DEV__ 
-  ? 'http://192.168.0.101:4000'  // Local development
+  ? 'http://192.168.0.102:4000'  // Local development
   : 'https://fashion-app-production-6083.up.railway.app';  // Railway production
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || DEFAULT_BASE_URL;
@@ -64,7 +64,9 @@ export async function apiRequest<T>(
     throw error;
   }
 
-  return (await response.json()) as T;
+  const text = await response.text();
+  if (!text) return {} as T;
+  return JSON.parse(text) as T;
 }
 
 // Axios-like interface for convenience

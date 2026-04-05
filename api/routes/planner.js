@@ -1,11 +1,13 @@
 const express = require('express');
 const PlannedOutfit = require('../models/PlannedOutfit');
 
+const { requireFeature } = require('../middleware/planLimits');
+
 const router = express.Router();
 
 // GET /planner?userId=123
 // Optionally filter by date=YYYY-MM-DD
-router.get('/', async (req, res) => {
+router.get('/', requireFeature('planner'), async (req, res) => {
   try {
     const { userId, date } = req.query;
     if (!userId) {
@@ -27,7 +29,7 @@ router.get('/', async (req, res) => {
 
 // POST /planner
 // Body: { userId, date(YYYY-MM-DD), title, occasion, timeOfDay, itemIds, notes }
-router.post('/', async (req, res) => {
+router.post('/', requireFeature('planner'), async (req, res) => {
   try {
     const { userId, date, title, occasion, timeOfDay, itemIds, notes } = req.body || {};
     if (!userId || !date || !itemIds || !Array.isArray(itemIds) || itemIds.length === 0) {
@@ -54,7 +56,7 @@ router.post('/', async (req, res) => {
 });
 
 // DELETE /planner/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireFeature('planner'), async (req, res) => {
   try {
     const { id } = req.params;
     const deleted = await PlannedOutfit.findByIdAndDelete(id);

@@ -57,21 +57,15 @@ async function uploadImage(imageData, folder = 'wardrobe', options = {}) {
     let uploadResult;
     
     if (Buffer.isBuffer(imageData)) {
-      // Upload from buffer
-      const stream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
-        if (error) throw error;
-        uploadResult = result;
-      });
-      
-      const readable = new Readable();
-      readable.push(imageData);
-      readable.push(null);
-      readable.pipe(stream);
-      
-      // Wait for upload to complete
-      await new Promise((resolve, reject) => {
-        stream.on('end', resolve);
-        stream.on('error', reject);
+      uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        });
+        const readable = new Readable();
+        readable.push(imageData);
+        readable.push(null);
+        readable.pipe(stream);
       });
     } else if (typeof imageData === 'string') {
       // Upload from base64 or URL

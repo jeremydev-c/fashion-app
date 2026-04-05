@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { colors } from '../theme/colors';
+
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 
@@ -59,10 +60,10 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
             {icon && (
               <View style={styles.iconContainer}>
                 <LinearGradient
-                  colors={['#ff6b9c', '#7f5dff']}
+                  colors={[...colors.gradientAccent]}
                   style={styles.iconGradient}
                 >
-                  <Ionicons name={icon} size={scale(32)} color="#fff" />
+                  <Ionicons name={icon} size={scale(32)} color={colors.textOnPrimary} />
                 </LinearGradient>
               </View>
             )}
@@ -93,7 +94,7 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
                   >
                     {isPrimary ? (
                       <LinearGradient
-                        colors={['#ff6b9c', '#7f5dff']}
+                        colors={[...colors.gradientAccent]}
                         style={styles.buttonGradient}
                       >
                         <Text style={[styles.buttonText, styles.buttonTextPrimary]}>
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
     borderRadius: scale(24),
     padding: spacing.xl,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.2)',
+    borderColor: 'rgba(201, 169, 110, 0.18)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.3,
@@ -210,7 +211,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   buttonTextPrimary: {
-    color: '#fff',
+    color: colors.textOnPrimary,
   },
   buttonTextDestructive: {
     color: '#ef4444',

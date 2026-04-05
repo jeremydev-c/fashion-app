@@ -8,14 +8,13 @@ import {
   Image,
   ScrollView,
   Alert,
-  Dimensions,
-  SafeAreaView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { apiClient } from '../services/apiClient';
@@ -24,14 +23,13 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { scale } from '../utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 interface CameraScreenProps {
   onClose: () => void;
   onSave: () => void;
 }
 
 export default function CameraScreen({ onClose, onSave }: CameraScreenProps) {
+  const colors = useThemeColors();
   const userId = useUserId();
   const [permission, requestPermission] = useCameraPermissions();
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -56,10 +54,14 @@ export default function CameraScreen({ onClose, onSave }: CameraScreenProps) {
       if (photo) {
         setCapturedImage(photo.uri);
         setCapturedBase64(photo.base64 || null);
-        analyzeImage(photo.base64!);
+        if (photo.base64) {
+          analyzeImage(photo.base64);
+        } else {
+          Alert.alert('Error', 'Could not capture image data. Please try again.');
+        }
       }
     } catch (error) {
-      console.error('Failed to take picture:', error);
+      console.log('Failed to take picture:', error);
       Alert.alert('Error', 'Failed to take picture');
     }
   };
@@ -74,7 +76,7 @@ export default function CameraScreen({ onClose, onSave }: CameraScreenProps) {
 
       setAnalysis(response.data);
     } catch (error: any) {
-      console.error('Analysis failed:', error);
+      console.log('Analysis failed:', error);
       
       // Check if item was rejected (not clothing)
       if (error?.status === 400 && error?.data?.error === 'INVALID_ITEM') {
@@ -125,7 +127,7 @@ export default function CameraScreen({ onClose, onSave }: CameraScreenProps) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onSave();
     } catch (error: any) {
-      console.error('Failed to save:', error);
+      console.log('Failed to save:', error);
       Alert.alert('Save Error', error.message || 'Please try again');
     } finally {
       setIsSaving(false);
@@ -148,7 +150,7 @@ export default function CameraScreen({ onClose, onSave }: CameraScreenProps) {
 
   if (!permission.granted) {
     return (
-      <LinearGradient colors={['#020617', '#050816']} style={styles.container}>
+      <LinearGradient colors={[colors.background, colors.background]} style={styles.container}>
         <View style={styles.permissionContainer}>
           <Ionicons name="camera-outline" size={scale(64)} color={colors.textMuted} />
           <Text style={styles.permissionTitle}>Camera Permission</Text>
@@ -166,8 +168,8 @@ export default function CameraScreen({ onClose, onSave }: CameraScreenProps) {
 
   if (capturedImage) {
     return (
-      <LinearGradient colors={['#020617', '#050816']} style={styles.container}>
-        <View style={styles.header}>
+      <LinearGradient colors={[colors.background, colors.background]} style={styles.container}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, spacing.lg) }]}>
           <TouchableOpacity onPress={retakePicture} style={styles.headerButton}>
             <Ionicons name="arrow-back" size={scale(24)} color={colors.textPrimary} />
           </TouchableOpacity>
@@ -253,7 +255,7 @@ export default function CameraScreen({ onClose, onSave }: CameraScreenProps) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <CameraView ref={cameraRef} style={styles.camera} facing="back" />
       
       {/* Overlay */}
@@ -277,14 +279,14 @@ export default function CameraScreen({ onClose, onSave }: CameraScreenProps) {
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#020617',
+    backgroundColor: colors.background,
   },
   camera: {
     flex: 1,
@@ -313,7 +315,7 @@ const styles = StyleSheet.create({
   headerTitleLight: {
     ...typography.bodyBold,
     fontSize: scale(18),
-    color: '#fff',
+    color: colors.textPrimary,
   },
   cameraGuide: {
     alignItems: 'center',
@@ -375,7 +377,7 @@ const styles = StyleSheet.create({
   },
   permissionButtonText: {
     ...typography.bodyBold,
-    color: '#fff',
+    color: colors.textPrimary,
   },
   closeButton: {
     marginTop: spacing.lg,
@@ -494,6 +496,6 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     ...typography.bodyBold,
-    color: '#fff',
+    color: colors.textPrimary,
   },
 });

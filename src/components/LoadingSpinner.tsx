@@ -3,6 +3,7 @@ import { View, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { scale } from '../utils/responsive';
 
 const { width } = Dimensions.get('window');
@@ -20,6 +21,7 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   message,
   fullScreen = false,
 }) => {
+  const colors = useThemeColors();
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shimmerAnim = useRef(new Animated.Value(-200)).current;

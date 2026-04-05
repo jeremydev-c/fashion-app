@@ -7,23 +7,25 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  SafeAreaView,
   Alert,
-  Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const scale = (size: number) => Math.round((SCREEN_WIDTH / 393) * size);
+import { useThemeColors } from '../theme/ThemeProvider';
+import { scale, verticalScale } from '../utils/responsive';
 import {
   fetchPlannedOutfits,
   createPlannedOutfit,
   deletePlannedOutfit,
   PlannedOutfit,
 } from '../services/plannerApi';
-import { fetchClothingItems, ClothingItem } from '../services/wardrobeApi';
-import { generateAIOutfits } from '../services/openAiStylist';
+import { fetchWardrobeItems, ClothingItem } from '../services/wardrobeApi';
+import { getRecommendations } from '../services/recommendationsService';
+import { submitOutfitFeedback } from '../services/stylistFeedback';
+import { useUserId } from '../hooks/useUserId';
+import { getCurrentWeather, WeatherData } from '../services/weatherService';
+import * as Location from 'expo-location';
 
 const OCCASIONS = ['Casual', 'Work', 'Date', 'Party', 'Gym', 'Formal'];
 const TIMES = ['Morning', 'Afternoon', 'Evening', 'Night'];
@@ -44,6 +46,9 @@ const dayName = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short' })
 const dayNum = (d: Date) => d.getDate();
 
 export const PlannerScreen: React.FC = () => {
+  const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
+  const userId = useUserId();
   const [weekDates] = useState(getWeekDates());
   const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
   const [occasion, setOccasion] = useState('Casual');
@@ -51,18 +56,37 @@ export const PlannerScreen: React.FC = () => {
   const [planned, setPlanned] = useState<PlannedOutfit[]>([]);
   const [wardrobe, setWardrobe] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [upgradeWall, setUpgradeWall] = useState(false);
 
   useEffect(() => {
     load();
-  }, []);
+    loadWeather();
+  }, [userId]);
 
   const load = async () => {
     try {
-      const [outfits, items] = await Promise.all([fetchPlannedOutfits(), fetchClothingItems()]);
+      const [outfits, items] = await Promise.all([userId ? fetchPlannedOutfits(userId) : Promise.resolve([]), userId ? fetchWardrobeItems(userId) : Promise.resolve([])]);
       setPlanned(outfits);
       setWardrobe(items);
-    } catch (err) {
-      console.error(err);
+      setUpgradeWall(false);
+    } catch (err: any) {
+      if (err?.status === 403 && (err?.data?.error === 'upgrade_required' || err?.message?.includes('upgrade'))) {
+        setUpgradeWall(true);
+      }
+      console.log(err);
+    }
+  };
+
+  const loadWeather = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const location = await Location.getCurrentPositionAsync({});
+      const data = await getCurrentWeather(location.coords.latitude, location.coords.longitude);
+      setWeather(data);
+    } catch {
+      // Weather is optional for planner
     }
   };
 
@@ -71,39 +95,117 @@ export const PlannerScreen: React.FC = () => {
       Alert.alert('Add more items', 'You need at least 2 items in your wardrobe.');
       return;
     }
+    if (!userId) {
+      Alert.alert('Error', 'Please log in to plan outfits.');
+      return;
+    }
     setLoading(true);
     try {
-      const suggestions = await generateAIOutfits(wardrobe, occasion, timeOfDay);
-      if (suggestions.length > 0) {
-        const outfit = suggestions[0];
-        await createPlannedOutfit({
-          date: selectedDate,
-          title: `${occasion} outfit`,
-          occasion,
-          timeOfDay,
-          itemIds: outfit.items.map((i) => i._id),
-        });
-        await load();
+      const rainConditions = ['rain', 'drizzle', 'thunderstorm', 'shower'];
+      const recommendations = await getRecommendations({
+        userId,
+        occasion: occasion.toLowerCase(),
+        timeOfDay: timeOfDay.toLowerCase(),
+        weather: weather ? (weather.temperature > 25 ? 'hot' : weather.temperature > 20 ? 'warm' : weather.temperature > 10 ? 'cool' : 'cold') : undefined,
+        limit: 1,
+        forecast: weather ? {
+          needsLayers: weather.temperature < 15,
+          hasRainRisk: rainConditions.some(r => weather.condition?.toLowerCase().includes(r)),
+        } : undefined,
+        weatherDetail: weather ? {
+          category: weather.weatherCategory,
+          temperature: weather.temperature,
+          condition: weather.condition,
+          humidity: weather.humidity,
+          windSpeed: weather.windSpeed,
+        } : undefined,
+      });
+
+      if (recommendations.length === 0) {
+        Alert.alert('No Outfits Found', 'Could not generate an outfit for this combination. Try a different occasion or time.');
+        return;
       }
+
+      const rec = recommendations[0];
+      const itemIds = rec.items
+        .map(item => {
+          const match = wardrobe.find(
+            w => w._id?.toString() === item.id || w._id === item.id
+          );
+          return match?._id;
+        })
+        .filter(Boolean) as string[];
+
+      if (itemIds.length === 0) {
+        Alert.alert('Matching Failed', 'Could not match recommended items to your wardrobe. Try again.');
+        return;
+      }
+
+      await createPlannedOutfit({
+        userId,
+        date: selectedDate,
+        title: (rec as any).title || `${occasion} outfit`,
+        occasion,
+        timeOfDay,
+        itemIds,
+      });
+      submitOutfitFeedback({
+        userId,
+        outfitId: rec.id || `planned_${Date.now()}`,
+        itemIds,
+        occasion: occasion.toLowerCase(),
+        timeOfDay: timeOfDay.toLowerCase(),
+        action: 'saved',
+      }).catch(() => {});
+      await load();
     } catch (err) {
-      console.error(err);
+      console.log(err);
       Alert.alert('Error', 'Could not plan outfit.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    await deletePlannedOutfit(id);
-    await load();
+  const handleDelete = (id: string) => {
+    Alert.alert(
+      'Remove Planned Outfit',
+      'Are you sure you want to remove this planned outfit?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deletePlannedOutfit(id);
+              await load();
+            } catch (err) {
+              Alert.alert('Error', 'Could not delete this outfit. Please try again.');
+            }
+          },
+        },
+      ],
+    );
   };
 
   const plannedForDate = planned.filter((p) => p.date === selectedDate);
 
   const getItemById = (id: string) => wardrobe.find((w) => w._id === id);
 
+  if (upgradeWall) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', paddingHorizontal: scale(32) }]}>
+        <Ionicons name="lock-closed" size={scale(48)} color={colors.primary} />
+        <Text style={[styles.title, { textAlign: 'center', marginTop: verticalScale(16) }]}>Outfit Planner</Text>
+        <Text style={[styles.subtitle, { textAlign: 'center', marginTop: verticalScale(8) }]}>
+          Plan your outfits for the week ahead. Upgrade to Pro to unlock this feature.
+        </Text>
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.title}>Outfit Planner</Text>
         <Text style={styles.subtitle}>Plan your looks for the week</Text>
@@ -159,11 +261,11 @@ export const PlannerScreen: React.FC = () => {
         {/* Plan Button */}
         <TouchableOpacity style={styles.planBtn} onPress={planOutfit} disabled={loading}>
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.textOnPrimary} />
           ) : (
             <>
-              <Ionicons name="sparkles" size={20} color="#fff" />
-              <Text style={styles.planBtnText}>Plan AI outfit for this day</Text>
+              <Ionicons name="sparkles" size={scale(16)} color={colors.textOnPrimary} />
+              <Text style={[styles.planBtnText, { color: colors.textOnPrimary }]}>PLAN AI OUTFIT</Text>
             </>
           )}
         </TouchableOpacity>
@@ -174,11 +276,11 @@ export const PlannerScreen: React.FC = () => {
           <Text style={styles.emptyText}>No outfits planned yet.</Text>
         ) : (
           plannedForDate.map((p) => (
-            <View key={p._id} style={styles.plannedCard}>
+            <View key={p._id} style={[styles.plannedCard, { backgroundColor: colors.card }]}>
               <View style={styles.plannedHeader}>
                 <Text style={styles.plannedTitle}>{p.title}</Text>
                 <TouchableOpacity onPress={() => handleDelete(p._id)}>
-                  <Ionicons name="trash-outline" size={20} color="#f43f5e" />
+                  <Ionicons name="trash-outline" size={scale(18)} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
               <View style={styles.itemsRow}>
@@ -190,7 +292,7 @@ export const PlannerScreen: React.FC = () => {
                         <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
                       ) : (
                         <View style={styles.itemPlaceholder}>
-                          <Ionicons name="shirt-outline" size={24} color={colors.textMuted} />
+                          <Ionicons name="shirt-outline" size={scale(24)} color={colors.textMuted} />
                         </View>
                       )}
                     </View>
@@ -201,80 +303,106 @@ export const PlannerScreen: React.FC = () => {
           ))
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: 20, paddingBottom: 100 },
-  title: { fontSize: scale(28), fontWeight: '700', color: colors.textPrimary, marginBottom: scale(4) },
-  subtitle: { fontSize: scale(14), color: colors.textMuted, marginBottom: scale(16) },
-  weekStrip: { marginBottom: scale(20) },
+  scroll: {
+    paddingHorizontal: scale(18),
+    paddingTop: verticalScale(12),
+    paddingBottom: verticalScale(120),
+  },
+  title: {
+    fontSize: scale(24),
+    fontWeight: '300',
+    letterSpacing: -0.5,
+    color: colors.textPrimary,
+    marginBottom: verticalScale(2),
+  },
+  subtitle: { fontSize: scale(12), color: colors.textMuted, letterSpacing: 0.2, marginBottom: verticalScale(18) },
+  weekStrip: { marginBottom: verticalScale(22) },
   dayCard: {
-    width: scale(56),
-    paddingVertical: scale(12),
+    width: scale(52),
+    paddingVertical: verticalScale(12),
     alignItems: 'center',
-    backgroundColor: 'rgba(148,163,184,0.1)',
-    borderRadius: scale(12),
-    marginRight: scale(10),
+    backgroundColor: 'transparent',
+    borderRadius: scale(14),
+    marginRight: scale(8),
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
-  dayCardActive: { backgroundColor: colors.primary },
-  dayName: { fontSize: scale(12), color: colors.textMuted, marginBottom: scale(4) },
-  dayNum: { fontSize: scale(18), fontWeight: '600', color: colors.textPrimary },
-  dayTextActive: { color: '#fff' },
-  label: { fontSize: scale(14), color: colors.textSecondary, marginBottom: scale(8), marginTop: scale(8) },
-  pillRow: { flexDirection: 'row', marginBottom: 8 },
+  dayCardActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  dayName: { fontSize: scale(10), color: colors.textMuted, letterSpacing: 0.8, fontWeight: '500', marginBottom: verticalScale(4) },
+  dayNum: { fontSize: scale(17), fontWeight: '300', color: colors.textPrimary, letterSpacing: -0.3 },
+  dayTextActive: { color: colors.textOnPrimary },
+  label: {
+    fontSize: scale(10),
+    color: colors.textMuted,
+    fontWeight: '600',
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    marginBottom: verticalScale(8),
+    marginTop: verticalScale(10),
+  },
+  pillRow: { flexDirection: 'row', marginBottom: verticalScale(6) },
   pill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(148,163,184,0.15)',
-    borderRadius: 20,
-    marginRight: 8,
+    paddingHorizontal: scale(16),
+    paddingVertical: verticalScale(8),
+    backgroundColor: 'transparent',
+    borderRadius: scale(20),
+    marginRight: scale(6),
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
-  pillActive: { backgroundColor: colors.primary },
-  pillText: { color: colors.textSecondary, fontSize: scale(14) },
-  pillTextActive: { color: '#fff', fontWeight: '600' },
+  pillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  pillText: { color: colors.textMuted, fontSize: scale(13), fontWeight: '500', letterSpacing: 0.1 },
+  pillTextActive: { color: colors.textOnPrimary, fontWeight: '600' },
   planBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: scale(14),
+    paddingVertical: verticalScale(14),
     borderRadius: scale(12),
-    marginTop: scale(16),
+    marginTop: verticalScale(18),
     gap: scale(8),
   },
-  planBtnText: { color: '#fff', fontSize: scale(16), fontWeight: '600' },
+  planBtnText: { color: colors.textOnPrimary, fontSize: scale(13), fontWeight: '600', letterSpacing: 0.8 },
   sectionTitle: {
-    fontSize: scale(18),
+    fontSize: scale(10),
     fontWeight: '600',
-    color: colors.textPrimary,
-    marginTop: scale(28),
-    marginBottom: scale(12),
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    color: colors.textMuted,
+    marginTop: verticalScale(28),
+    marginBottom: verticalScale(14),
   },
-  emptyText: { color: colors.textMuted, fontSize: scale(14) },
+  emptyText: { color: colors.textMuted, fontSize: scale(13), letterSpacing: 0.2 },
   plannedCard: {
     backgroundColor: colors.card,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
+    borderRadius: scale(14),
+    padding: scale(16),
+    marginBottom: verticalScale(10),
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
   plannedHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: verticalScale(12),
   },
-  plannedTitle: { fontSize: scale(16), fontWeight: '600', color: colors.textPrimary },
-  itemsRow: { flexDirection: 'row', gap: scale(10) },
+  plannedTitle: { fontSize: scale(15), fontWeight: '600', letterSpacing: -0.1, color: colors.textPrimary },
+  itemsRow: { flexDirection: 'row', gap: scale(8) },
   itemThumb: { width: scale(50), height: scale(50) },
-  itemImage: { width: scale(50), height: scale(50), borderRadius: scale(8), backgroundColor: '#1e293b' },
+  itemImage: { width: scale(50), height: scale(50), borderRadius: scale(10), backgroundColor: colors.surface },
   itemPlaceholder: {
     width: scale(50),
     height: scale(50),
-    borderRadius: scale(8),
-    backgroundColor: '#1e293b',
+    borderRadius: scale(10),
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },

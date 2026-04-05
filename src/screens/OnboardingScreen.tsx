@@ -6,17 +6,15 @@ import {
   TouchableOpacity,
   ScrollView,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { Button } from '../components/Button';
-
-const { width, width: SCREEN_WIDTH } = Dimensions.get('window');
-const scale = (size: number) => Math.round((SCREEN_WIDTH / 393) * size);
+import { scale, verticalScale, SCREEN_WIDTH } from '../utils/responsive';
 
 type OnboardingData = {
   styles: string[];
@@ -97,6 +95,7 @@ const STEPS = [
 ];
 
 export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
+  const colors = useThemeColors();
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>({
     styles: [],
@@ -303,7 +302,7 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
   return (
     <View style={styles.root}>
       <LinearGradient
-        colors={['#050816', '#0b1020', '#111827']}
+        colors={[...colors.gradient]}
         style={StyleSheet.absoluteFillObject}
       />
 
@@ -342,7 +341,7 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
               <Text style={styles.backButtonText}>Back</Text>
             </TouchableOpacity>
           ) : (
-            <View style={{ width: 80 }} />
+            <View style={styles.placeholderSpacer} />
           )}
 
           <Button
@@ -372,7 +371,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingTop: 60,
+    paddingTop: verticalScale(60),
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
   },
@@ -384,15 +383,15 @@ const styles = StyleSheet.create({
   },
   progressTrack: {
     flex: 1,
-    height: 4,
+    height: verticalScale(4),
     backgroundColor: colors.card,
-    borderRadius: 2,
+    borderRadius: scale(2),
     overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
     backgroundColor: colors.primary,
-    borderRadius: 2,
+    borderRadius: scale(2),
   },
   stepIndicator: {
     ...typography.caption,
@@ -424,13 +423,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   styleOption: {
-    width: (width - spacing.lg * 2 - spacing.md) / 2,
+    width: (SCREEN_WIDTH - spacing.lg * 2 - spacing.md) / 2,
     backgroundColor: colors.card,
-    borderRadius: 16,
+    borderRadius: scale(16),
     padding: spacing.lg,
     alignItems: 'center',
     gap: spacing.sm,
-    borderWidth: 2,
+    borderWidth: scale(2),
     borderColor: 'transparent',
     position: 'relative',
   },
@@ -477,7 +476,7 @@ const styles = StyleSheet.create({
     borderRadius: scale(26),
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: scale(3),
     borderColor: 'transparent',
   },
   colorLabel: {
@@ -506,7 +505,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     backgroundColor: colors.card,
-    borderRadius: 20,
+    borderRadius: scale(20),
     borderWidth: 1,
     borderColor: colors.borderSubtle,
   },
@@ -524,7 +523,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: 40,
+    paddingBottom: verticalScale(40),
     paddingTop: spacing.md,
     backgroundColor: colors.background,
     borderTopWidth: 1,
@@ -546,7 +545,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   continueButton: {
-    minWidth: 140,
+    minWidth: scale(140),
+  },
+  placeholderSpacer: {
+    width: scale(80),
   },
   skipButton: {
     alignSelf: 'center',

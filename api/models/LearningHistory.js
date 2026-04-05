@@ -8,7 +8,7 @@ const LearningHistorySchema = new mongoose.Schema(
     userId: { type: String, required: true, index: true },
     interactionType: {
       type: String,
-      enum: ['view', 'swipe_left', 'swipe_right', 'save', 'reject', 'rate', 'regenerate', 'refine'],
+      enum: ['view', 'swipe_left', 'swipe_right', 'save', 'reject', 'rate', 'regenerate', 'refine', 'saved', 'rejected', 'rated'],
       required: true,
     },
     recommendationId: { type: String },
