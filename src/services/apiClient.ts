@@ -6,7 +6,7 @@ declare const process: any;
 // Production: Use Railway URL
 const DEFAULT_BASE_URL = __DEV__ 
   ? 'http://192.168.0.104:4000'  // Local development
-  : 'https://fashion-app-production-6083.up.railway.app';  // Railway production
+  : 'https://fashion-app-production-59e0.up.railway.app';  // Railway production
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || DEFAULT_BASE_URL;
 
