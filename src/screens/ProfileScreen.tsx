@@ -28,7 +28,6 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { scale, verticalScale } from '../utils/responsive';
 import { useAuth } from '../context/AuthContext';
 import { useUserId } from '../hooks/useUserId';
-import { SubscriptionScreen } from './SubscriptionScreen';
 import { AnalyticsScreen } from './AnalyticsScreen';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import { useTranslation } from 'react-i18next';
@@ -77,7 +76,6 @@ export const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<ProfileScreenNavigationProp>();
   const [showStyleDNA, setShowStyleDNA] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
-  const [showSubscription, setShowSubscription] = useState(false);
   const [showLanguageSwitcher, setShowLanguageSwitcher] = useState(false);
   const [styleDNA, setStyleDNA] = useState<StyleDNA | null>(null);
   const [stats, setStats] = useState<WardrobeStats | null>(null);
@@ -954,17 +952,12 @@ export const ProfileScreen: React.FC = () => {
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </TouchableOpacity>
 
-        {/* Subscription */}
-        <TouchableOpacity activeOpacity={0.75} style={[styles.menuItem, { marginTop: spacing.lg }]} onPress={() => setShowSubscription(true)}>
+        {/* Analytics */}
+        <TouchableOpacity activeOpacity={0.75} style={[styles.menuItem, { marginTop: spacing.lg }]} onPress={() => setShowFullAnalytics(true)}>
           <View style={[styles.menuIcon, { backgroundColor: colors.primarySoft }]}>
             <Ionicons name="diamond-outline" size={20} color={colors.primary} />
           </View>
           <Text style={[styles.menuText, { color: colors.primary, fontWeight: '700' }]}>{t('profile.analytics')}</Text>
-          <View style={[styles.planBadge, { backgroundColor: colors.primarySoft }]}>
-            <Text style={[styles.planBadgeText, { color: colors.primary }]}>
-              {user?.subscription?.planId === 'free' || !user?.subscription?.planId ? 'Free' : user.subscription.planId === 'pro' ? 'Pro' : user.subscription.planId === 'elite' ? 'Elite' : 'Pro'}
-            </Text>
-          </View>
           <Ionicons name="chevron-forward" size={18} color={colors.primary} />
         </TouchableOpacity>
 
@@ -983,11 +976,6 @@ export const ProfileScreen: React.FC = () => {
         visible={showLanguageSwitcher}
         onClose={() => setShowLanguageSwitcher(false)}
       />
-
-      {/* Subscription Modal */}
-      <Modal visible={showSubscription} animationType="slide" presentationStyle="pageSheet">
-        <SubscriptionScreen onClose={() => { setShowSubscription(false); loadData(); }} />
-      </Modal>
 
       {/* Full Analytics Modal */}
       <Modal visible={showFullAnalytics} animationType="slide" presentationStyle="pageSheet">

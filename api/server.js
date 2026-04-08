@@ -28,10 +28,11 @@ const weatherRoutes = require('./routes/weather');
 const analyticsRoutes = require('./routes/analytics');
 const learningRoutes = require('./routes/learning');
 const chatRoutes = require('./routes/chat');
-const paymentsRoutes = require('./routes/payments');
 const adminRoutes = require('./routes/admin');
 const notificationsRoutes = require('./routes/notifications');
 const socialRoutes = require('./routes/social');
+const DISABLE_PAYMENTS = process.env.DISABLE_PAYMENTS === 'true';
+const paymentsRoutes = DISABLE_PAYMENTS ? null : require('./routes/payments');
 let recommendationsRoutes;
 try {
   recommendationsRoutes = require('./routes/recommendations');
@@ -186,7 +187,12 @@ app.use('/weather', weatherRoutes);
 app.use('/analytics', analyticsRoutes);
 app.use('/learning', learningRoutes);
 app.use('/chat', chatRoutes);
-app.use('/payments', paymentsRoutes);
+if (DISABLE_PAYMENTS) {
+  app.use('/payments', (_req, res) => res.status(503).json({ error: 'payments_disabled' }));
+  console.warn('⚠️  Payments routes disabled (DISABLE_PAYMENTS=true)');
+} else {
+  app.use('/payments', paymentsRoutes);
+}
 app.use('/admin', adminRoutes);
 app.use('/notifications', notificationsRoutes);
 app.use('/social', socialRoutes);
