@@ -582,7 +582,7 @@ function buildDiverseOutfits(ctx) {
   const preferred = [];
   const fallback = [];
   const weatherThreshold = isTinyWardrobe ? -0.30 : (isSmallWardrobe ? -0.20 : -0.12);
-  const appThreshold = isTinyWardrobe ? 0.0 : (isSmallWardrobe ? 0.15 : 0.25);
+  const appThreshold = isTinyWardrobe ? 0.0 : (isSmallWardrobe ? 0.15 : 0.18);
 
   pool.forEach(item => {
     const style = (item.style || '').toLowerCase();
@@ -624,7 +624,8 @@ function buildDiverseOutfits(ctx) {
 
   // Adaptive combo limits based on wardrobe size
   const totalCoreItems = tops.length + bottoms.length + dresses.length;
-  const maxCombos = totalCoreItems <= 5 ? 30 : totalCoreItems <= 15 ? 120 : totalCoreItems <= 40 ? 250 : 400;
+  const isLargeWardrobe = wardrobe.length > 40;
+  const maxCombos = totalCoreItems <= 5 ? 30 : totalCoreItems <= 15 ? 120 : totalCoreItems <= 40 ? 250 : 600;
   const shoesPerCombo = shoes.length <= 2 ? shoes.length : Math.min(3, shoes.length);
 
   // ─── 3a. Dress-based outfits ───
@@ -657,8 +658,8 @@ function buildDiverseOutfits(ctx) {
   let count = 0;
 
   // For large wardrobes, limit which tops/bottoms we iterate over
-  const topLimit = Math.min(tops.length, isTinyWardrobe ? tops.length : (isSmallWardrobe ? 10 : 20));
-  const bottomLimit = Math.min(bottoms.length, isTinyWardrobe ? bottoms.length : (isSmallWardrobe ? 10 : 20));
+  const topLimit = Math.min(tops.length, isTinyWardrobe ? tops.length : (isSmallWardrobe ? 10 : (isLargeWardrobe ? 45 : 25)));
+  const bottomLimit = Math.min(bottoms.length, isTinyWardrobe ? bottoms.length : (isSmallWardrobe ? 10 : (isLargeWardrobe ? 45 : 25)));
 
   for (let ti = 0; ti < topLimit && count < maxCombos; ti++) {
     const top = tops[ti];
@@ -780,6 +781,7 @@ function selectDiverse(candidates, limit, isSmallWardrobe = false) {
   const usedBottomIds = new Map(); // bottomId -> count
   const usedDressIds = new Map();
   const usedShoeIds = new Set();
+  const usedOuterwearIds = new Set();
   const seenSigs = new Set();
 
   function sig(outfit) {
@@ -797,6 +799,7 @@ function selectDiverse(candidates, limit, isSmallWardrobe = false) {
     const botId = getCorePieceId(outfit, 'bottom');
     const dressId = getCorePieceId(outfit, 'dress');
     const shoeItem = outfit.items.find(i => i.category === 'shoes');
+    const outerwearItem = outfit.items.find(i => i.category === 'outerwear');
 
     // Very heavy penalty for reusing top or bottom — these define an outfit
     if (topId && usedTopIds.has(topId)) pen += 5 * (usedTopIds.get(topId) || 1);
@@ -806,13 +809,17 @@ function selectDiverse(candidates, limit, isSmallWardrobe = false) {
     // Moderate penalty for reusing shoes
     if (shoeItem && usedShoeIds.has(id(shoeItem))) pen += 1.2;
 
+    // Moderate penalty for reusing outerwear — prevents same jacket every outfit
+    if (outerwearItem && usedOuterwearIds.has(id(outerwearItem))) pen += 2.0;
+
     return pen;
   }
 
-  const diversityWeight = isSmallWardrobe ? 0.20 : 0.45;
-  const target = Math.min(limit * 5, candidates.length);
+  const isLargePool = candidates.length > 200;
+  const diversityWeight = isSmallWardrobe ? 0.20 : (isLargePool ? 0.55 : 0.45);
+  const target = Math.min(limit * (isLargePool ? 7 : 5), candidates.length);
   const pool = [...candidates];
-  const windowSize = Math.min(pool.length, isSmallWardrobe ? pool.length : 150);
+  const windowSize = Math.min(pool.length, isSmallWardrobe ? pool.length : (isLargePool ? 350 : 150));
 
   while (selected.length < target && pool.length > 0) {
     let bestIdx = -1;
@@ -842,6 +849,8 @@ function selectDiverse(candidates, limit, isSmallWardrobe = false) {
     if (dressId) usedDressIds.set(dressId, (usedDressIds.get(dressId) || 0) + 1);
     const shoe = pick.items.find(i => i.category === 'shoes');
     if (shoe) usedShoeIds.add(id(shoe));
+    const ow = pick.items.find(i => i.category === 'outerwear');
+    if (ow) usedOuterwearIds.add(id(ow));
 
     selected.push(pick);
   }
@@ -895,11 +904,14 @@ async function generateHybridRecommendations(ctx) {
 function formatResults(candidates, ctx) {
   const { occasion, timeOfDay, weather, limit } = ctx;
 
-  // Final diversity gate: no two results share the same top, bottom, dress, or shoes
+  // Final diversity gate: no two results share the same top, bottom, or dress
+  // Shoes are soft-gated: strict only when user has enough unique shoes
   const usedTops = new Set();
   const usedBottoms = new Set();
   const usedDresses = new Set();
   const usedShoes = new Set();
+  const uniqueShoeCount = new Set(candidates.map(r => { const s = r.items.find(i => i.category === 'shoes'); return s ? id(s) : null; }).filter(Boolean)).size;
+  const strictShoes = uniqueShoeCount >= limit;
   const diverse = [];
   for (const rec of candidates) {
     const topItem = rec.items.find(i => i.category === 'top');
@@ -914,7 +926,7 @@ function formatResults(candidates, ctx) {
     const topReused = topId && usedTops.has(topId);
     const botReused = botId && usedBottoms.has(botId);
     const dressReused = dressId && usedDresses.has(dressId);
-    const shoeReused = shoeId && usedShoes.has(shoeId);
+    const shoeReused = strictShoes && shoeId && usedShoes.has(shoeId);
 
     if (topReused || botReused || dressReused || shoeReused) continue;
 
@@ -1024,12 +1036,16 @@ async function enhanceWithAI(candidates, ctx) {
   const occasionProfile = OCCASION_PROFILES[occasion] || OCCASION_PROFILES.casual;
   const timeProfile = TIME_PROFILES[timeOfDay] || TIME_PROFILES.afternoon;
 
-  // Hard-filter: ensure AI sees outfits where each top, bottom, dress, and shoe is unique
+  // Hard-filter: ensure AI sees outfits where each top, bottom, and dress is unique
+  // Shoes are only hard-blocked when the user has enough unique shoes
   const diverseForAI = [];
   const usedTopIds = new Set();
   const usedBottomIds = new Set();
   const usedDressIds = new Set();
   const usedShoeIds = new Set();
+  const aiCap = wardrobe.length > 40 ? 24 : 18;
+  const uniqueShoesInCandidates = new Set(candidates.map(c => { const s = c.items.find(i => i.category === 'shoes'); return s ? id(s) : null; }).filter(Boolean)).size;
+  const strictShoesAI = uniqueShoesInCandidates >= aiCap;
   for (const c of candidates) {
     const topItem = c.items.find(i => i.category === 'top');
     const botItem = c.items.find(i => i.category === 'bottom');
@@ -1043,7 +1059,7 @@ async function enhanceWithAI(candidates, ctx) {
     const topReused = topId && usedTopIds.has(topId);
     const botReused = botId && usedBottomIds.has(botId);
     const dressReused = dressId && usedDressIds.has(dressId);
-    const shoeReused = shoeId && usedShoeIds.has(shoeId);
+    const shoeReused = strictShoesAI && shoeId && usedShoeIds.has(shoeId);
 
     if (topReused || botReused || dressReused || shoeReused) continue;
 
@@ -1052,14 +1068,14 @@ async function enhanceWithAI(candidates, ctx) {
     if (dressId) usedDressIds.add(dressId);
     if (shoeId) usedShoeIds.add(shoeId);
     diverseForAI.push(c);
-    if (diverseForAI.length >= 18) break;
+    if (diverseForAI.length >= aiCap) break;
   }
   // If strict uniqueness produced too few, relax to allow shoe reuse only
   if (diverseForAI.length < limit) {
     const usedT2 = new Set(diverseForAI.map(c => { const t = c.items.find(i => i.category === 'top'); return t ? id(t) : null; }).filter(Boolean));
     const usedB2 = new Set(diverseForAI.map(c => { const b = c.items.find(i => i.category === 'bottom'); return b ? id(b) : null; }).filter(Boolean));
     for (const c of candidates) {
-      if (diverseForAI.length >= 18) break;
+      if (diverseForAI.length >= aiCap) break;
       if (diverseForAI.includes(c)) continue;
       const topItem = c.items.find(i => i.category === 'top');
       const botItem = c.items.find(i => i.category === 'bottom');
@@ -1074,7 +1090,7 @@ async function enhanceWithAI(candidates, ctx) {
   // Absolute fallback: just fill from candidates
   if (diverseForAI.length < limit) {
     for (const c of candidates) {
-      if (diverseForAI.length >= 18) break;
+      if (diverseForAI.length >= aiCap) break;
       if (!diverseForAI.includes(c)) diverseForAI.push(c);
     }
   }
@@ -1131,7 +1147,7 @@ ${JSON.stringify(detailed, null, 1)}
 RULES:
 1. Pick ${limit} outfits that each feel DISTINCTLY DIFFERENT — EVERY outfit MUST have a different top AND a different bottom (or dress). NEVER repeat the same top across outfits. NEVER repeat the same bottom across outfits. Different color stories, different moods.${wardrobe.length <= 15 ? ' This is a smaller wardrobe so shoe/accessory reuse is fine — but tops and bottoms MUST be different.' : ''}
 2. Every outfit must genuinely suit "${occasion}" at "${timeOfDay}" AND the current weather. If it's cold, prefer warm layers. If it's raining, prefer rain-appropriate outerwear. If it's hot, the outfit should feel light and breathable.
-3. Work with what the user OWNS. ${wardrobeSize === 'very small' || wardrobeSize === 'small' ? 'This user has a limited wardrobe — be creative with what they have. Show them how to style a few pieces differently rather than expecting variety they don\'t have. Every outfit you pick should still feel considered and intentional.' : 'With this many pieces available, select outfits that showcase the breadth of their wardrobe — no lazy defaults.'}
+3. Work with what the user OWNS. ${wardrobeSize === 'very small' || wardrobeSize === 'small' ? 'This user has a limited wardrobe — be creative with what they have. Show them how to style a few pieces differently rather than expecting variety they don\'t have. Every outfit you pick should still feel considered and intentional.' : 'With this many pieces available, select outfits that showcase the FULL breadth of their wardrobe — pull from different items, not just the same favorites. Avoid underutilizing any category. Every item deserves to be styled.'}
 4. Give each a catchy 3-4 word title and a one-liner (max 15 words) that speaks directly to the user. The description should acknowledge the weather when relevant (e.g. "Keeping you dry and sharp through the rain" or "Light and breezy for this sunny afternoon").${wardrobeSize === 'very small' || wardrobeSize === 'small' ? ' For smaller wardrobes, emphasize how versatile their pieces are.' : ''}
 5. Provide 2-3 enhanced reasons — personal, confident, no generic filler. At least one reason should reference weather-appropriateness if conditions are notable (rain, cold, hot, windy, humid).
 
@@ -1163,7 +1179,7 @@ Output ONLY valid JSON.`;
         { role: 'user', content: prompt },
       ],
       temperature: 0.85,
-      max_tokens: 1800,
+      max_tokens: 2000,
     }),
   });
 
@@ -1225,12 +1241,15 @@ Output ONLY valid JSON.`;
     };
   }).filter(Boolean);
 
-  // POST-AI DIVERSITY ENFORCEMENT: reject any AI pick that reuses a top, bottom, or shoe
+  // POST-AI DIVERSITY ENFORCEMENT: reject any AI pick that reuses a top, bottom, or dress
+  // Shoes only hard-blocked when enough unique shoes exist
   const enhanced = [];
   const finalUsedTops = new Set();
   const finalUsedBottoms = new Set();
   const finalUsedDresses = new Set();
   const finalUsedShoes = new Set();
+  const finalUniqueShoes = new Set(rawEnhanced.map(o => o.items.find(i => i.category === 'shoes')?.id).filter(Boolean)).size;
+  const strictShoesFinal = finalUniqueShoes >= limit;
 
   for (const outfit of rawEnhanced) {
     const topId = outfit.items.find(i => i.category === 'top')?.id;
@@ -1241,7 +1260,7 @@ Output ONLY valid JSON.`;
     const topDup = topId && finalUsedTops.has(topId);
     const botDup = botId && finalUsedBottoms.has(botId);
     const dressDup = dressId && finalUsedDresses.has(dressId);
-    const shoeDup = shoeId && finalUsedShoes.has(shoeId);
+    const shoeDup = strictShoesFinal && shoeId && finalUsedShoes.has(shoeId);
 
     if (topDup || botDup || dressDup || shoeDup) continue;
 
