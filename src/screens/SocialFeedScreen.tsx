@@ -170,7 +170,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({ visible, onClose, onS
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'] as any,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,

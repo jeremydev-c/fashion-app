@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,11 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Share,
 } from 'react-native';
+import ViewShot from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
+import StyleDNACard from '../components/StyleDNACard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,9 +43,13 @@ import type { RootTabParamList } from '../navigation/TabNavigator';
 
 interface StyleDNA {
   primaryStyle: string;
+  styleArchetype?: string;
+  styleMantra?: string;
+  styleInsight?: string;
+  capsuleEssentials?: string[];
   secondaryStyles: string[];
   colorPreferences: {
-    dominantColors: { color: string; percentage: number }[];
+    dominantColors: { color: string; name?: string; percentage: number }[];
     colorPalette: string[];
     seasonalColors: {
       spring: string[];
@@ -75,6 +83,9 @@ export const ProfileScreen: React.FC = () => {
   const userId = useUserId();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
   const [showStyleDNA, setShowStyleDNA] = useState(false);
+  const [showDNAModal, setShowDNAModal] = useState(false);
+  const [sharingDNA, setSharingDNA] = useState(false);
+  const dnaCardRef = useRef<ViewShot>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showLanguageSwitcher, setShowLanguageSwitcher] = useState(false);
   const [styleDNA, setStyleDNA] = useState<StyleDNA | null>(null);
@@ -289,7 +300,26 @@ export const ProfileScreen: React.FC = () => {
 
   const toggleStyleDNA = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowStyleDNA(!showStyleDNA);
+    setShowDNAModal(true);
+  };
+
+  const handleShareDNA = async () => {
+    if (!dnaCardRef.current || sharingDNA) return;
+    try {
+      setSharingDNA(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const uri = await (dnaCardRef.current as any).capture();
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Share your Style DNA' });
+      } else {
+        await Share.share({ message: `My Style DNA: ${styleDNA?.styleArchetype || styleDNA?.primaryStyle} — ${styleDNA?.styleMantra || ''}` });
+      }
+    } catch (e) {
+      console.error('Share error', e);
+    } finally {
+      setSharingDNA(false);
+    }
   };
 
   const toggleAnalytics = () => {
@@ -690,13 +720,15 @@ export const ProfileScreen: React.FC = () => {
               </View>
               <View style={styles.featureInfo}>
                 <Text style={styles.featureTitle}>Style DNA</Text>
-                <Text style={styles.featureSubtitle}>Your personalized style profile</Text>
+                <Text style={styles.featureSubtitle}>
+                  {styleDNA?.styleArchetype || 'Your personalized style profile'}
+                </Text>
               </View>
-              <Ionicons name={showStyleDNA ? "chevron-down" : "chevron-forward"} size={20} color={colors.textMuted} />
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
             </View>
             {styleDNA?.colorPreferences?.colorPalette && styleDNA.colorPreferences.colorPalette.length > 0 && (
               <View style={styles.colorPalette}>
-                {styleDNA.colorPreferences.colorPalette.slice(0, 5).map((color, i) => (
+                {styleDNA.colorPreferences.colorPalette.slice(0, 6).map((color, i) => (
                   <View key={i} style={[styles.colorDot, { backgroundColor: color }]} />
                 ))}
               </View>
@@ -704,122 +736,65 @@ export const ProfileScreen: React.FC = () => {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Style DNA Expanded */}
-        {showStyleDNA && (
-          <View style={styles.expandedCard}>
-            {styleDNA ? (
-              <>
-                {/* Primary Style */}
-                <View style={styles.primaryStyleContainer}>
-                  <Text style={styles.primaryStyleLabel}>YOUR PRIMARY STYLE</Text>
-                  <Text style={styles.primaryStyleValue}>{styleDNA.primaryStyle}</Text>
+        {/* Style DNA Modal */}
+        <Modal
+          visible={showDNAModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowDNAModal(false)}
+        >
+          <View style={styles.dnaModalContainer}>
+            {/* Modal Header */}
+            <View style={styles.dnaModalHeader}>
+              <TouchableOpacity onPress={() => setShowDNAModal(false)} style={styles.dnaModalClose}>
+                <Ionicons name="close" size={scale(22)} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <Text style={styles.dnaModalTitle}>Style DNA</Text>
+              {styleDNA && (
+                <TouchableOpacity onPress={handleShareDNA} style={styles.dnaShareBtn} disabled={sharingDNA}>
+                  {sharingDNA
+                    ? <ActivityIndicator size="small" color={colors.primary} />
+                    : <Ionicons name="share-outline" size={scale(22)} color={colors.primary} />
+                  }
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <ScrollView
+              contentContainerStyle={styles.dnaModalScroll}
+              showsVerticalScrollIndicator={false}
+            >
+              {styleDNA ? (
+                <ViewShot ref={dnaCardRef} options={{ format: 'png', quality: 1 }}>
+                  <StyleDNACard dna={styleDNA} username={user?.username} />
+                </ViewShot>
+              ) : (
+                <View style={styles.dnaEmptyState}>
+                  <Ionicons name="finger-print-outline" size={scale(48)} color={colors.textMuted} />
+                  <Text style={styles.noDataText}>Add items to your wardrobe to unlock your Style DNA</Text>
                 </View>
+              )}
 
-                {/* Style Scores */}
-                <View style={styles.scoresRow}>
-                  <View style={styles.scoreItem}>
-                    <Text style={styles.scoreValue}>{Math.round((styleDNA.uniquenessScore || 0) * 100)}%</Text>
-                    <Text style={styles.scoreLabel}>Uniqueness</Text>
-                  </View>
-                  <View style={styles.scoreItem}>
-                    <Text style={styles.scoreValue}>{Math.round((styleDNA.styleConsistency || 0) * 100)}%</Text>
-                    <Text style={styles.scoreLabel}>Consistency</Text>
-                  </View>
-                  <View style={styles.scoreItem}>
-                    <Text style={styles.scoreValue}>{Math.round((styleDNA.trendAlignment || 0) * 100)}%</Text>
-                    <Text style={styles.scoreLabel}>Trend Score</Text>
-                  </View>
-                </View>
-
-                {/* Secondary Styles */}
-                {styleDNA.secondaryStyles?.length > 0 && (
-                  <>
-                    <Text style={styles.expandedTitle}>Secondary Styles</Text>
-                    <View style={styles.tagsContainer}>
-                      {styleDNA.secondaryStyles.map((style, i) => (
-                        <View key={i} style={styles.tag}>
-                          <Text style={styles.tagText}>{style}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                )}
-
-                {/* Color Palette */}
-                {styleDNA.colorPreferences?.dominantColors?.length > 0 && (
-                  <>
-                    <Text style={styles.expandedTitle}>Your Color Palette</Text>
-                    <View style={styles.colorPaletteExpanded}>
-                      {styleDNA.colorPreferences.dominantColors.map((item, i) => (
-                        <View key={i} style={styles.colorItem}>
-                          <View style={[styles.colorDotLarge, { backgroundColor: item.color }]} />
-                          <Text style={styles.colorName}>{item.color}</Text>
-                          <Text style={styles.colorPercent}>{Math.round(item.percentage)}%</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                )}
-
-                {/* Wardrobe Balance */}
-                {styleDNA.categoryDistribution && Object.keys(styleDNA.categoryDistribution).length > 0 && (
-                  <>
-                    <Text style={styles.expandedTitle}>Wardrobe Balance</Text>
-                    {Object.entries(styleDNA.categoryDistribution).map(([category, count], i) => {
-                      const total = Object.values(styleDNA.categoryDistribution).reduce((a, b) => a + b, 0);
-                      const percentage = total > 0 ? (count / total) * 100 : 0;
-                      return (
-                        <View key={i} style={styles.balanceItem}>
-                          <Text style={styles.balanceCategory}>{category}</Text>
-                          <View style={styles.balanceBar}>
-                            <View style={[styles.balanceFill, { width: `${percentage}%` }]} />
-                          </View>
-                          <Text style={styles.balancePercent}>{count}</Text>
-                        </View>
-                      );
-                    })}
-                  </>
-                )}
-
-                {/* Brand Affinity */}
-                {styleDNA.brandAffinity?.length > 0 && (
-                  <>
-                    <Text style={styles.expandedTitle}>Favorite Brands</Text>
-                    <View style={styles.brandsContainer}>
-                      {styleDNA.brandAffinity.slice(0, 5).map((item, i) => (
-                        <View key={i} style={styles.brandTag}>
-                          <Text style={styles.brandText}>{item.brand}</Text>
-                          <Text style={styles.brandCount}>{item.count}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                )}
-
-                {/* Seasonal Colors */}
-                {styleDNA.colorPreferences?.seasonalColors && (
-                  <>
-                    <Text style={styles.expandedTitle}>Seasonal Recommendations</Text>
-                    <View style={styles.seasonalContainer}>
-                      {(['spring', 'summer', 'fall', 'winter'] as const).map((season) => (
-                        <View key={season} style={styles.seasonItem}>
-                          <Text style={styles.seasonName}>{season}</Text>
-                          <View style={styles.seasonColors}>
-                            {styleDNA.colorPreferences?.seasonalColors?.[season]?.slice(0, 3).map((color, i) => (
-                              <View key={i} style={[styles.seasonColorDot, { backgroundColor: color }]} />
-                            ))}
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                )}
-              </>
-            ) : (
-              <Text style={styles.noDataText}>Add more items to your wardrobe to see your Style DNA</Text>
-            )}
+              {/* Share CTA below the card */}
+              {styleDNA && (
+                <TouchableOpacity
+                  style={[styles.dnaShareCta, { backgroundColor: colors.primary }]}
+                  onPress={handleShareDNA}
+                  disabled={sharingDNA}
+                  activeOpacity={0.85}
+                >
+                  {sharingDNA
+                    ? <ActivityIndicator size="small" color={colors.textOnPrimary} />
+                    : <>
+                        <Ionicons name="share-social-outline" size={scale(18)} color={colors.textOnPrimary} />
+                        <Text style={[styles.dnaShareCtaText, { color: colors.textOnPrimary }]}>Share My Style DNA</Text>
+                      </>
+                  }
+                </TouchableOpacity>
+              )}
+            </ScrollView>
           </View>
-        )}
+        </Modal>
 
         {/* Analytics Card */}
         <TouchableOpacity style={styles.featureCard} onPress={toggleAnalytics} activeOpacity={0.8}>
@@ -1539,6 +1514,59 @@ const styles = StyleSheet.create({
     borderRadius: scale(8),
     borderWidth: scale(1),
     borderColor: colors.borderMedium,
+  },
+  // Style DNA Modal Styles
+  dnaModalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  dnaModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: scale(1),
+    borderBottomColor: colors.borderSubtle,
+  },
+  dnaModalTitle: {
+    fontSize: scale(16),
+    fontWeight: '700',
+    color: colors.textPrimary,
+    letterSpacing: scale(0.5),
+  },
+  dnaModalClose: {
+    padding: spacing.xs,
+    width: scale(36),
+  },
+  dnaShareBtn: {
+    padding: spacing.xs,
+    width: scale(36),
+    alignItems: 'flex-end',
+  },
+  dnaModalScroll: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xl,
+    gap: spacing.md,
+  },
+  dnaEmptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl * 2,
+    gap: spacing.md,
+  },
+  dnaShareCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: verticalScale(14),
+    borderRadius: scale(14),
+    marginTop: spacing.md,
+  },
+  dnaShareCtaText: {
+    fontSize: scale(15),
+    fontWeight: '700',
+    letterSpacing: scale(0.3),
   },
   // Edit Profile Modal Styles
   editButton: {

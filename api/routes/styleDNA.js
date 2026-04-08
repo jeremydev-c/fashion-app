@@ -52,184 +52,124 @@ router.post('/:userId/recalculate', async (req, res) => {
  */
 async function calculateStyleDNA(userId, items, forceRecalculate = false) {
   if (!process.env.OPENAI_API_KEY) {
-    console.error('OPENAI_API_KEY not configured');
     throw new Error('AI service not available');
   }
 
-  // Prepare wardrobe summary for AI analysis
-  const wardrobeSummary = items.map((item) => ({
-    category: item.category,
-    subcategory: item.subcategory || '',
-    color: item.color || '',
-    style: item.style || '',
-    pattern: item.pattern || '',
-    fit: item.fit || '',
-    occasion: item.occasion || [],
-    tags: item.tags || [],
-    brand: item.brand || '',
+  // ── Smart cache: skip AI if calculated within 24 h and item count unchanged ──
+  if (!forceRecalculate) {
+    const existing = await StyleDNA.findOne({ userId }).lean();
+    if (existing && existing.lastCalculated) {
+      const ageHours = (Date.now() - new Date(existing.lastCalculated).getTime()) / 3_600_000;
+      const itemDelta = Math.abs(items.length - (existing.itemCountAtCalculation || 0));
+      if (ageHours < 24 && itemDelta < 3) return existing;
+    }
+  }
+
+  // ── Compact wardrobe summary (fewer tokens) ──────────────────────────────────
+  const summary = items.map((i) => ({
+    cat: i.category,
+    color: i.color || '',
+    style: i.style || '',
+    pattern: i.pattern || '',
+    occasion: (i.occasion || []).join(','),
+    brand: i.brand || '',
   }));
 
-  const prompt = `You are an expert fashion stylist and style analyst. Analyze this user's wardrobe and provide deep, intelligent insights about their personal style DNA.
+  const prompt = `Analyze this ${items.length}-item wardrobe and return a Style DNA JSON object.
 
-WARDROBE DATA (${items.length} items):
-${JSON.stringify(wardrobeSummary, null, 2)}
+WARDROBE:
+${JSON.stringify(summary)}
 
-Analyze this wardrobe and provide a comprehensive Style DNA analysis. Consider:
-1. Primary style identity (casual, formal, streetwear, minimalist, bohemian, sporty, vintage, modern, etc.)
-2. Secondary style influences
-3. Color preferences and dominant color palette
-4. Seasonal color preferences (spring, summer, fall, winter)
-5. Brand affinity and preferences
-6. Category distribution
-7. Uniqueness score (0-1): How unique/distinctive is their style?
-8. Style consistency (0-1): How consistent is their style across items?
-9. Trend alignment (0-1): How aligned are they with current fashion trends?
-
-Respond ONLY as minified JSON with this exact structure:
+Return ONLY valid JSON (no markdown) with exactly this structure:
 {
-  "primaryStyle": "string (one word style identifier)",
-  "secondaryStyles": ["array", "of", "secondary", "styles"],
+  "primaryStyle": "one-word style (e.g. minimalist, streetwear, bohemian, classic, elegant)",
+  "styleArchetype": "creative title like 'The Polished Minimalist' or 'The Bold Streetwear Icon'",
+  "styleMantra": "one punchy sentence that captures their fashion philosophy",
+  "styleInsight": "2 sentences: first describes their style identity, second gives a personalized tip",
+  "secondaryStyles": ["up to 3 secondary styles"],
+  "capsuleEssentials": ["3 specific items that would elevate their wardrobe"],
   "colorPreferences": {
-    "dominantColors": [{"color": "string", "percentage": number}, ...],
-    "colorPalette": ["array", "of", "colors"],
-    "seasonalColors": {
-      "spring": ["array", "of", "colors"],
-      "summer": ["array", "of", "colors"],
-      "fall": ["array", "of", "colors"],
-      "winter": ["array", "of", "colors"]
-    }
+    "dominantColors": [{"color": "#hexcode", "name": "color name", "percentage": number}],
+    "colorPalette": ["up to 6 hex codes"],
+    "seasonalColors": {"spring": ["hex"], "summer": ["hex"], "fall": ["hex"], "winter": ["hex"]}
   },
-  "brandAffinity": [{"brand": "string", "count": number, "score": 0-1}, ...],
-  "categoryDistribution": {"top": number, "bottom": number, "dress": number, "shoes": number, "outerwear": number, "accessory": number},
-  "uniquenessScore": 0-1,
-  "styleConsistency": 0-1,
-  "trendAlignment": 0-1
-}
-
-Be intelligent, insightful, and specific. Don't just count items - analyze patterns, preferences, and style identity.`;
+  "brandAffinity": [{"brand": "string", "count": number, "score": 0.0}],
+  "uniquenessScore": 0.0,
+  "styleConsistency": 0.0,
+  "trendAlignment": 0.0
+}`;
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
       body: JSON.stringify({
-        model: 'gpt-4o', // Using GPT-4o for intelligent analysis
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
         messages: [
-          {
-            role: 'system',
-            content: 'You are an expert fashion stylist. Analyze wardrobes and provide detailed Style DNA insights. Output only valid JSON, no explanations.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
+          { role: 'system', content: 'You are a fashion analyst. Output only valid JSON.' },
+          { role: 'user', content: prompt },
         ],
-        temperature: 0.3, // Lower temperature for more consistent analysis
+        temperature: 0.4,
+        max_tokens: 800,
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenAI API error:', errorText);
-      throw new Error('AI analysis failed');
-    }
+    if (!response.ok) throw new Error(`OpenAI error: ${response.status}`);
 
     const json = await response.json();
-    const rawContent = json.choices?.[0]?.message?.content || '{}';
+    const parsed = JSON.parse(json.choices?.[0]?.message?.content || '{}');
 
-    // Track API usage for Style DNA
+    // Track cost (gpt-4o-mini: $0.15/1M input, $0.60/1M output)
     try {
       const ApiUsage = require('../models/ApiUsage');
-      const usage = json.usage || {};
-      const promptTokens = usage.prompt_tokens || 0;
-      const completionTokens = usage.completion_tokens || 0;
-      
-      // Calculate cost: GPT-4o pricing ($2.50/1M input, $10/1M output)
-      const cost = (promptTokens / 1000000 * 2.50) + (completionTokens / 1000000 * 10);
-      
+      const u = json.usage || {};
       await ApiUsage.create({
-        service: 'openai',
-        operation: 'style-dna',
-        tokens: {
-          prompt: promptTokens,
-          completion: completionTokens,
-        },
-        cost,
-        model: 'gpt-4o',
+        service: 'openai', operation: 'style-dna', model: 'gpt-4o-mini',
+        tokens: { prompt: u.prompt_tokens || 0, completion: u.completion_tokens || 0 },
+        cost: ((u.prompt_tokens || 0) / 1_000_000 * 0.15) + ((u.completion_tokens || 0) / 1_000_000 * 0.60),
       });
-    } catch (trackError) {
-      console.error('Failed to track API usage:', trackError);
-    }
+    } catch (_) {}
 
-    let parsed;
-    try {
-      // Clean the response (remove markdown code blocks if present)
-      const cleanedContent = rawContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      parsed = JSON.parse(cleanedContent);
-    } catch (parseError) {
-      console.error('Failed to parse AI Style DNA response:', rawContent);
-      throw new Error('Failed to parse AI response');
-    }
+    // Count actual items per category
+    const categoryDistribution = { top: 0, bottom: 0, dress: 0, shoes: 0, outerwear: 0, accessory: 0 };
+    items.forEach((item) => { if (item.category in categoryDistribution) categoryDistribution[item.category]++; });
 
-    // Validate and structure the response
     const styleDNAContent = {
       userId,
       primaryStyle: parsed.primaryStyle || 'casual',
-      secondaryStyles: Array.isArray(parsed.secondaryStyles) ? parsed.secondaryStyles : [],
+      styleArchetype: parsed.styleArchetype || '',
+      styleMantra: parsed.styleMantra || '',
+      styleInsight: parsed.styleInsight || '',
+      capsuleEssentials: Array.isArray(parsed.capsuleEssentials) ? parsed.capsuleEssentials.slice(0, 3) : [],
+      secondaryStyles: Array.isArray(parsed.secondaryStyles) ? parsed.secondaryStyles.slice(0, 3) : [],
       colorPreferences: {
         dominantColors: Array.isArray(parsed.colorPreferences?.dominantColors)
           ? parsed.colorPreferences.dominantColors.slice(0, 5)
           : [],
         colorPalette: Array.isArray(parsed.colorPreferences?.colorPalette)
-          ? parsed.colorPreferences.colorPalette
+          ? parsed.colorPreferences.colorPalette.slice(0, 6)
           : [],
-        seasonalColors: parsed.colorPreferences?.seasonalColors || {
-          spring: [],
-          summer: [],
-          fall: [],
-          winter: [],
-        },
+        seasonalColors: parsed.colorPreferences?.seasonalColors || { spring: [], summer: [], fall: [], winter: [] },
       },
-      brandAffinity: Array.isArray(parsed.brandAffinity)
-        ? parsed.brandAffinity.slice(0, 10)
-        : [],
-      categoryDistribution: parsed.categoryDistribution || {
-        top: 0,
-        bottom: 0,
-        dress: 0,
-        shoes: 0,
-        outerwear: 0,
-        accessory: 0,
-      },
-      uniquenessScore: typeof parsed.uniquenessScore === 'number' ? Math.max(0, Math.min(1, parsed.uniquenessScore)) : 0.5,
-      styleConsistency: typeof parsed.styleConsistency === 'number' ? Math.max(0, Math.min(1, parsed.styleConsistency)) : 0.5,
-      trendAlignment: typeof parsed.trendAlignment === 'number' ? Math.max(0, Math.min(1, parsed.trendAlignment)) : 0.5,
+      brandAffinity: Array.isArray(parsed.brandAffinity) ? parsed.brandAffinity.slice(0, 8) : [],
+      categoryDistribution,
+      uniquenessScore: clamp(parsed.uniquenessScore, 0.5),
+      styleConsistency: clamp(parsed.styleConsistency, 0.5),
+      trendAlignment: clamp(parsed.trendAlignment, 0.5),
+      itemCountAtCalculation: items.length,
       lastCalculated: new Date(),
     };
 
-    // Ensure category distribution is accurate (count actual items)
-    items.forEach((item) => {
-      if (styleDNAContent.categoryDistribution.hasOwnProperty(item.category)) {
-        styleDNAContent.categoryDistribution[item.category]++;
-      }
-    });
-
-    const styleDNA = await StyleDNA.findOneAndUpdate(
-      { userId },
-      styleDNAContent,
-      { upsert: true, new: true }
-    );
-
-    return styleDNA;
+    return StyleDNA.findOneAndUpdate({ userId }, styleDNAContent, { upsert: true, new: true });
   } catch (error) {
-    console.error('AI Style DNA calculation error:', error);
-    // Fallback to basic calculation if AI fails
-    console.log('Falling back to basic Style DNA calculation');
+    console.error('Style DNA AI error:', error.message);
     return calculateStyleDNABasic(userId, items);
   }
+}
+
+function clamp(val, fallback = 0.5) {
+  return typeof val === 'number' ? Math.max(0, Math.min(1, val)) : fallback;
 }
 
 /**
@@ -298,6 +238,7 @@ async function calculateStyleDNABasic(userId, items) {
     uniquenessScore: 0.5,
     styleConsistency: 0.5,
     trendAlignment: 0.5,
+    itemCountAtCalculation: items.length,
     lastCalculated: new Date(),
   };
 
