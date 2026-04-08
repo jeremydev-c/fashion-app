@@ -32,10 +32,11 @@ import { getCurrentWeather, WeatherData, WeatherForecast } from '../services/wea
 import { DestinationPicker } from '../components/DestinationPicker';
 import { AIMisuseWarning, hasAcknowledgedWarning } from '../components/AIMisuseWarning';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { useTranslation } from 'react-i18next';
 
 
-const OCCASIONS = ['Casual', 'Work', 'Date', 'Party', 'Gym', 'Formal'];
-const TIMES = ['Morning', 'Afternoon', 'Evening', 'Night'];
+const OCCASION_KEYS = ['Casual', 'Work', 'Date', 'Party', 'Gym', 'Formal'];
+const TIME_KEYS = ['Morning', 'Afternoon', 'Evening', 'Night'];
 
 interface OutfitSuggestion {
   id: string;
@@ -59,6 +60,7 @@ const STYLING_TIPS = [
 
 const StylingLoader: React.FC<{ occasion: string; timeOfDay: string; done: boolean; onFinished: () => void }> = ({ occasion, timeOfDay, done, onFinished }) => {
   const colors = useThemeColors();
+  const { t } = useTranslation();
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const iconRotate = useRef(new Animated.Value(0)).current;
@@ -136,15 +138,15 @@ const StylingLoader: React.FC<{ occasion: string; timeOfDay: string; done: boole
     <Animated.View style={[loaderStyles.container, { opacity: containerOpacity }]}>
       {/* Central icon */}
       <View style={loaderStyles.iconArea}>
-        <Animated.View style={[loaderStyles.outerRing, { borderColor: doneText ? colors.success || '#22c55e' : colors.primary, transform: [{ scale: pulseScale }], opacity: pulseOpacity }]} />
+        <Animated.View style={[loaderStyles.outerRing, { borderColor: doneText ? colors.success : colors.primary, transform: [{ scale: pulseScale }], opacity: pulseOpacity }]} />
         <Animated.View style={[loaderStyles.iconCircle, { backgroundColor: colors.primarySoft, transform: [{ rotate: doneText ? '0deg' : spin }] }]}>
-          <Ionicons name={doneText ? 'checkmark-circle' : 'sparkles'} size={scale(28)} color={doneText ? colors.success || '#22c55e' : colors.primary} />
+          <Ionicons name={doneText ? 'checkmark-circle' : 'sparkles'} size={scale(28)} color={doneText ? colors.success : colors.primary} />
         </Animated.View>
       </View>
 
       {/* Status text */}
       <Text style={[loaderStyles.title, { color: colors.textPrimary }]}>
-        {doneText ? 'Your outfits are ready!' : `Styling for ${occasion.toLowerCase()} ${timeOfDay.toLowerCase()}`}
+        {doneText ? t('stylist.outfitsReady') : `Styling for ${occasion.toLowerCase()} ${timeOfDay.toLowerCase()}`}
       </Text>
 
       {/* Rotating tips */}
@@ -174,13 +176,13 @@ const StylingLoader: React.FC<{ occasion: string; timeOfDay: string; done: boole
         <Animated.View
           style={[
             loaderStyles.progressFill,
-            { backgroundColor: doneText ? colors.success || '#22c55e' : colors.primary, width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
+            { backgroundColor: doneText ? colors.success : colors.primary, width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
           ]}
         />
         {!doneText && (
           <Animated.View style={[loaderStyles.shimmer, { transform: [{ translateX: shimmerTranslate }] }]}>
             <LinearGradient
-              colors={['transparent', 'rgba(255,255,255,0.3)', 'transparent']}
+              colors={['transparent', colors.surface, 'transparent']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={loaderStyles.shimmerGradient}
@@ -234,6 +236,7 @@ export const StylistScreen: React.FC = () => {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const userId = useUserId();
+  const { t } = useTranslation();
   const [wardrobe, setWardrobe] = useState<ClothingItem[]>([]);
   const [outfits, setOutfits] = useState<OutfitSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -358,11 +361,11 @@ export const StylistScreen: React.FC = () => {
 
   const performGeneration = async () => {
     if (wardrobe.length < 2) {
-      alert('Add more items to your wardrobe first!');
+      Alert.alert(t('stylist.emptyTitle'), t('stylist.addMoreItemsFirst'));
       return;
     }
     if (!userId) {
-      alert('Please log in to generate outfits');
+      Alert.alert(t('common.error'), t('stylist.loginToGenerate'));
       return;
     }
     setLoading(true);
@@ -439,7 +442,7 @@ export const StylistScreen: React.FC = () => {
       
       if (err?.status === 403 && (err?.data?.error === 'daily_limit_reached' || err?.data?.error === 'upgrade_required')) {
         Alert.alert(
-          'Daily Limit Reached',
+          t('stylist.dailyLimitTitle'),
           err?.data?.message || 'You\'ve used all your free recommendations for today. Upgrade to Pro for unlimited.',
         );
       } else {
@@ -553,8 +556,8 @@ export const StylistScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>AI Stylist</Text>
-            <Text style={[styles.subtitle, { color: colors.textMuted }]}>Curated outfits from your wardrobe</Text>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{t('stylist.title')}</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>{t('stylist.subtitle')}</Text>
           </View>
           {savedOutfitsList.length > 0 && (
             <TouchableOpacity 
@@ -639,11 +642,12 @@ export const StylistScreen: React.FC = () => {
         />
 
         {/* Occasion Pills */}
-        <Text style={styles.label}>Occasion</Text>
+        <Text style={styles.label}>{t('planner.occasion')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled style={styles.pillRow} contentContainerStyle={{ paddingRight: 8 }}>
-          {OCCASIONS.map((o) => (
+          {OCCASION_KEYS.map((o) => (
             <TouchableOpacity
               key={o}
+              activeOpacity={0.75}
               style={[styles.pill, occasion === o && styles.pillActive]}
               onPress={() => setOccasion(o)}
             >
@@ -653,15 +657,16 @@ export const StylistScreen: React.FC = () => {
         </ScrollView>
 
         {/* Time Pills */}
-        <Text style={styles.label}>Time of Day</Text>
+        <Text style={styles.label}>{t('planner.timeOfDay')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled style={styles.pillRow} contentContainerStyle={{ paddingRight: 8 }}>
-          {TIMES.map((t) => (
+          {TIME_KEYS.map((timeKey) => (
             <TouchableOpacity
-              key={t}
-              style={[styles.pill, timeOfDay === t && styles.pillActive]}
-              onPress={() => setTimeOfDay(t)}
+              key={timeKey}
+              activeOpacity={0.75}
+              style={[styles.pill, timeOfDay === timeKey && styles.pillActive]}
+              onPress={() => setTimeOfDay(timeKey)}
             >
-              <Text style={[styles.pillText, timeOfDay === t && styles.pillTextActive]}>{t}</Text>
+              <Text style={[styles.pillText, timeOfDay === timeKey && styles.pillTextActive]}>{timeKey}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -675,7 +680,7 @@ export const StylistScreen: React.FC = () => {
         >
           <Ionicons name="sparkles" size={18} color={colors.textOnPrimary} />
           <Text style={[styles.generateText, { color: colors.textOnPrimary }]}>
-            {loading ? 'STYLING IN PROGRESS...' : 'GENERATE OUTFITS'}
+            {loading ? t('stylist.generating').toUpperCase() : t('stylist.generateOutfits').toUpperCase()}
           </Text>
         </TouchableOpacity>
 
@@ -692,7 +697,7 @@ export const StylistScreen: React.FC = () => {
         {/* Outfit Cards */}
         {showResults && (showSaved ? savedOutfitsList : outfits).map((outfit) => (
           <View key={outfit.id} style={[styles.outfitCard, { backgroundColor: colors.card }]}>
-            <Text style={styles.outfitTitle}>{outfit.title || `Outfit for ${outfit.occasion}`}</Text>
+            <Text style={styles.outfitTitle} numberOfLines={2} ellipsizeMode="tail">{outfit.title || `Outfit for ${outfit.occasion}`}</Text>
             <View style={styles.itemsRow}>
               {outfit.items.map((item) => {
                 // Try multiple image sources in order of preference
@@ -738,11 +743,12 @@ export const StylistScreen: React.FC = () => {
                 );
               })}
             </View>
-            <Text style={styles.reasoning}>{outfit.reasoning}</Text>
+            <Text style={styles.reasoning} numberOfLines={4} ellipsizeMode="tail">{outfit.reasoning}</Text>
 
             {/* Actions */}
             <View style={styles.actions}>
               <TouchableOpacity
+                activeOpacity={0.75}
                 style={[styles.actionBtn, savedOutfits.has(outfit.id) && styles.savedBtn]}
                 onPress={() => handleSave(outfit)}
               >
@@ -754,7 +760,7 @@ export const StylistScreen: React.FC = () => {
                 <Text style={styles.actionText}>Save</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionBtn} onPress={() => handleReject(outfit)}>
+              <TouchableOpacity activeOpacity={0.75} style={styles.actionBtn} onPress={() => handleReject(outfit)}>
                 <Ionicons name="close-circle-outline" size={18} color={colors.textMuted} />
                 <Text style={styles.actionText}>Skip</Text>
               </TouchableOpacity>
@@ -763,7 +769,7 @@ export const StylistScreen: React.FC = () => {
             {/* Star Rating */}
             <View style={styles.ratingRow}>
               {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity key={star} onPress={() => handleRate(outfit, star)}>
+                <TouchableOpacity key={star} activeOpacity={0.7} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }} onPress={() => handleRate(outfit, star)}>
                   <Ionicons
                     name={(ratings[outfit.id] || 0) >= star ? 'star' : 'star-outline'}
                     size={24}
@@ -777,7 +783,7 @@ export const StylistScreen: React.FC = () => {
 
         {outfits.length === 0 && !loading && showResults && (
           <Text style={styles.emptyText}>
-            Tap "Generate Outfits" to get AI suggestions based on your wardrobe.
+            {t('stylist.tapToGenerate')}
           </Text>
         )}
       </ScrollView>

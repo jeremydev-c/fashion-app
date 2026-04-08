@@ -28,6 +28,7 @@ import pt from './locales/pt.json';
 import ro from './locales/ro.json';
 import ru from './locales/ru.json';
 import sv from './locales/sv.json';
+import sw from './locales/sw.json';
 import th from './locales/th.json';
 import tr from './locales/tr.json';
 import uk from './locales/uk.json';
@@ -60,6 +61,7 @@ const resources = {
   ro: { translation: ro },
   ru: { translation: ru },
   sv: { translation: sv },
+  sw: { translation: sw },
   th: { translation: th },
   tr: { translation: tr },
   uk: { translation: uk },
@@ -93,6 +95,7 @@ export const supportedLanguages = [
   { code: 'ro', name: 'Romanian', nativeName: 'Română' },
   { code: 'ru', name: 'Russian', nativeName: 'Русский' },
   { code: 'sv', name: 'Swedish', nativeName: 'Svenska' },
+  { code: 'sw', name: 'Swahili', nativeName: 'Kiswahili' },
   { code: 'th', name: 'Thai', nativeName: 'ไทย' },
   { code: 'tr', name: 'Turkish', nativeName: 'Türkçe' },
   { code: 'uk', name: 'Ukrainian', nativeName: 'Українська' },

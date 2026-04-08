@@ -25,6 +25,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { scale, verticalScale, SCREEN_WIDTH } from '../utils/responsive';
 import { useThemeColors } from '../theme/ThemeProvider';
 import { colors } from '../theme/colors';
+import { useTranslation } from 'react-i18next';
 
 interface Message {
   id: string;
@@ -59,6 +60,7 @@ export default function ChatScreen() {
   const colors = useThemeColors();
   const userId = useUserId();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const userName = user?.name?.split(' ')[0] || 'Your';
   const insets = useSafeAreaInsets();
   
@@ -282,16 +284,16 @@ export default function ChatScreen() {
           </LinearGradient>
         )}
         
-        <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
-          <Text style={[styles.msgText, isUser && styles.msgTextUser]}>{item.content}</Text>
-          <Text style={[styles.time, isUser && styles.timeUser]}>
+        <View style={[styles.bubble, isUser ? styles.bubbleUser : [styles.bubbleAssistant, { borderColor: colors.borderSubtle }]]}>
+          <Text style={[styles.msgText, { color: colors.textPrimary }, isUser && { color: colors.textOnPrimary }]}>{item.content}</Text>
+          <Text style={[styles.time, { color: colors.textMuted }, isUser && { color: colors.textMuted, textAlign: 'right' as const }]}>
             {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </Text>
         </View>
         
         {isUser && (
-          <View style={styles.avatarUser}>
-            <Text style={styles.avatarLetter}>{userName.charAt(0)}</Text>
+          <View style={[styles.avatarUser, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.avatarLetter, { color: colors.textPrimary }]}>{userName.charAt(0)}</Text>
           </View>
         )}
       </View>
@@ -309,20 +311,21 @@ export default function ChatScreen() {
         <Text style={styles.emptyDesc}>Your personal fashion educator</Text>
         
         <View style={styles.badges}>
-          {BADGES.map((badge) => (
-            <View key={badge.id} style={styles.badge}>
-              <Text style={styles.badgeText}>{badge.text}</Text>
+          {BADGES.map((badge, idx) => (
+            <View key={`badge-${badge.id}-${idx}`} style={[styles.badge, { backgroundColor: colors.primarySoft }]}>
+              <Text style={[styles.badgeText, { color: colors.primary }]}>{badge.text}</Text>
             </View>
           ))}
         </View>
 
-        <Text style={styles.promptLabel}>Quick prompts:</Text>
+        <Text style={styles.promptLabel}>{t('chat.quickPrompts')}</Text>
         
         <View style={styles.promptGrid}>
-          {PROMPTS.map((p) => (
-            <TouchableOpacity 
-              key={p.id} 
-              style={styles.promptBtn}
+          {PROMPTS.map((p, idx) => (
+            <TouchableOpacity
+              key={`prompt-${p.id}-${idx}`}
+              activeOpacity={0.75}
+              style={[styles.promptBtn, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}
               onPress={() => sendMessage(p.label)}
             >
               <Text style={styles.promptEmoji}>{p.icon}</Text>
@@ -368,36 +371,37 @@ export default function ChatScreen() {
         {/* History Modal */}
         <Modal visible={showHistory} animationType="slide" presentationStyle="pageSheet">
           <View style={[styles.modal, { paddingTop: insets.top }]}>
-            <View style={[styles.modalHeader, { paddingTop: verticalScale(20) }]}>
-              <Text style={styles.modalTitle}>Chat History</Text>
-              <TouchableOpacity onPress={() => setShowHistory(false)}>
-                <Ionicons name="close" size={scale(28)} color="#fff" />
+            <View style={[styles.modalHeader, { paddingTop: verticalScale(20), borderBottomColor: colors.borderSubtle }]}>
+              <Text style={styles.modalTitle}>{t('chat.chatHistory')}</Text>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => setShowHistory(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={scale(28)} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
             
-            <TouchableOpacity style={styles.newBtn} onPress={startNewChat}>
+            <TouchableOpacity activeOpacity={0.85} style={styles.newBtn} onPress={startNewChat}>
               <LinearGradient colors={[...colors.gradientAccent]} style={styles.newBtnGrad}>
                 <Ionicons name="add" size={scale(20)} color="#fff" />
-                <Text style={styles.newBtnText}>New Chat</Text>
+                <Text style={styles.newBtnText}>{t('chat.newChat')}</Text>
               </LinearGradient>
             </TouchableOpacity>
             
             <ScrollView style={styles.convList}>
               {conversations.length === 0 ? (
-                <Text style={styles.noConv}>No conversations yet</Text>
+                <Text style={styles.noConv}>{t('chat.noChats')}</Text>
               ) : (
-                conversations.map((c) => (
-                  <TouchableOpacity 
-                    key={c.conversationId} 
-                    style={[styles.convItem, conversationId === c.conversationId && styles.convActive]}
+                conversations.map((c, idx) => (
+                  <TouchableOpacity
+                    key={c.conversationId || `conv-${idx}`}
+                    activeOpacity={0.75}
+                    style={[styles.convItem, { backgroundColor: colors.surface }, conversationId === c.conversationId && styles.convActive]}
                     onPress={() => selectConversation(c)}
                   >
-                    <Ionicons name="chatbubble" size={scale(18)} color="#a8a29e" />
+                    <Ionicons name="chatbubble" size={scale(18)} color="rgba(168,162,158,0.9)" />
                     <View style={styles.convInfo}>
-                      <Text style={styles.convTitle} numberOfLines={1}>{c.title}</Text>
+                      <Text style={styles.convTitle} numberOfLines={1} ellipsizeMode="tail">{c.title}</Text>
                       <Text style={styles.convDate}>{new Date(c.updatedAt).toLocaleDateString()}</Text>
                     </View>
-                    <TouchableOpacity onPress={() => deleteConversation(c.conversationId)}>
+                    <TouchableOpacity activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => deleteConversation(c.conversationId)}>
                       <Ionicons name="trash-outline" size={scale(18)} color="#ef4444" />
                     </TouchableOpacity>
                   </TouchableOpacity>
@@ -408,9 +412,9 @@ export default function ChatScreen() {
         </Modal>
 
         {/* Header with safe area insets */}
-        <View style={[styles.header, { paddingTop: verticalScale(12) }]}>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => setShowHistory(true)}>
-            <Ionicons name="menu" size={scale(24)} color="#fff" />
+        <View style={[styles.header, { paddingTop: verticalScale(12), borderBottomColor: colors.borderSubtle }]}>
+          <TouchableOpacity activeOpacity={0.7} style={[styles.headerBtn, { backgroundColor: colors.surface }]} onPress={() => setShowHistory(true)}>
+            <Ionicons name="menu" size={scale(24)} color={colors.textPrimary} />
           </TouchableOpacity>
           
           <View style={styles.headerMid}>
@@ -426,8 +430,8 @@ export default function ChatScreen() {
             </View>
           </View>
           
-          <TouchableOpacity style={styles.headerBtn} onPress={startNewChat}>
-            <Ionicons name="add-circle-outline" size={scale(24)} color="#fff" />
+          <TouchableOpacity activeOpacity={0.7} style={[styles.headerBtn, { backgroundColor: colors.surface }]} onPress={startNewChat}>
+            <Ionicons name="add-circle-outline" size={scale(24)} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -463,17 +467,23 @@ export default function ChatScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
-          <View style={[styles.inputBox, { paddingBottom: verticalScale(56) + Math.max(insets.bottom, verticalScale(12)) }]}>
+          {inputText.length > 400 && (
+            <Text style={{ fontSize: scale(11), color: colors.textMuted, textAlign: 'right', paddingHorizontal: scale(16), paddingBottom: verticalScale(4) }}>
+              {500 - inputText.length} left
+            </Text>
+          )}
+          <View style={[styles.inputBox, { paddingBottom: verticalScale(56) + Math.max(insets.bottom, verticalScale(12)), borderTopColor: colors.borderSubtle }]}>
             <TextInput
-              style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.surface }]}
+              style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.surface, borderColor: colors.borderSubtle }]}
               value={inputText}
               onChangeText={setInputText}
-              placeholder="Ask about style, colors, trends..."
-              placeholderTextColor="#78716c"
+              placeholder={t('chat.placeholder')}
+              placeholderTextColor={colors.textMuted}
               multiline
               maxLength={500}
             />
             <TouchableOpacity
+              activeOpacity={0.8}
               style={[styles.sendBtn, (!inputText.trim() || isLoading) && styles.sendBtnOff]}
               onPress={() => sendMessage()}
               disabled={!inputText.trim() || isLoading}
@@ -510,13 +520,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: scale(16),
     paddingVertical: verticalScale(12),
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   headerBtn: {
     width: scale(40),
     height: scale(40),
     borderRadius: scale(20),
-    backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -546,11 +554,11 @@ const styles = StyleSheet.create({
     width: scale(6),
     height: scale(6),
     borderRadius: scale(3),
-    backgroundColor: '#22c55e',
+    backgroundColor: colors.success,
   },
   statusText: {
     fontSize: scale(11),
-    color: '#a8a29e',
+    color: colors.textMuted,
   },
   
   // Messages Container
@@ -587,7 +595,6 @@ const styles = StyleSheet.create({
     width: scale(28),
     height: scale(28),
     borderRadius: scale(14),
-    backgroundColor: '#333333',
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: scale(8),
@@ -595,7 +602,6 @@ const styles = StyleSheet.create({
   avatarLetter: {
     fontSize: scale(12),
     fontWeight: '700',
-    color: colors.textPrimary,
   },
   bubble: {
     maxWidth: '72%',
@@ -610,7 +616,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomLeftRadius: scale(4),
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   typingBubble: {
     paddingVertical: verticalScale(14),
@@ -618,19 +623,14 @@ const styles = StyleSheet.create({
   },
   msgText: {
     fontSize: scale(15),
-    color: '#f5f0eb',
     lineHeight: scale(21),
   },
-  msgTextUser: {
-    color: '#fff',
-  },
+  msgTextUser: {},
   time: {
     fontSize: scale(10),
-    color: '#78716c',
     marginTop: verticalScale(4),
   },
   timeUser: {
-    color: 'rgba(255,255,255,0.7)',
     textAlign: 'right',
   },
   
@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
   },
   emptyDesc: {
     fontSize: scale(14),
-    color: '#a8a29e',
+    color: colors.textMuted,
     marginBottom: verticalScale(20),
   },
   badges: {
@@ -672,19 +672,17 @@ const styles = StyleSheet.create({
     marginBottom: verticalScale(24),
   },
   badge: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
     paddingHorizontal: scale(12),
     paddingVertical: verticalScale(6),
     borderRadius: scale(16),
   },
   badgeText: {
     fontSize: scale(12),
-    color: '#d4bc94',
   },
   promptLabel: {
     fontSize: scale(12),
     fontWeight: '600',
-    color: '#78716c',
+    color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: scale(1),
     marginBottom: verticalScale(12),
@@ -698,12 +696,10 @@ const styles = StyleSheet.create({
   },
   promptBtn: {
     width: (SCREEN_WIDTH - scale(78)) / 3,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: scale(12),
     paddingVertical: verticalScale(14),
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
   },
   promptEmoji: {
     fontSize: scale(24),
@@ -711,12 +707,12 @@ const styles = StyleSheet.create({
   },
   promptText: {
     fontSize: scale(11),
-    color: '#a8a29e',
+    color: colors.textMuted,
     fontWeight: '500',
   },
   tip: {
     fontSize: scale(12),
-    color: '#78716c',
+    color: colors.textMuted,
     textAlign: 'center',
     lineHeight: scale(18),
     paddingHorizontal: scale(20),
@@ -729,21 +725,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: scale(12),
     paddingTop: verticalScale(12),
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
     backgroundColor: colors.card,
     gap: scale(10),
   },
   input: {
     flex: 1,
-    backgroundColor: colors.surface,
     borderRadius: scale(20),
     paddingHorizontal: scale(16),
     paddingVertical: verticalScale(10),
-    color: colors.textPrimary,
     fontSize: scale(15),
     maxHeight: verticalScale(100),
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   sendBtn: {
     width: scale(44),
@@ -772,7 +764,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: scale(20),
     paddingBottom: verticalScale(20),
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   modalTitle: {
     fontSize: scale(20),
@@ -808,7 +799,6 @@ const styles = StyleSheet.create({
   convItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
     padding: scale(14),
     borderRadius: scale(12),
     marginBottom: verticalScale(8),

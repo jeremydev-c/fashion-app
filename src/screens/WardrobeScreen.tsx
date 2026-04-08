@@ -33,6 +33,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useUserId } from '../hooks/useUserId';
 import CameraScreen from './CameraScreen';
 import BulkCameraScreen from './BulkCameraScreen';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../services/apiClient';
 
 const CATEGORIES: (ClothingCategory | 'all')[] = ['all', 'top', 'bottom', 'dress', 'shoes', 'outerwear', 'accessory', 'other'];
@@ -42,6 +43,7 @@ export const WardrobeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const userId = useUserId();
+  const { t } = useTranslation();
 
   const [addOpen, setAddOpen] = useState(false);
   const [showAddOptions, setShowAddOptions] = useState(false);
@@ -280,12 +282,12 @@ export const WardrobeScreen: React.FC = () => {
 
   const handleDelete = (id: string) => {
     Alert.alert(
-      'Remove item',
-      'Are you sure you want to remove this piece from your wardrobe?',
+      t('wardrobe.removeItem'),
+      t('wardrobe.removeItemConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => deleteMutation.mutate(id),
         },
@@ -359,9 +361,9 @@ export const WardrobeScreen: React.FC = () => {
             />
           }
         >
-          <Text style={styles.title}>Wardrobe</Text>
+          <Text style={styles.title}>{t('wardrobe.title')}</Text>
           <Text style={styles.subtitle}>
-            AI-categorized wardrobe based on photos. No manual spreadsheets.
+            {t('wardrobe.subtitle')}
           </Text>
 
           {/* Search Bar */}
@@ -369,13 +371,13 @@ export const WardrobeScreen: React.FC = () => {
             <Ionicons name="search" size={20} color={colors.textMuted} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search by name, color, brand, style..."
+              placeholder={t('wardrobe.searchPlaceholder')}
               placeholderTextColor={colors.textMuted}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+              <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close-circle" size={20} color={colors.textMuted} />
               </TouchableOpacity>
             )}
@@ -403,7 +405,7 @@ export const WardrobeScreen: React.FC = () => {
                     selectedCategory === cat && styles.categoryTabTextActive,
                   ]}
                 >
-                  {cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  {cat === 'all' ? t('wardrobe.categories.all') : cat.charAt(0).toUpperCase() + cat.slice(1)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -412,30 +414,32 @@ export const WardrobeScreen: React.FC = () => {
           {/* Stats Row */}
           <View style={styles.row}>
             <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
-              <Text style={styles.summaryLabel}>Total Items</Text>
+              <Text style={styles.summaryLabel}>{t('wardrobe.totalItems')}</Text>
               <Text style={styles.summaryValue}>{data?.length || 0}</Text>
               <Text style={styles.summaryHint}>
-                {filteredItems.length === (data?.length || 0) 
-                  ? 'All items' 
-                  : `${filteredItems.length} shown`}
+                {filteredItems.length === (data?.length || 0)
+                  ? t('wardrobe.allItemsLabel')
+                  : `${filteredItems.length} ${t('wardrobe.shown')}`}
               </Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
-              <Text style={styles.summaryLabel}>View Mode</Text>
+              <Text style={styles.summaryLabel}>{t('wardrobe.viewMode')}</Text>
               <View style={styles.viewModeToggle}>
                 <TouchableOpacity
                   style={[styles.viewModeButton, viewMode === 'grid' && styles.viewModeButtonActive]}
                   onPress={() => setViewMode('grid')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons 
-                    name="grid" 
-                    size={18} 
-                    color={viewMode === 'grid' ? colors.background : colors.textMuted} 
+                  <Ionicons
+                    name="grid"
+                    size={18}
+                    color={viewMode === 'grid' ? colors.background : colors.textMuted}
                   />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.viewModeButton, viewMode === 'list' && styles.viewModeButtonActive]}
                   onPress={() => setViewMode('list')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Ionicons 
                     name="list" 
@@ -455,7 +459,7 @@ export const WardrobeScreen: React.FC = () => {
 
           {isError && (
             <View style={styles.stateContainer}>
-              <Text style={styles.errorTitle}>Failed to load wardrobe</Text>
+              <Text style={styles.errorTitle}>{t('wardrobe.failedToLoad')}</Text>
               <Text style={styles.errorText}>{error?.message}</Text>
             </View>
           )}
@@ -463,9 +467,9 @@ export const WardrobeScreen: React.FC = () => {
           {!isLoading && !isError && (data?.length || 0) === 0 && (
             <Card variant="outlined" style={styles.gridEmpty}>
               <Ionicons name="shirt-outline" size={48} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>Your wardrobe is empty</Text>
+              <Text style={styles.emptyTitle}>{t('wardrobe.noItems')}</Text>
               <Text style={styles.emptyBody}>
-                Tap the + button to add your first item!
+                {t('wardrobe.addFirstItem')}
               </Text>
             </Card>
           )}
@@ -473,9 +477,9 @@ export const WardrobeScreen: React.FC = () => {
           {!isLoading && !isError && (data?.length || 0) > 0 && filteredItems.length === 0 && (
             <Card variant="outlined" style={styles.gridEmpty}>
               <Ionicons name="search-outline" size={48} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>No items found</Text>
+              <Text style={styles.emptyTitle}>{t('common.noResults')}</Text>
               <Text style={styles.emptyBody}>
-                Try adjusting your search or filter.
+                {t('wardrobe.adjustFilter')}
               </Text>
             </Card>
           )}
@@ -503,6 +507,8 @@ export const WardrobeScreen: React.FC = () => {
                       activeOpacity={0.7}
                     >
                       <TouchableOpacity
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                         style={styles.deleteBadge}
                         onPress={(e) => {
                           e.stopPropagation();
@@ -516,6 +522,7 @@ export const WardrobeScreen: React.FC = () => {
                         source={{ uri: item.thumbnailUrl || item.mediumUrl || item.imageUrl }}
                         style={styles.itemImageLarge}
                         resizeMode="cover"
+                        onError={() => {}}
                       />
                       <View style={styles.itemInfo}>
                         <Text style={styles.itemName} numberOfLines={1}>
@@ -562,6 +569,7 @@ export const WardrobeScreen: React.FC = () => {
                         source={{ uri: item.thumbnailUrl || item.mediumUrl || item.imageUrl }}
                         style={styles.listItemImage}
                         resizeMode="cover"
+                        onError={() => {}}
                       />
                       <View style={styles.listItemInfo}>
                         <View style={styles.listItemHeader}>
@@ -569,6 +577,8 @@ export const WardrobeScreen: React.FC = () => {
                             {item.name}
                           </Text>
                           <TouchableOpacity
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             onPress={(e) => {
                               e.stopPropagation();
                               handleDelete(item._id);
@@ -611,15 +621,17 @@ export const WardrobeScreen: React.FC = () => {
         <>
           {showAddOptions && (
             <View style={styles.fabOptions}>
-              <TouchableOpacity 
-                style={styles.fabOption} 
+              <TouchableOpacity
+                activeOpacity={0.75}
+                style={styles.fabOption}
                 onPress={() => { setShowAddOptions(false); setCameraOpen(true); }}
               >
                 <Ionicons name="camera" size={20} color={colors.textPrimary} />
                 <Text style={styles.fabOptionText}>Camera</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.fabOption} 
+              <TouchableOpacity
+                activeOpacity={0.75}
+                style={styles.fabOption}
                 onPress={async () => {
                   setShowAddOptions(false);
                   try {
@@ -635,18 +647,20 @@ export const WardrobeScreen: React.FC = () => {
                 }}
               >
                 <Ionicons name="images" size={20} color={colors.textPrimary} />
-                <Text style={styles.fabOptionText}>Bulk Add</Text>
+                <Text style={styles.fabOptionText}>{t('wardrobe.bulkAdd')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.fabOption} 
+              <TouchableOpacity
+                activeOpacity={0.75}
+                style={styles.fabOption}
                 onPress={() => { setShowAddOptions(false); setAddOpen(true); }}
               >
                 <Ionicons name="create" size={20} color={colors.textPrimary} />
-                <Text style={styles.fabOptionText}>Manual</Text>
+                <Text style={styles.fabOptionText}>{t('wardrobe.addManually')}</Text>
               </TouchableOpacity>
             </View>
           )}
           <TouchableOpacity
+            activeOpacity={0.85}
             style={[styles.fab, showAddOptions && styles.fabActive]}
             onPress={() => setShowAddOptions(!showAddOptions)}
           >
@@ -664,7 +678,7 @@ export const WardrobeScreen: React.FC = () => {
           >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Item Details</Text>
-              <TouchableOpacity onPress={() => setSelectedItem(null)}>
+              <TouchableOpacity activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => setSelectedItem(null)}>
                 <Ionicons name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>

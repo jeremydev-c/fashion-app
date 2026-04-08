@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
+import { useTranslation } from 'react-i18next';
 import { scale, verticalScale } from '../utils/responsive';
 import { HomeScreen } from '../screens/HomeScreen';
 import { WardrobeScreen } from '../screens/WardrobeScreen';
@@ -13,6 +14,8 @@ import { PlannerScreen } from '../screens/PlannerScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import ChatScreen from '../screens/ChatScreen';
 import { AdminDashboardScreen } from '../screens/AdminDashboardScreen';
+import SocialFeedScreen from '../screens/SocialFeedScreen';
+import PublicProfileScreen from '../screens/PublicProfileScreen';
 
 export type RootTabParamList = {
   Home: undefined;
@@ -20,8 +23,10 @@ export type RootTabParamList = {
   Stylist: undefined;
   Coach: undefined;
   Planner: undefined;
+  Social: undefined;
   Profile: undefined;
   AdminDashboard: undefined;
+  PublicProfile: { userId: string };
 };
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
@@ -29,6 +34,7 @@ const Tab = createBottomTabNavigator<RootTabParamList>();
 export const AppTabs = () => {
   const { isDark, colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   return (
     <NavigationContainer
@@ -84,6 +90,8 @@ export const AppTabs = () => {
               iconName = focused ? 'chatbubble' : 'chatbubble-outline';
             } else if (route.name === 'Planner') {
               iconName = focused ? 'calendar' : 'calendar-outline';
+            } else if (route.name === 'Social') {
+              iconName = focused ? 'people' : 'people-outline';
             } else if (route.name === 'Profile') {
               iconName = focused ? 'person' : 'person-outline';
             }
@@ -100,19 +108,25 @@ export const AppTabs = () => {
           },
         })}
       >
-        <Tab.Screen name="Home" component={HomeScreen} />
-        <Tab.Screen name="Wardrobe" component={WardrobeScreen} />
+        <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: t('tabs.home') }} />
+        <Tab.Screen name="Wardrobe" component={WardrobeScreen} options={{ tabBarLabel: t('tabs.wardrobe') }} />
         <Tab.Screen
           name="Stylist"
           component={StylistScreen}
-          options={{ tabBarLabel: 'Style' }}
+          options={{ tabBarLabel: t('tabs.stylist') }}
         />
-        <Tab.Screen name="Coach" component={ChatScreen} />
-        <Tab.Screen name="Planner" component={PlannerScreen} />
-        <Tab.Screen name="Profile" component={ProfileScreen} />
+        <Tab.Screen name="Coach" component={ChatScreen} options={{ tabBarLabel: t('tabs.coach') }} />
+        <Tab.Screen name="Planner" component={PlannerScreen} options={{ tabBarLabel: t('tabs.planner') }} />
+        <Tab.Screen name="Social" component={SocialFeedScreen} options={{ tabBarLabel: t('tabs.social') }} />
+        <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarLabel: t('tabs.profile') }} />
         <Tab.Screen
           name="AdminDashboard"
           component={AdminDashboardScreen}
+          options={{ tabBarButton: () => null }}
+        />
+        <Tab.Screen
+          name="PublicProfile"
+          component={PublicProfileScreen}
           options={{ tabBarButton: () => null }}
         />
       </Tab.Navigator>

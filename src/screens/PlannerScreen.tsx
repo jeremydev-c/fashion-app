@@ -26,6 +26,7 @@ import { submitOutfitFeedback } from '../services/stylistFeedback';
 import { useUserId } from '../hooks/useUserId';
 import { getCurrentWeather, WeatherData } from '../services/weatherService';
 import * as Location from 'expo-location';
+import { useTranslation } from 'react-i18next';
 
 const OCCASIONS = ['Casual', 'Work', 'Date', 'Party', 'Gym', 'Formal'];
 const TIMES = ['Morning', 'Afternoon', 'Evening', 'Night'];
@@ -47,6 +48,7 @@ const dayNum = (d: Date) => d.getDate();
 
 export const PlannerScreen: React.FC = () => {
   const colors = useThemeColors();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const userId = useUserId();
   const [weekDates] = useState(getWeekDates());
@@ -92,11 +94,11 @@ export const PlannerScreen: React.FC = () => {
 
   const planOutfit = async () => {
     if (wardrobe.length < 2) {
-      Alert.alert('Add more items', 'You need at least 2 items in your wardrobe.');
+      Alert.alert(t('planner.addMoreItems'), t('planner.needMoreItems'));
       return;
     }
     if (!userId) {
-      Alert.alert('Error', 'Please log in to plan outfits.');
+      Alert.alert(t('common.error'), t('planner.loginToPlan'));
       return;
     }
     setLoading(true);
@@ -122,7 +124,7 @@ export const PlannerScreen: React.FC = () => {
       });
 
       if (recommendations.length === 0) {
-        Alert.alert('No Outfits Found', 'Could not generate an outfit for this combination. Try a different occasion or time.');
+        Alert.alert(t('planner.noOutfitsFound'), t('planner.noOutfitsFoundMsg'));
         return;
       }
 
@@ -137,7 +139,7 @@ export const PlannerScreen: React.FC = () => {
         .filter(Boolean) as string[];
 
       if (itemIds.length === 0) {
-        Alert.alert('Matching Failed', 'Could not match recommended items to your wardrobe. Try again.');
+        Alert.alert(t('planner.matchingFailed'), t('planner.matchingFailedMessage'));
         return;
       }
 
@@ -160,7 +162,7 @@ export const PlannerScreen: React.FC = () => {
       await load();
     } catch (err) {
       console.log(err);
-      Alert.alert('Error', 'Could not plan outfit.');
+      Alert.alert(t('common.error'), t('planner.errorPlanOutfit'));
     } finally {
       setLoading(false);
     }
@@ -168,19 +170,19 @@ export const PlannerScreen: React.FC = () => {
 
   const handleDelete = (id: string) => {
     Alert.alert(
-      'Remove Planned Outfit',
-      'Are you sure you want to remove this planned outfit?',
+      t('planner.removePlannedOutfit'),
+      t('planner.removePlannedOutfitConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Remove',
+          text: t('common.remove'),
           style: 'destructive',
           onPress: async () => {
             try {
               await deletePlannedOutfit(id);
               await load();
             } catch (err) {
-              Alert.alert('Error', 'Could not delete this outfit. Please try again.');
+              Alert.alert(t('common.error'), t('planner.errorPlanOutfit'));
             }
           },
         },
@@ -196,9 +198,9 @@ export const PlannerScreen: React.FC = () => {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', paddingHorizontal: scale(32) }]}>
         <Ionicons name="lock-closed" size={scale(48)} color={colors.primary} />
-        <Text style={[styles.title, { textAlign: 'center', marginTop: verticalScale(16) }]}>Outfit Planner</Text>
+        <Text style={[styles.title, { textAlign: 'center', marginTop: verticalScale(16) }]}>{t('planner.title')}</Text>
         <Text style={[styles.subtitle, { textAlign: 'center', marginTop: verticalScale(8) }]}>
-          Plan your outfits for the week ahead. Upgrade to Pro to unlock this feature.
+          {t('planner.subtitle')}
         </Text>
       </View>
     );
@@ -207,8 +209,8 @@ export const PlannerScreen: React.FC = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>Outfit Planner</Text>
-        <Text style={styles.subtitle}>Plan your looks for the week</Text>
+        <Text style={styles.title}>{t('planner.title')}</Text>
+        <Text style={styles.subtitle}>{t('planner.subtitle')}</Text>
 
         {/* Week Strip */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.weekStrip}>
@@ -218,6 +220,7 @@ export const PlannerScreen: React.FC = () => {
             return (
               <TouchableOpacity
                 key={dateStr}
+                activeOpacity={0.75}
                 style={[styles.dayCard, isSelected && styles.dayCardActive]}
                 onPress={() => setSelectedDate(dateStr)}
               >
@@ -231,11 +234,12 @@ export const PlannerScreen: React.FC = () => {
         </ScrollView>
 
         {/* Occasion Pills */}
-        <Text style={styles.label}>Occasion</Text>
+        <Text style={styles.label}>{t('planner.occasion')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow}>
           {OCCASIONS.map((o) => (
             <TouchableOpacity
               key={o}
+              activeOpacity={0.75}
               style={[styles.pill, occasion === o && styles.pillActive]}
               onPress={() => setOccasion(o)}
             >
@@ -245,11 +249,12 @@ export const PlannerScreen: React.FC = () => {
         </ScrollView>
 
         {/* Time Pills */}
-        <Text style={styles.label}>Time of Day</Text>
+        <Text style={styles.label}>{t('planner.timeOfDay')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow}>
           {TIMES.map((t) => (
             <TouchableOpacity
               key={t}
+              activeOpacity={0.75}
               style={[styles.pill, timeOfDay === t && styles.pillActive]}
               onPress={() => setTimeOfDay(t)}
             >
@@ -259,27 +264,27 @@ export const PlannerScreen: React.FC = () => {
         </ScrollView>
 
         {/* Plan Button */}
-        <TouchableOpacity style={styles.planBtn} onPress={planOutfit} disabled={loading}>
+        <TouchableOpacity activeOpacity={0.85} style={styles.planBtn} onPress={planOutfit} disabled={loading}>
           {loading ? (
             <ActivityIndicator color={colors.textOnPrimary} />
           ) : (
             <>
               <Ionicons name="sparkles" size={scale(16)} color={colors.textOnPrimary} />
-              <Text style={[styles.planBtnText, { color: colors.textOnPrimary }]}>PLAN AI OUTFIT</Text>
+              <Text style={[styles.planBtnText, { color: colors.textOnPrimary }]}>{t('planner.planAIOutfit').toUpperCase()}</Text>
             </>
           )}
         </TouchableOpacity>
 
         {/* Planned Outfits */}
-        <Text style={styles.sectionTitle}>Planned for {selectedDate}</Text>
+        <Text style={styles.sectionTitle}>{t('planner.planned')} {selectedDate}</Text>
         {plannedForDate.length === 0 ? (
-          <Text style={styles.emptyText}>No outfits planned yet.</Text>
+          <Text style={styles.emptyText}>{t('planner.noPlannedOutfits')}</Text>
         ) : (
           plannedForDate.map((p) => (
             <View key={p._id} style={[styles.plannedCard, { backgroundColor: colors.card }]}>
               <View style={styles.plannedHeader}>
-                <Text style={styles.plannedTitle}>{p.title}</Text>
-                <TouchableOpacity onPress={() => handleDelete(p._id)}>
+                <Text style={styles.plannedTitle} numberOfLines={1} ellipsizeMode="tail">{p.title}</Text>
+                <TouchableOpacity activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => handleDelete(p._id)}>
                   <Ionicons name="trash-outline" size={scale(18)} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -394,7 +399,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: verticalScale(12),
   },
-  plannedTitle: { fontSize: scale(15), fontWeight: '600', letterSpacing: -0.1, color: colors.textPrimary },
+  plannedTitle: { fontSize: scale(15), fontWeight: '600', letterSpacing: -0.1, color: colors.textPrimary, flex: 1, marginRight: scale(8) },
   itemsRow: { flexDirection: 'row', gap: scale(8) },
   itemThumb: { width: scale(50), height: scale(50) },
   itemImage: { width: scale(50), height: scale(50), borderRadius: scale(10), backgroundColor: colors.surface },

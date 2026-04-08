@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeProvider } from './src/theme/ThemeProvider';
@@ -9,6 +9,12 @@ import { AuthScreen } from './src/screens/AuthScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { apiRequest } from './src/services/apiClient';
 import { AIMisuseWarning, hasAcknowledgedWarning } from './src/components/AIMisuseWarning';
+import {
+  registerForPushNotifications,
+  addNotificationReceivedListener,
+  addNotificationResponseListener,
+  removeNotificationSubscription,
+} from './src/services/notificationService';
 
 const queryClient = new QueryClient();
 
@@ -19,12 +25,38 @@ const AppContent: React.FC = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [showAIMisuseWarning, setShowAIMisuseWarning] = useState(false);
+  const notificationListener = useRef<any>(null);
+  const responseListener = useRef<any>(null);
 
   useEffect(() => {
     // Allow all loading animations to complete
     const timer = setTimeout(() => setBooting(false), 5500);
     return () => clearTimeout(timer);
   }, []);
+
+  // Register push token when user logs in
+  useEffect(() => {
+    if (!isAuthenticated || !user?._id) return;
+
+    registerForPushNotifications(user._id).catch(() => {});
+
+    // Listen for notifications received while app is in foreground
+    notificationListener.current = addNotificationReceivedListener((notification) => {
+      console.log('Notification received:', notification.request.content.title);
+    });
+
+    // Listen for user tapping a notification
+    responseListener.current = addNotificationResponseListener((response) => {
+      const data = response.notification.request.content.data as any;
+      console.log('Notification tapped, data:', data);
+      // Future: navigate to a specific screen based on data.screen
+    });
+
+    return () => {
+      if (notificationListener.current) removeNotificationSubscription(notificationListener.current);
+      if (responseListener.current) removeNotificationSubscription(responseListener.current);
+    };
+  }, [isAuthenticated, user?._id]);
 
   useEffect(() => {
     // Check if onboarding is needed (only if authenticated)

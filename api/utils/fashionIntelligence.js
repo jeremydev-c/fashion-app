@@ -204,7 +204,7 @@ function checkThreeColorRule(items) {
     .map(item => item.color?.toLowerCase())
     .filter(Boolean)
     .filter(c => !['black', 'white', 'gray', 'grey', 'beige', 'tan', 'navy', 'brown', 'cream', 'ivory', 'charcoal', 'khaki'].includes(c));
-
+  
   const uniqueColors = new Set(colors);
   if (uniqueColors.size <= 3) return { valid: true, score: 1.0, reason: 'Perfect color balance' };
   if (uniqueColors.size === 4) return { valid: true, score: 0.7, reason: 'Slightly busy palette' };
@@ -235,10 +235,10 @@ function checkTextureCompatibility(items) {
     if (name.includes('polyester') || name.includes('nylon') || name.includes('athletic') || name.includes('sport')) return 'performance';
     return 'unknown';
   }).filter(t => t !== 'unknown');
-
+  
   const unique = new Set(textures);
   if (unique.size <= 1) return { valid: true, score: 0.8, reason: 'Consistent texture' };
-
+  
   const compatible = {
     denim: ['cotton', 'knit', 'leather'],
     silk: ['cotton', 'wool'],
@@ -369,12 +369,12 @@ function checkProportions(items) {
   const hasBottom = categories.includes('bottom') || categories.includes('dress');
   const hasShoes = categories.includes('shoes');
   const hasOuterwear = categories.includes('outerwear');
-
+  
   let score = 0.5;
   if (hasTop && hasBottom) score += 0.3;
   if (hasShoes) score += 0.15;
   if (hasOuterwear) score += 0.05;
-
+  
   const counts = {};
   categories.forEach(cat => { counts[cat] = (counts[cat] || 0) + 1; });
   if (Math.max(...Object.values(counts)) > 2) score -= 0.2;
@@ -672,7 +672,7 @@ function evaluateFashionIntelligence(items, occasion, weather, timeOfDay, weathe
     timeOfDayFit: checkTimeOfDayFit(items, timeOfDay || 'afternoon'),
     accessories: checkAccessoryCoordination(items),
   };
-
+  
   const weights = {
     colorHarmony: 0.09,
     styleCoherence: 0.08,
@@ -689,11 +689,11 @@ function evaluateFashionIntelligence(items, occasion, weather, timeOfDay, weathe
     timeOfDayFit: 0.06,
     accessories: 0.03,
   };
-
+  
   let totalScore = 0;
   let totalWeight = 0;
   const reasons = [];
-
+  
   Object.keys(checks).forEach(key => {
     const check = checks[key];
     const weight = weights[key];
@@ -701,9 +701,9 @@ function evaluateFashionIntelligence(items, occasion, weather, timeOfDay, weathe
     totalWeight += weight;
     if (check.score >= 0.7 && check.reason) reasons.push(check.reason);
   });
-
+  
   const finalScore = totalWeight > 0 ? totalScore / totalWeight : 0.5;
-
+  
   const topReasons = reasons.slice(0, 3);
   if (topReasons.length === 0) topReasons.push('Balanced outfit');
 

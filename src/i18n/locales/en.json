@@ -25,7 +25,12 @@
     "selectAll": "Select All",
     "deleteSelected": "Delete Selected",
     "items": "items",
-    "item": "item"
+    "item": "item",
+    "remove": "Remove",
+    "disable": "Disable",
+    "enable": "Enable",
+    "logOut": "Log Out",
+    "emailSupport": "Email Support"
   },
   "tabs": {
     "home": "Home",
@@ -33,6 +38,7 @@
     "stylist": "Stylist",
     "coach": "Coach",
     "planner": "Planner",
+    "social": "Community",
     "profile": "Profile"
   },
   "home": {
@@ -97,6 +103,9 @@
     "shown": "shown",
     "failedToLoad": "Failed to load wardrobe",
     "adjustFilter": "Try adjusting your search or filter.",
+    "removeItem": "Remove item",
+    "removeItemConfirm": "Are you sure you want to remove this piece from your wardrobe?",
+    "allItemsLabel": "All items",
     "categories": {
       "all": "All",
       "tops": "Tops",
@@ -174,7 +183,11 @@
     "addLocation": "Add location",
     "rainLikely": "Rain likely",
     "savedOutfits": "Saved Outfits",
-    "noSavedOutfits": "No saved outfits yet"
+    "noSavedOutfits": "No saved outfits yet",
+    "outfitsReady": "Your outfits are ready!",
+    "addMoreItemsFirst": "Add more items to your wardrobe first!",
+    "loginToGenerate": "Please log in to generate outfits",
+    "dailyLimitTitle": "Daily Limit Reached"
   },
   "chat": {
     "title": "Style Coach",
@@ -190,7 +203,8 @@
     "clearChat": "Clear Chat",
     "deleteChat": "Delete Chat",
     "noChats": "No conversations yet",
-    "startChatting": "Start chatting with your Style Coach!"
+    "startChatting": "Start chatting with your Style Coach!",
+    "quickPrompts": "Quick prompts:"
   },
   "planner": {
     "title": "Outfit Planner",
@@ -210,7 +224,17 @@
     "selectOutfit": "Select Outfit",
     "removeOutfit": "Remove Outfit",
     "planAIOutfit": "Plan AI outfit for this day",
-    "savedOutfits": "Saved"
+    "savedOutfits": "Saved",
+    "addMoreItems": "Add more items",
+    "needMoreItems": "You need at least 2 items in your wardrobe.",
+    "loginToPlan": "Please log in to plan outfits.",
+    "noOutfitsFound": "No Outfits Found",
+    "noOutfitsFoundMsg": "Could not generate an outfit for this combination. Try a different occasion or time.",
+    "matchingFailed": "Matching Failed",
+    "matchingFailedMessage": "Could not match recommended items to your wardrobe. Try again.",
+    "removePlannedOutfit": "Remove Planned Outfit",
+    "removePlannedOutfitConfirm": "Are you sure you want to remove this planned outfit?",
+    "errorPlanOutfit": "Could not plan outfit."
   },
   "profile": {
     "title": "Profile",
@@ -239,7 +263,20 @@
     "quickStats": "Quick Stats",
     "wardrobeItems": "Wardrobe Items",
     "outfitsSaved": "Outfits Saved",
-    "styleDNAScore": "Style DNA Score"
+    "styleDNAScore": "Style DNA Score",
+    "notificationsDisableTitle": "Turn off push notifications for Fashion Fit?",
+    "notificationsEnableTitle": "Turn on push notifications for outfit suggestions and tips?",
+    "notificationsEnabled": "Notifications enabled",
+    "notificationsDisabled": "Notifications disabled",
+    "gotIt": "Got it!",
+    "helpTitle": "Help & Support",
+    "helpMessage": "Need help? We're here for you!\n\n📧 Email: support@fashionfit.app\n💬 In-app: Chat with your Style Coach\n📱 Report bugs: Use the feedback option\n\nWe typically respond within 24 hours.",
+    "privacyTitle": "Privacy Policy",
+    "privacyMessage": "Your privacy matters to us.\n\n• We only collect data you provide\n• Your wardrobe images are stored securely\n• We never sell your data\n• You can delete your account anytime\n\nFull privacy policy coming soon. For questions, email privacy@fashionfit.app",
+    "emailPrivacy": "Email Privacy",
+    "termsTitle": "Terms of Service",
+    "termsMessage": "By using Fashion Fit, you agree to:\n\n• Use the app responsibly\n• Not abuse AI features\n• Respect intellectual property\n• Follow community guidelines\n\nFull terms of service coming soon. For questions, email legal@fashionfit.app",
+    "emailLegal": "Email Legal"
   },
   "analytics": {
     "title": "Style Analytics",
@@ -378,10 +415,41 @@
     "ro": "Română",
     "ru": "Русский",
     "sv": "Svenska",
+    "sw": "Kiswahili",
     "th": "ไทย",
     "tr": "Türkçe",
     "uk": "Українська",
     "vi": "Tiếng Việt",
     "zh": "中文"
+  },
+  "social": {
+    "tab_following": "Following",
+    "tab_explore": "Explore",
+    "newPost": "New Post",
+    "share": "Share",
+    "tapToAddPhoto": "Tap to add a photo",
+    "captionPlaceholder": "Write a caption...",
+    "permissionRequired": "Permission Required",
+    "photoPermissionMsg": "Please allow access to your photo library in settings.",
+    "noImageTitle": "No photo selected",
+    "noImageMsg": "Please pick a photo before sharing.",
+    "postFailed": "Failed to share post. Please try again.",
+    "deletePost": "Delete Post",
+    "deletePostConfirm": "Are you sure you want to delete this post?",
+    "deleteFailed": "Failed to delete post.",
+    "emptyFeed": "Your feed is empty",
+    "emptyFeedSub": "Follow some stylists to see their posts here.",
+    "emptyExplore": "No posts yet",
+    "emptyExploreSub": "Be the first to share your style.",
+    "follow": "Follow",
+    "following": "Following",
+    "followFailed": "Failed to update follow status.",
+    "creator": "CREATOR",
+    "posts": "Posts",
+    "followers": "Followers",
+    "profileNotFound": "Profile not found.",
+    "noPosts": "No posts yet.",
+    "bio_placeholder": "Write a short bio...",
+    "searchHint": "Type at least 2 characters to search"
   }
 }

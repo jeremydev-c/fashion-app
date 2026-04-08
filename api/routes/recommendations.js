@@ -103,7 +103,7 @@ router.get('/', enforceDailyRecommendations(), async (req, res) => {
     res.json({ recommendations });
   } catch (err) {
     console.error('GET /recommendations error', err);
-    res.status(500).json({
+    res.status(500).json({ 
       error: 'Failed to generate recommendations',
       details: process.env.NODE_ENV === 'development' ? err.message : undefined,
     });
@@ -281,13 +281,14 @@ function rankPool(anchor, pool, preferences, occasion, keepAll = false) {
 // OUTFIT SCORING — occasion + time + weather + user prefs + learning
 // ═══════════════════════════════════════════════════════════════════════════
 
-function scoreOutfit(items, ctx) {
+function scoreOutfit(items, ctx, cachedIntel) {
   const { styleDNA, preferences, savedOutfits, occasion, timeOfDay, weather, rejectedItemIds, likedItemIds } = ctx;
   let s = 0.35;
 
-  // 1. Fashion intelligence (occasion + time + patterns + textures + proportions + weather)
-  const intel = evaluateFashionIntelligence(items, occasion, weather, timeOfDay, ctx.weatherDetail);
-  s += intel.score * 0.25;
+  // 1. Fashion intelligence — all 12 algorithms (occasion, time, color, pattern, texture,
+  //    silhouette, seasonal color, weather, completeness, trend, versatility, wow factor)
+  const intel = cachedIntel || evaluateFashionIntelligence(items, occasion, weather, timeOfDay, ctx.weatherDetail);
+  s += intel.score * 0.35;
 
   // 2. Style DNA alignment
   if (styleDNA) {
@@ -424,88 +425,8 @@ function scoreOutfit(items, ctx) {
     if (rejectedInOutfit >= 2) s -= 0.06;
   }
 
-  // 10. Deep weather-aware scoring
-  const wd = ctx.weatherDetail || {};
-  const hasOuterwear = items.some(i => i.category === 'outerwear');
-  const hasRainProtection = items.some(i => {
-    const desc = `${i.name} ${i.subcategory} ${(i.tags || []).join(' ')}`.toLowerCase();
-    return desc.includes('rain') || desc.includes('waterproof') || desc.includes('water-resistant') || desc.includes('trench') || desc.includes('windbreaker') || desc.includes('parka') || desc.includes('anorak') || desc.includes('umbrella');
-  });
-
-  const lightFabrics = ['linen', 'cotton', 'silk', 'chiffon', 'rayon', 'mesh', 'sheer', 'seersucker'];
-  const heavyFabrics = ['wool', 'cashmere', 'fleece', 'leather', 'suede', 'tweed', 'corduroy', 'denim', 'velvet', 'knit', 'sweater', 'hoodie'];
-  const openShoes = ['sandal', 'flip flop', 'slides', 'open toe', 'espadrille', 'mule'];
-  const closedShoes = ['boot', 'sneaker', 'oxford', 'loafer', 'derby', 'trainer'];
-
-  const itemDescs = items.map(i => `${i.name} ${i.subcategory} ${i.category} ${(i.tags || []).join(' ')} ${i.style || ''}`.toLowerCase());
-  const hasLightFabric = itemDescs.some(d => lightFabrics.some(f => d.includes(f)));
-  const hasHeavyFabric = itemDescs.some(d => heavyFabrics.some(f => d.includes(f)));
-  const hasOpenShoes = itemDescs.some(d => openShoes.some(f => d.includes(f)));
-  const hasClosedShoes = items.some(i => i.category === 'shoes') && !hasOpenShoes;
-  const hasShorts = items.some(i => {
-    const d = `${i.name} ${i.subcategory} ${(i.tags || []).join(' ')}`.toLowerCase();
-    return d.includes('short') && i.category === 'bottom';
-  });
-  const hasSleeveless = itemDescs.some(d => d.includes('sleeveless') || d.includes('tank') || d.includes('cami') || d.includes('strapless'));
-
-  if (weather === 'cold') {
-    s += hasOuterwear ? 0.08 : -0.08;
-    s += hasHeavyFabric ? 0.05 : 0;
-    s += hasLightFabric ? -0.04 : 0;
-    s += hasOpenShoes ? -0.06 : 0;
-    s += hasShorts ? -0.08 : 0;
-    s += hasSleeveless ? -0.05 : 0;
-    if (wd.temperature != null && wd.temperature < 5) {
-      s += hasOuterwear && hasHeavyFabric ? 0.04 : -0.03;
-      s += hasClosedShoes ? 0.03 : 0;
-    }
-  } else if (weather === 'cool') {
-    s += hasOuterwear ? 0.06 : -0.02;
-    s += hasHeavyFabric ? 0.02 : 0;
-    s += hasOpenShoes ? -0.03 : 0;
-    s += hasShorts ? -0.04 : 0;
-    if (wd.temperature != null && wd.temperature < 12) {
-      s += hasSleeveless ? -0.04 : 0;
-    }
-  } else if (weather === 'warm') {
-    s += hasOuterwear ? -0.03 : 0.03;
-    s += hasLightFabric ? 0.04 : 0;
-    s += hasHeavyFabric ? -0.04 : 0;
-  } else if (weather === 'hot') {
-    s += hasOuterwear ? -0.06 : 0.04;
-    s += hasLightFabric ? 0.06 : 0;
-    s += hasHeavyFabric ? -0.06 : 0;
-    s += hasOpenShoes ? 0.02 : 0;
-    s += hasSleeveless ? 0.02 : 0;
-    if (wd.temperature != null && wd.temperature > 30) {
-      s += hasShorts ? 0.03 : 0;
-      s += hasHeavyFabric ? -0.04 : 0;
-    }
-  }
-
-  if (wd.isRainy || ctx.forecast?.hasRainRisk) {
-    s += hasRainProtection ? 0.08 : -0.04;
-    s += hasOpenShoes ? -0.05 : 0;
-    s += hasLightFabric ? -0.03 : 0;
-  }
-
-  if (wd.isWindy) {
-    s += hasOuterwear ? 0.04 : -0.02;
-    const hasFlowy = itemDescs.some(d => d.includes('chiffon') || d.includes('sheer') || d.includes('flowy') || d.includes('maxi'));
-    s += hasFlowy ? -0.03 : 0;
-  }
-
-  if (wd.isHumid && weather !== 'cold') {
-    s += hasLightFabric ? 0.04 : 0;
-    s += hasHeavyFabric ? -0.04 : 0;
-  }
-
-  if (wd.isSnowy) {
-    s += hasOuterwear ? 0.08 : -0.06;
-    s += hasClosedShoes ? 0.05 : 0;
-    s += hasOpenShoes ? -0.08 : 0;
-    s += hasShorts ? -0.08 : 0;
-  }
+  // 10. Weather — handled exclusively by algorithm #8 (checkWeatherCompleteness) inside
+  //     evaluateFashionIntelligence above. Removing duplicate block prevents double-counting.
 
   // 11. Completeness — adapted to what's actually available in wardrobe
   const hasTop = items.some(i => i.category === 'top' || i.category === 'dress');
@@ -529,9 +450,9 @@ function scoreOutfit(items, ctx) {
   return Math.max(0.40, Math.min(0.96, s));
 }
 
-function buildReasons(items, ctx) {
+function buildReasons(items, ctx, cachedIntel) {
   const { styleDNA, preferences, occasion, timeOfDay, weather, likedItemIds, weatherDetail: wd, forecast } = ctx;
-  const intel = evaluateFashionIntelligence(items, occasion, weather, timeOfDay, wd);
+  const intel = cachedIntel || evaluateFashionIntelligence(items, occasion, weather, timeOfDay, wd);
   const reasons = [...intel.reasons];
 
   if (styleDNA) {
@@ -670,7 +591,7 @@ function buildDiverseOutfits(ctx) {
 
     if (!isTinyWardrobe && (profile.avoidStyles.includes(style) || appCheck.score < appThreshold || wScore < weatherThreshold)) {
       fallback.push(item);
-    } else {
+  } else {
       preferred.push(item);
     }
   });
@@ -720,7 +641,7 @@ function buildDiverseOutfits(ctx) {
           if (useAccessories) addBestAccessory(items, dress, accessories, preferences, occasion);
           allCandidates.push(makeCandidate(items, ctx));
         }
-      } else {
+    } else {
         const items = [dress];
         if (needsOuterwear) {
           const ow = rankPool(dress, outerwearAll, preferences, occasion, keepAll);
@@ -841,8 +762,10 @@ function addVariedAccessories(items, anchor, accessories, preferences, occasion,
 }
 
 function makeCandidate(items, ctx) {
-  const score = scoreOutfit(items, ctx);
-  const reasons = buildReasons(items, ctx);
+  // Compute intel once — shared by scoreOutfit and buildReasons to avoid double evaluation
+  const intel = evaluateFashionIntelligence(items, ctx.occasion, ctx.weather, ctx.timeOfDay, ctx.weatherDetail);
+  const score = scoreOutfit(items, ctx, intel);
+  const reasons = buildReasons(items, ctx, intel);
   return { items, score, reasons };
 }
 
@@ -1161,8 +1084,8 @@ async function enhanceWithAI(candidates, ctx) {
     items: c.items.map(item => ({
       id: id(item), name: item.name || 'Item',
       category: item.category, color: item.color || 'unknown',
-      style: item.style || 'casual',
-    })),
+        style: item.style || 'casual',
+      })),
     score: Math.round(c.score * 100),
     reasons: c.reasons.slice(0, 2),
   }));

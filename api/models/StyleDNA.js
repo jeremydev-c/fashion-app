@@ -41,10 +41,17 @@ const StyleDNASchema = new mongoose.Schema(
       outerwear: { type: Number, default: 0 },
       accessory: { type: Number, default: 0 },
     },
+    // Rich AI-generated identity fields
+    styleArchetype: { type: String }, // e.g. "The Polished Minimalist"
+    styleMantra: { type: String },    // e.g. "Quiet confidence in every perfectly chosen piece"
+    styleInsight: { type: String },   // 2-sentence personalized style narrative
+    capsuleEssentials: [{ type: String }], // 3 items to complete the wardrobe
     // Style metrics
     uniquenessScore: { type: Number, min: 0, max: 1, default: 0 },
     trendAlignment: { type: Number, min: 0, max: 1, default: 0 },
     styleConsistency: { type: Number, min: 0, max: 1, default: 0 },
+    // Item count at last calculation (for smart cache invalidation)
+    itemCountAtCalculation: { type: Number, default: 0 },
     // Calculated at
     lastCalculated: { type: Date, default: Date.now },
   },

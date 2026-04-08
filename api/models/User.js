@@ -78,6 +78,40 @@ const UserSchema = new mongoose.Schema(
         default: null,
       },
     },
+    pushToken: {
+      type: String,
+      default: null,
+    },
+    pushPlatform: {
+      type: String,
+      enum: ['ios', 'android', null],
+      default: null,
+    },
+    notificationsEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    // ── Social profile ────────────────────────────────────────────────────────
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 200,
+      default: '',
+    },
+    isCreator: {
+      type: Boolean,
+      default: false,
+    },
+    followersCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    followingCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     createdAt: {
       type: Date,
       default: Date.now,

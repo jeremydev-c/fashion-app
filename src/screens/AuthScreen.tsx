@@ -21,12 +21,14 @@ import { scale, verticalScale } from '../utils/responsive';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../services/apiClient';
 import { VerifyScreen } from './VerifyScreen';
+import { useTranslation } from 'react-i18next';
 
 type Mode = 'login' | 'signup';
 
 export const AuthScreen: React.FC = () => {
   const colors = useThemeColors();
   const { login, setUser } = useAuth();
+  const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -165,12 +167,10 @@ export const AuthScreen: React.FC = () => {
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>
-              {mode === 'login' ? 'Welcome Back' : 'Create Account'}
+              {mode === 'login' ? t('auth.welcome') : t('auth.createAccount')}
             </Text>
             <Text style={styles.subtitle}>
-              {mode === 'login'
-                ? 'Sign in to continue your style journey'
-                : 'Start your personalized fashion experience'}
+              {mode === 'login' ? t('auth.tagline') : t('onboarding.letsGetStarted')}
             </Text>
           </View>
 
@@ -181,7 +181,7 @@ export const AuthScreen: React.FC = () => {
                 <Ionicons name="person-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Full Name"
+                  placeholder={t('auth.fullName')}
                   placeholderTextColor={colors.textMuted}
                   value={name}
                   onChangeText={setName}
@@ -194,7 +194,7 @@ export const AuthScreen: React.FC = () => {
               <Ionicons name="mail-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Email"
+                placeholder={t('auth.email')}
                 placeholderTextColor={colors.textMuted}
                 value={email}
                 onChangeText={setEmail}
@@ -208,14 +208,14 @@ export const AuthScreen: React.FC = () => {
               <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Password"
+                placeholder={t('auth.password')}
                 placeholderTextColor={colors.textMuted}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
                 <Ionicons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                   size={20}
@@ -229,7 +229,7 @@ export const AuthScreen: React.FC = () => {
                 <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Confirm Password"
+                  placeholder={t('auth.confirmPassword')}
                   placeholderTextColor={colors.textMuted}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
@@ -247,6 +247,7 @@ export const AuthScreen: React.FC = () => {
             ) : null}
 
             <TouchableOpacity
+              activeOpacity={0.85}
               style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
               onPress={handleSubmit}
               disabled={isLoading}
@@ -255,7 +256,7 @@ export const AuthScreen: React.FC = () => {
                 <ActivityIndicator color={colors.background} />
               ) : (
                 <Text style={styles.submitButtonText}>
-                  {mode === 'login' ? 'Sign In' : 'Create Account'}
+                  {mode === 'login' ? t('auth.signIn') : t('auth.createAccount')}
                 </Text>
               )}
             </TouchableOpacity>
@@ -264,11 +265,11 @@ export const AuthScreen: React.FC = () => {
           {/* Toggle Mode */}
           <View style={styles.toggleContainer}>
             <Text style={styles.toggleText}>
-              {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}
+              {mode === 'login' ? t('auth.noAccount') : t('auth.hasAccount')}
             </Text>
-            <TouchableOpacity onPress={toggleMode}>
+            <TouchableOpacity activeOpacity={0.7} onPress={toggleMode}>
               <Text style={styles.toggleLink}>
-                {mode === 'login' ? 'Sign Up' : 'Sign In'}
+                {mode === 'login' ? t('auth.signup') : t('auth.signIn')}
               </Text>
             </TouchableOpacity>
           </View>

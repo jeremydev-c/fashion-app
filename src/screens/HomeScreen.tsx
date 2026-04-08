@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,20 +16,41 @@ import { spacing } from '../theme/spacing';
 import { scale, verticalScale } from '../utils/responsive';
 import { useUserId } from '../hooks/useUserId';
 import { fetchWardrobeItems } from '../services/wardrobeApi';
+import { useTranslation } from 'react-i18next';
 
 const TIPS = [
-  { icon: 'diamond-outline' as const, text: 'Mix textures for depth — denim with knit creates effortless contrast' },
+  { icon: 'diamond-outline' as const, text: 'Mix textures for depth \u2014 denim with knit creates effortless contrast' },
   { icon: 'sunny-outline' as const, text: 'Lighter fabrics in the morning, layer up for seamless evening transitions' },
   { icon: 'color-palette-outline' as const, text: 'The rule of three: pick 3 colors max per outfit for a polished look' },
   { icon: 'sparkles-outline' as const, text: 'One statement accessory transforms a simple outfit into a look' },
   { icon: 'contrast-outline' as const, text: 'Monochrome outfits instantly read as more intentional and refined' },
 ];
 
-function getTimeGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good Morning';
-  if (h < 17) return 'Good Afternoon';
-  return 'Good Evening';
+const MORNING_MESSAGES = [
+  { headline: 'Rise & Refine', sub: 'A fresh day deserves a fresh look. Let\u2019s style your morning.' },
+  { headline: 'Good Morning', sub: 'Start your day with intention. Your wardrobe is ready.' },
+  { headline: 'New Day, New Look', sub: 'The morning is yours. Let\u2019s make it count.' },
+  { headline: 'Dress the Part', sub: 'Set the tone for today with the perfect outfit.' },
+];
+
+const AFTERNOON_MESSAGES = [
+  { headline: 'Afternoon Polish', sub: 'Midday refresh? We\u2019ve got looks that transition beautifully.' },
+  { headline: 'Style Check', sub: 'The day is in motion. Stay sharp, stay you.' },
+  { headline: 'Keep It Going', sub: 'Your afternoon deserves the same energy as your morning.' },
+  { headline: 'Looking Good', sub: 'Halfway through \u2014 let\u2019s keep the style momentum.' },
+];
+
+const EVENING_MESSAGES = [
+  { headline: 'Evening Elegance', sub: 'Wind down in style. Or gear up for tonight.' },
+  { headline: 'Night Mode', sub: 'The evening calls for something special. We\u2019re on it.' },
+  { headline: 'After Hours', sub: 'Transition seamlessly from day to night.' },
+  { headline: 'Set the Scene', sub: 'Evening plans? Let your outfit do the talking.' },
+];
+
+function getTimeGreeting(h: number, t: (k: string) => string) {
+  if (h < 12) return { label: t('home.morning'), messages: MORNING_MESSAGES };
+  if (h < 17) return { label: t('home.afternoon'), messages: AFTERNOON_MESSAGES };
+  return { label: t('home.evening'), messages: EVENING_MESSAGES };
 }
 
 export const HomeScreen: React.FC = () => {
@@ -37,17 +58,22 @@ export const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const userId = useUserId();
+  const { t } = useTranslation();
 
   const [wardrobeCount, setWardrobeCount] = useState(0);
   const [tip] = useState(() => TIPS[Math.floor(Math.random() * TIPS.length)]);
 
+  const h = new Date().getHours();
+  const { label: timeLabel, messages } = getTimeGreeting(h, t);
+  const [greeting] = useState(() => messages[Math.floor(Math.random() * messages.length)]);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 800, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 900, useNativeDriver: true }),
     ]).start();
   }, []);
 
@@ -56,105 +82,108 @@ export const HomeScreen: React.FC = () => {
     fetchWardrobeItems(userId).then(items => setWardrobeCount(items.length)).catch(() => {});
   }, [userId]);
 
-  const timeOfDay = getTimeGreeting();
-
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + verticalScale(16) }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + verticalScale(20) }]}
         showsVerticalScrollIndicator={false}
       >
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-          {/* Brand Mark */}
-          <View style={styles.brandRow}>
+
+          {/* Header */}
+          <View style={styles.header}>
             <Text style={[styles.brandText, { color: colors.primary }]}>FASHION FIT</Text>
-            <View style={[styles.liveBadge, { backgroundColor: colors.primarySoft }]}>
-              <View style={[styles.liveDot, { backgroundColor: colors.primary }]} />
-              <Text style={[styles.liveText, { color: colors.primary }]}>AI ACTIVE</Text>
+            <View style={[styles.aiBadge, { backgroundColor: colors.primarySoft }]}>
+              <View style={[styles.aiDot, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.aiLabel, { color: colors.primary }]}>AI ACTIVE</Text>
             </View>
           </View>
 
-          {/* Greeting */}
-          <Text style={[styles.greeting, { color: colors.textSecondary }]}>{timeOfDay}</Text>
+          {/* Dynamic Greeting */}
+          <Text style={[styles.timeLabel, { color: colors.textMuted }]}>
+            {timeLabel.toUpperCase()}
+          </Text>
           <Text style={[styles.headline, { color: colors.textPrimary }]}>
-            Your Style,{'\n'}Elevated.
+            {greeting.headline}
+          </Text>
+          <Text style={[styles.subline, { color: colors.textSecondary }]}>
+            {greeting.sub}
           </Text>
 
-          {/* Hero Action */}
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate('Stylist')}
-          >
+          {/* Hero CTA */}
+          <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('Stylist')}>
             <LinearGradient
               colors={[...colors.gradientAccent]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.heroCard}
+              style={styles.heroCta}
             >
-              <View style={styles.heroContent}>
-                <View style={styles.heroIconWrap}>
-                  <Ionicons name="sparkles" size={scale(20)} color={colors.textOnPrimary} />
+              <View style={styles.heroLeft}>
+                <View style={styles.heroIcon}>
+                  <Ionicons name="sparkles" size={scale(18)} color={colors.textOnPrimary} />
                 </View>
-                <View style={styles.heroText}>
-                  <Text style={[styles.heroTitle, { color: colors.textOnPrimary }]}>Get Styled</Text>
-                  <Text style={[styles.heroDesc, { color: colors.textOnPrimary, opacity: 0.75 }]}>
-                    AI-curated outfits from your wardrobe
+                <View style={styles.heroTextWrap}>
+                  <Text style={[styles.heroTitle, { color: colors.textOnPrimary }]}>{t('home.aiStylist')}</Text>
+                  <Text style={[styles.heroSub, { color: colors.textOnPrimary }]}>
+                    {t('home.getPerfectOutfit')}
                   </Text>
                 </View>
               </View>
-              <Ionicons name="arrow-forward" size={scale(20)} color={colors.textOnPrimary} style={{ opacity: 0.8 }} />
+              <Ionicons name="arrow-forward" size={scale(18)} color={colors.textOnPrimary} style={{ opacity: 0.7 }} />
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Stats */}
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.borderSubtle }]}>
-              <Text style={[styles.statValue, { color: colors.primary }]}>{wardrobeCount}</Text>
-              <Text style={[styles.statLabel, { color: colors.textMuted }]}>PIECES</Text>
+          {/* Stats Strip */}
+          <View style={[styles.statsStrip, { backgroundColor: colors.card, borderColor: colors.borderSubtle }]}>
+            <View style={styles.statItem}>
+              <Text style={[styles.statNum, { color: colors.primary }]}>{wardrobeCount}</Text>
+              <Text style={[styles.statText, { color: colors.textMuted }]}>{t('home.totalItems').toUpperCase()}</Text>
             </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.divider }]} />
-            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.borderSubtle }]}>
-              <Text style={[styles.statValue, { color: colors.primary }]}>∞</Text>
-              <Text style={[styles.statLabel, { color: colors.textMuted }]}>COMBOS</Text>
+            <View style={[styles.statSep, { backgroundColor: colors.divider }]} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statNum, { color: colors.primary }]}>{'\u221E'}</Text>
+              <Text style={[styles.statText, { color: colors.textMuted }]}>{t('home.outfitIdeas').toUpperCase()}</Text>
             </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.divider }]} />
-            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.borderSubtle }]}>
-              <Ionicons name="trending-up" size={scale(18)} color={colors.success} />
-              <Text style={[styles.statLabel, { color: colors.textMuted, marginTop: verticalScale(4) }]}>LEARNING</Text>
+            <View style={[styles.statSep, { backgroundColor: colors.divider }]} />
+            <View style={styles.statItem}>
+              <Ionicons name="trending-up" size={scale(16)} color={colors.success} />
+              <Text style={[styles.statText, { color: colors.textMuted, marginTop: verticalScale(3) }]}>{t('slideshow.learning').toUpperCase()}</Text>
             </View>
           </View>
 
           {/* Quick Actions */}
-          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>EXPLORE</Text>
-          <View style={styles.actionsColumn}>
-            {[
-              { icon: 'camera-outline' as const, title: 'Add to Wardrobe', desc: 'Scan & categorize items instantly', route: 'Wardrobe', accent: colors.primary },
-              { icon: 'calendar-outline' as const, title: 'Plan Your Week', desc: 'AI outfits for every occasion', route: 'Planner', accent: colors.accent },
-              { icon: 'chatbubble-outline' as const, title: 'Style Coach', desc: 'Personal fashion advice on demand', route: 'Coach', accent: colors.secondary },
-            ].map((action, i) => (
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>{t('home.quickActions').toUpperCase()}</Text>
+          <View style={styles.actionsGrid}>
+            {([
+              { icon: 'camera-outline' as const, title: t('home.wardrobeScan'), desc: t('home.digitizeCloset'), route: 'Wardrobe', accent: colors.primary },
+              { icon: 'calendar-outline' as const, title: t('planner.title'), desc: t('home.instantRecommendations'), route: 'Planner', accent: colors.accent },
+              { icon: 'chatbubble-outline' as const, title: t('chat.title'), desc: t('chat.subtitle'), route: 'Coach', accent: colors.secondary },
+            ]).map((a, i) => (
               <TouchableOpacity
                 key={i}
-                style={[styles.actionRow, { backgroundColor: colors.card, borderColor: colors.borderSubtle }]}
+                style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.borderSubtle }]}
                 activeOpacity={0.85}
-                onPress={() => navigation.navigate(action.route)}
+                onPress={() => navigation.navigate(a.route)}
               >
-                <View style={[styles.actionIcon, { backgroundColor: colors.primarySoft }]}>
-                  <Ionicons name={action.icon} size={scale(18)} color={action.accent} />
+                <View style={[styles.actionIconWrap, { backgroundColor: colors.primarySoft }]}>
+                  <Ionicons name={a.icon} size={scale(17)} color={a.accent} />
                 </View>
-                <View style={styles.actionText}>
-                  <Text style={[styles.actionTitle, { color: colors.textPrimary }]}>{action.title}</Text>
-                  <Text style={[styles.actionDesc, { color: colors.textMuted }]}>{action.desc}</Text>
+                <View style={styles.actionBody}>
+                  <Text style={[styles.actionTitle, { color: colors.textPrimary }]}>{a.title}</Text>
+                  <Text style={[styles.actionDesc, { color: colors.textMuted }]} numberOfLines={2}>{a.desc}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={scale(16)} color={colors.textMuted} />
+                <Ionicons name="chevron-forward" size={scale(14)} color={colors.textMuted} />
               </TouchableOpacity>
             ))}
           </View>
 
           {/* Style Tip */}
           <View style={[styles.tipCard, { backgroundColor: colors.card, borderColor: colors.borderSubtle }]}>
-            <Ionicons name={tip.icon} size={scale(16)} color={colors.primary} />
-            <View style={styles.tipContent}>
-              <Text style={[styles.tipLabel, { color: colors.primary }]}>STYLE INSIGHT</Text>
+            <View style={[styles.tipIconWrap, { backgroundColor: colors.primarySoft }]}>
+              <Ionicons name={tip.icon} size={scale(14)} color={colors.primary} />
+            </View>
+            <View style={styles.tipBody}>
+              <Text style={[styles.tipLabel, { color: colors.primary }]}>{t('home.styleTips').toUpperCase()}</Text>
               <Text style={[styles.tipText, { color: colors.textSecondary }]}>{tip.text}</Text>
             </View>
           </View>
@@ -162,11 +191,10 @@ export const HomeScreen: React.FC = () => {
           {/* Footer */}
           <View style={styles.footer}>
             <View style={[styles.footerLine, { backgroundColor: colors.divider }]} />
-            <Text style={[styles.footerText, { color: colors.textMuted }]}>
-              Powered by AI
-            </Text>
+            <Text style={[styles.footerText, { color: colors.textMuted }]}>{t('home.aiPowered')}</Text>
             <View style={[styles.footerLine, { backgroundColor: colors.divider }]} />
           </View>
+
         </Animated.View>
       </ScrollView>
     </View>
@@ -176,21 +204,23 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: {
-    paddingHorizontal: spacing.lg + scale(4),
+    paddingHorizontal: spacing.lg + scale(6),
     paddingBottom: verticalScale(120),
   },
-  brandRow: {
+
+  // Header
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: verticalScale(24),
+    marginBottom: verticalScale(32),
   },
   brandText: {
-    fontSize: scale(12),
-    fontWeight: '600',
-    letterSpacing: 3,
+    fontSize: scale(11),
+    fontWeight: '700',
+    letterSpacing: 4,
   },
-  liveBadge: {
+  aiBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: scale(10),
@@ -198,103 +228,120 @@ const styles = StyleSheet.create({
     borderRadius: scale(12),
     gap: scale(5),
   },
-  liveDot: {
+  aiDot: {
     width: scale(5),
     height: scale(5),
     borderRadius: scale(3),
   },
-  liveText: {
-    fontSize: scale(9),
-    fontWeight: '600',
-    letterSpacing: 1.4,
+  aiLabel: {
+    fontSize: scale(8),
+    fontWeight: '700',
+    letterSpacing: 1.6,
   },
-  greeting: {
-    fontSize: scale(14),
-    fontWeight: '400',
-    letterSpacing: 0.3,
-    marginBottom: verticalScale(4),
+
+  // Greeting
+  timeLabel: {
+    fontSize: scale(10),
+    fontWeight: '600',
+    letterSpacing: 3,
+    marginBottom: verticalScale(8),
   },
   headline: {
-    fontSize: scale(32),
+    fontSize: scale(30),
     fontWeight: '300',
-    letterSpacing: -0.8,
-    lineHeight: scale(38),
-    marginBottom: verticalScale(24),
+    letterSpacing: -0.6,
+    lineHeight: scale(36),
+    marginBottom: verticalScale(6),
   },
-  heroCard: {
+  subline: {
+    fontSize: scale(14),
+    fontWeight: '400',
+    letterSpacing: 0.2,
+    lineHeight: scale(20),
+    marginBottom: verticalScale(28),
+  },
+
+  // Hero CTA
+  heroCta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: scale(18),
-    borderRadius: scale(16),
+    padding: scale(16),
+    borderRadius: scale(14),
     marginBottom: verticalScale(24),
   },
-  heroContent: {
+  heroLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: scale(14),
+    gap: scale(12),
+    flex: 1,
   },
-  heroIconWrap: {
-    width: scale(42),
-    height: scale(42),
-    borderRadius: scale(21),
+  heroIcon: {
+    width: scale(38),
+    height: scale(38),
+    borderRadius: scale(19),
     backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroText: { flex: 1 },
+  heroTextWrap: { flex: 1 },
   heroTitle: {
-    fontSize: scale(17),
+    fontSize: scale(15),
     fontWeight: '600',
-    letterSpacing: -0.2,
-    marginBottom: verticalScale(2),
+    letterSpacing: -0.1,
+    marginBottom: verticalScale(1),
   },
-  heroDesc: {
-    fontSize: scale(12),
+  heroSub: {
+    fontSize: scale(11),
     fontWeight: '400',
+    opacity: 0.75,
     letterSpacing: 0.1,
   },
-  statsRow: {
+
+  // Stats
+  statsStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    borderRadius: scale(14),
+    borderWidth: 1,
+    paddingVertical: verticalScale(16),
     marginBottom: verticalScale(28),
   },
-  statCard: {
+  statItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(18),
-    borderRadius: scale(14),
-    borderWidth: 1,
   },
-  statDivider: {
-    width: scale(1),
-    height: verticalScale(28),
-    marginHorizontal: scale(8),
-  },
-  statValue: {
-    fontSize: scale(24),
+  statNum: {
+    fontSize: scale(22),
     fontWeight: '300',
     letterSpacing: -0.5,
   },
-  statLabel: {
-    fontSize: scale(9),
+  statText: {
+    fontSize: scale(8),
     fontWeight: '600',
-    letterSpacing: 1.6,
+    letterSpacing: 1.8,
     marginTop: verticalScale(4),
   },
-  sectionLabel: {
-    fontSize: scale(10),
-    fontWeight: '600',
-    letterSpacing: 2.2,
-    marginBottom: verticalScale(14),
+  statSep: {
+    width: 1,
+    height: verticalScale(24),
   },
-  actionsColumn: {
+
+  // Section Title
+  sectionTitle: {
+    fontSize: scale(9),
+    fontWeight: '700',
+    letterSpacing: 2.5,
+    marginBottom: verticalScale(12),
+  },
+
+  // Actions
+  actionsGrid: {
     gap: verticalScale(8),
-    marginBottom: verticalScale(28),
+    marginBottom: verticalScale(24),
   },
-  actionRow: {
+  actionCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: scale(14),
@@ -302,47 +349,60 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: scale(12),
   },
-  actionIcon: {
-    width: scale(40),
-    height: scale(40),
-    borderRadius: scale(12),
+  actionIconWrap: {
+    width: scale(38),
+    height: scale(38),
+    borderRadius: scale(10),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionText: { flex: 1 },
+  actionBody: { flex: 1 },
   actionTitle: {
-    fontSize: scale(14),
+    fontSize: scale(13),
     fontWeight: '600',
     letterSpacing: -0.1,
     marginBottom: verticalScale(2),
   },
   actionDesc: {
-    fontSize: scale(12),
+    fontSize: scale(11),
     fontWeight: '400',
     letterSpacing: 0.1,
+    lineHeight: scale(15),
   },
+
+  // Tip
   tipCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: scale(16),
+    padding: scale(14),
     borderRadius: scale(14),
     borderWidth: 1,
     gap: scale(12),
     marginBottom: verticalScale(28),
   },
-  tipContent: { flex: 1 },
+  tipIconWrap: {
+    width: scale(30),
+    height: scale(30),
+    borderRadius: scale(8),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: verticalScale(2),
+  },
+  tipBody: { flex: 1 },
   tipLabel: {
-    fontSize: scale(9),
+    fontSize: scale(8),
     fontWeight: '700',
-    letterSpacing: 1.8,
-    marginBottom: verticalScale(6),
+    letterSpacing: 2,
+    marginBottom: verticalScale(5),
   },
   tipText: {
-    fontSize: scale(13),
-    lineHeight: scale(19),
+    fontSize: scale(12),
+    lineHeight: scale(18),
     fontWeight: '400',
     letterSpacing: 0.1,
   },
+
+  // Footer
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -355,9 +415,9 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
   },
   footerText: {
-    fontSize: scale(10),
+    fontSize: scale(9),
     fontWeight: '500',
-    letterSpacing: 1.4,
+    letterSpacing: 1.6,
   },
 });
 

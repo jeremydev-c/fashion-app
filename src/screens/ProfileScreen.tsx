@@ -30,6 +30,9 @@ import { useAuth } from '../context/AuthContext';
 import { useUserId } from '../hooks/useUserId';
 import { SubscriptionScreen } from './SubscriptionScreen';
 import { AnalyticsScreen } from './AnalyticsScreen';
+import LanguageSwitcher from '../components/LanguageSwitcher';
+import { useTranslation } from 'react-i18next';
+import { updateNotificationPreference, getNotificationPreference } from '../services/notificationService';
 import { apiClient, apiRequest } from '../services/apiClient';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -68,12 +71,14 @@ export const ProfileScreen: React.FC = () => {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const { mode: themeMode, isDark, setMode: setThemeMode } = useTheme();
+  const { t } = useTranslation();
   const { user, logout, setUser } = useAuth();
   const userId = useUserId();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
   const [showStyleDNA, setShowStyleDNA] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
+  const [showLanguageSwitcher, setShowLanguageSwitcher] = useState(false);
   const [styleDNA, setStyleDNA] = useState<StyleDNA | null>(null);
   const [stats, setStats] = useState<WardrobeStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,6 +117,10 @@ export const ProfileScreen: React.FC = () => {
     if (!userId) return;
     setLoading(true);
     try {
+      // Load notification preference from backend
+      const notifEnabled = await getNotificationPreference(userId);
+      setNotificationsEnabled(notifEnabled);
+
       // Load Style DNA
       const dnaResponse = await apiClient.get(`/style-dna/${userId}`);
       if (dnaResponse.data?.styleDNA) {
@@ -157,24 +166,30 @@ export const ProfileScreen: React.FC = () => {
 
   const handleNotifications = () => {
     showAlert({
-      title: 'Notifications',
-      message: 'Manage your notification preferences',
+      title: t('profile.notifications'),
+      message: notificationsEnabled
+        ? t('profile.notificationsDisableTitle')
+        : t('profile.notificationsEnableTitle'),
       icon: 'notifications-outline',
       buttons: [
+        { text: t('common.cancel'), onPress: () => {} },
         {
-          text: 'Cancel',
-          onPress: () => {},
-        },
-        {
-          text: notificationsEnabled ? 'Disable' : 'Enable',
-          onPress: () => {
-            setNotificationsEnabled(!notificationsEnabled);
+          text: notificationsEnabled ? t('common.disable') : t('common.enable'),
+          onPress: async () => {
+            const newValue = !notificationsEnabled;
+            setNotificationsEnabled(newValue);
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            try {
+              await updateNotificationPreference(userId!, newValue);
+            } catch (e) {
+              // Revert on failure
+              setNotificationsEnabled(!newValue);
+            }
             showAlert({
-              title: 'Notifications',
-              message: notificationsEnabled ? 'Notifications disabled' : 'Notifications enabled',
-              icon: notificationsEnabled ? 'notifications-off-outline' : 'notifications',
-              buttons: [{ text: 'Got it!', onPress: () => {}, style: 'primary' }],
+              title: t('profile.notifications'),
+              message: newValue ? t('profile.notificationsEnabled') : t('profile.notificationsDisabled'),
+              icon: newValue ? 'notifications' : 'notifications-off-outline',
+              buttons: [{ text: t('profile.gotIt'), onPress: () => {}, style: 'primary' }],
             });
           },
           style: 'primary',
@@ -191,16 +206,16 @@ export const ProfileScreen: React.FC = () => {
 
   const handleHelp = () => {
     showAlert({
-      title: 'Help & Support',
-      message: 'Need help? We\'re here for you!\n\n📧 Email: support@fashionfit.app\n💬 In-app: Chat with your Style Coach\n📱 Report bugs: Use the feedback option\n\nWe typically respond within 24 hours.',
+      title: t('profile.helpTitle'),
+      message: t('profile.helpMessage'),
       icon: 'help-circle',
       buttons: [
         {
-          text: 'OK',
+          text: t('common.ok'),
           onPress: () => {},
         },
         {
-          text: 'Email Support',
+          text: t('common.emailSupport'),
           onPress: () => {
             Linking.openURL('mailto:support@fashionfit.app?subject=Fashion Fit Support');
           },
@@ -212,16 +227,16 @@ export const ProfileScreen: React.FC = () => {
 
   const handlePrivacy = () => {
     showAlert({
-      title: 'Privacy Policy',
-      message: 'Your privacy matters to us.\n\n• We only collect data you provide\n• Your wardrobe images are stored securely\n• We never sell your data\n• You can delete your account anytime\n\nFull privacy policy coming soon. For questions, email privacy@fashionfit.app',
+      title: t('profile.privacyTitle'),
+      message: t('profile.privacyMessage'),
       icon: 'lock-closed',
       buttons: [
         {
-          text: 'OK',
+          text: t('common.ok'),
           onPress: () => {},
         },
         {
-          text: 'Email Privacy',
+          text: t('profile.emailPrivacy'),
           onPress: () => {
             Linking.openURL('mailto:privacy@fashionfit.app?subject=Privacy Question');
           },
@@ -233,16 +248,16 @@ export const ProfileScreen: React.FC = () => {
 
   const handleTerms = () => {
     showAlert({
-      title: 'Terms of Service',
-      message: 'By using Fashion Fit, you agree to:\n\n• Use the app responsibly\n• Not abuse AI features\n• Respect intellectual property\n• Follow community guidelines\n\nFull terms of service coming soon. For questions, email legal@fashionfit.app',
+      title: t('profile.termsTitle'),
+      message: t('profile.termsMessage'),
       icon: 'shield-checkmark',
       buttons: [
         {
-          text: 'OK',
+          text: t('common.ok'),
           onPress: () => {},
         },
         {
-          text: 'Email Legal',
+          text: t('profile.emailLegal'),
           onPress: () => {
             Linking.openURL('mailto:legal@fashionfit.app?subject=Terms Question');
           },
@@ -254,16 +269,16 @@ export const ProfileScreen: React.FC = () => {
 
   const handleLogout = () => {
     showAlert({
-      title: 'Log Out',
-      message: 'Are you sure you want to log out?',
+      title: t('profile.logout'),
+      message: t('profile.logoutConfirm'),
       icon: 'log-out-outline',
       buttons: [
         {
-          text: 'Cancel',
+          text: t('common.cancel'),
           onPress: () => {},
         },
         {
-          text: 'Log Out',
+          text: t('common.logOut'),
           onPress: async () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
             await logout();
@@ -579,7 +594,8 @@ export const ProfileScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity 
+          <TouchableOpacity
+            activeOpacity={0.7}
             style={styles.editButton}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -881,61 +897,69 @@ export const ProfileScreen: React.FC = () => {
         )}
 
         {/* Settings Section */}
-        <Text style={styles.sectionTitle}>Settings</Text>
+        <Text style={styles.sectionTitle}>{t('profile.settings')}</Text>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleNotifications}>
+        <TouchableOpacity activeOpacity={0.75} style={styles.menuItem} onPress={handleNotifications}>
           <View style={styles.menuIcon}>
             <Ionicons name="notifications-outline" size={20} color={colors.textSecondary} />
           </View>
-          <Text style={styles.menuText}>Notifications</Text>
+          <Text style={styles.menuText}>{t('profile.notifications')}</Text>
           <View style={[styles.toggleOn, !notificationsEnabled && styles.toggleOff]}>
-            <Text style={styles.toggleText}>{notificationsEnabled ? 'On' : 'Off'}</Text>
+            <Text style={styles.toggleText}>{notificationsEnabled ? t('common.yes') : t('common.no')}</Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleThemeToggle}>
+        <TouchableOpacity activeOpacity={0.75} style={styles.menuItem} onPress={handleThemeToggle}>
           <View style={styles.menuIcon}>
             <Ionicons name={isDark ? 'moon-outline' : themeMode === 'system' ? 'phone-portrait-outline' : 'sunny-outline'} size={20} color={colors.textSecondary} />
           </View>
-          <Text style={styles.menuText}>Appearance</Text>
+          <Text style={styles.menuText}>{t('profile.darkMode')}</Text>
           <View style={[styles.toggleOn, !isDark && { backgroundColor: colors.secondary }]}>
             <Text style={styles.toggleText}>{themeModeLabel}</Text>
           </View>
         </TouchableOpacity>
 
-        {/* Support Section */}
-        <Text style={styles.sectionTitle}>Support</Text>
+        <TouchableOpacity activeOpacity={0.75} style={styles.menuItem} onPress={() => setShowLanguageSwitcher(true)}>
+          <View style={styles.menuIcon}>
+            <Ionicons name="language-outline" size={20} color={colors.textSecondary} />
+          </View>
+          <Text style={styles.menuText}>{t('profile.changeLanguage')}</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleHelp}>
+        {/* Support Section */}
+        <Text style={styles.sectionTitle}>{t('profile.about')}</Text>
+
+        <TouchableOpacity activeOpacity={0.75} style={styles.menuItem} onPress={handleHelp}>
           <View style={styles.menuIcon}>
             <Ionicons name="help-circle-outline" size={20} color={colors.textSecondary} />
           </View>
-          <Text style={styles.menuText}>Help & Support</Text>
+          <Text style={styles.menuText}>{t('profile.help')}</Text>
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handlePrivacy}>
+        <TouchableOpacity activeOpacity={0.75} style={styles.menuItem} onPress={handlePrivacy}>
           <View style={styles.menuIcon}>
             <Ionicons name="document-text-outline" size={20} color={colors.textSecondary} />
           </View>
-          <Text style={styles.menuText}>Privacy Policy</Text>
+          <Text style={styles.menuText}>{t('profile.privacy')}</Text>
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleTerms}>
+        <TouchableOpacity activeOpacity={0.75} style={styles.menuItem} onPress={handleTerms}>
           <View style={styles.menuIcon}>
             <Ionicons name="shield-checkmark-outline" size={20} color={colors.textSecondary} />
           </View>
-          <Text style={styles.menuText}>Terms of Service</Text>
+          <Text style={styles.menuText}>{t('profile.terms')}</Text>
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </TouchableOpacity>
 
         {/* Subscription */}
-        <TouchableOpacity style={[styles.menuItem, { marginTop: spacing.lg }]} onPress={() => setShowSubscription(true)}>
+        <TouchableOpacity activeOpacity={0.75} style={[styles.menuItem, { marginTop: spacing.lg }]} onPress={() => setShowSubscription(true)}>
           <View style={[styles.menuIcon, { backgroundColor: colors.primarySoft }]}>
             <Ionicons name="diamond-outline" size={20} color={colors.primary} />
           </View>
-          <Text style={[styles.menuText, { color: colors.primary, fontWeight: '700' }]}>Manage Plan</Text>
+          <Text style={[styles.menuText, { color: colors.primary, fontWeight: '700' }]}>{t('profile.analytics')}</Text>
           <View style={[styles.planBadge, { backgroundColor: colors.primarySoft }]}>
             <Text style={[styles.planBadgeText, { color: colors.primary }]}>
               {user?.subscription?.planId === 'free' || !user?.subscription?.planId ? 'Free' : user.subscription.planId === 'pro' ? 'Pro' : user.subscription.planId === 'elite' ? 'Elite' : 'Pro'}
@@ -945,14 +969,20 @@ export const ProfileScreen: React.FC = () => {
         </TouchableOpacity>
 
         {/* Logout */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <TouchableOpacity activeOpacity={0.75} style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color={colors.primary} />
-          <Text style={styles.logoutText}>Log Out</Text>
+          <Text style={styles.logoutText}>{t('profile.logout')}</Text>
         </TouchableOpacity>
 
         {/* Version */}
         <Text style={styles.version}>Fashion Fit v2.0.0</Text>
       </ScrollView>
+
+      {/* Language Switcher Modal */}
+      <LanguageSwitcher
+        visible={showLanguageSwitcher}
+        onClose={() => setShowLanguageSwitcher(false)}
+      />
 
       {/* Subscription Modal */}
       <Modal visible={showSubscription} animationType="slide" presentationStyle="pageSheet">
@@ -963,6 +993,7 @@ export const ProfileScreen: React.FC = () => {
       <Modal visible={showFullAnalytics} animationType="slide" presentationStyle="pageSheet">
         <View style={{ flex: 1, backgroundColor: colors.background }}>
           <TouchableOpacity
+            activeOpacity={0.7}
             style={styles.analyticsModalClose}
             onPress={() => setShowFullAnalytics(false)}
           >
