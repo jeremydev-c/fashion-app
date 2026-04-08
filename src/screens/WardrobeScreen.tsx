@@ -103,6 +103,10 @@ export const WardrobeScreen: React.FC = () => {
 
   const addItemMutation = useMutation({
     mutationFn: async () => {
+      if (!userId) {
+        throw new Error('User not available');
+      }
+
       let finalImageUrl = imageUri;
       let thumbnailUrl: string | undefined;
       let mediumUrl: string | undefined;
@@ -129,7 +133,7 @@ export const WardrobeScreen: React.FC = () => {
       }
 
       return createClothingItem({
-        userId: userId,
+        userId,
         name: generatedName || 'Wardrobe item',
         category,
         subcategory: subcategory || undefined,
@@ -152,6 +156,7 @@ export const WardrobeScreen: React.FC = () => {
         favorite: false,
         aiConfidence: aiResult?.confidence,
         aiProcessed: !!aiResult,
+        semanticProfile: aiResult?.semanticProfile,
       });
     },
     onSuccess: () => {
@@ -952,6 +957,17 @@ const styles = StyleSheet.create({
   stateText: {
     ...typography.caption,
   },
+  errorTitle: {
+    ...typography.bodyBold,
+    fontSize: scale(16),
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  errorText: {
+    ...typography.body,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
   gridEmpty: {
     marginTop: spacing['2xl'],
     padding: spacing['2xl'],
@@ -1515,5 +1531,3 @@ const styles = StyleSheet.create({
     borderRadius: scale(14),
   },
 });
-
-

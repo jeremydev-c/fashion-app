@@ -1,4 +1,5 @@
 import { apiRequest } from './apiClient';
+import type { SemanticProfile } from './wardrobeApi';
 
 type AiCategorizationResponse = {
   category: string;
@@ -18,6 +19,7 @@ export type EnhancedAiCategorizationResponse = {
   brand: string | null;
   tags: string[];
   confidence: number;
+  semanticProfile: SemanticProfile;
 };
 
 export async function smartCategorize(name: string, notes?: string) {

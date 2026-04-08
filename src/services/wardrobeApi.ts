@@ -9,6 +9,36 @@ export type ClothingCategory =
   | 'accessory'
   | 'other';
 
+export type SemanticAxes = {
+  formality: number;
+  structure: number;
+  texture: number;
+  boldness: number;
+  softness: number;
+  warmth: number;
+  polish: number;
+  ruggedness: number;
+  minimalism: number;
+  versatility: number;
+};
+
+export type SemanticProfile = {
+  summary: string;
+  materials: string[];
+  texture: string;
+  silhouette: string;
+  structure: string;
+  dressCode: string;
+  aesthetics: string[];
+  vibeKeywords: string[];
+  pairingKeywords: string[];
+  axes: SemanticAxes;
+  embedding: number[];
+  embeddingVersion: string;
+  sourceModel: string;
+  generatedAt: string;
+};
+
 export type ClothingItem = {
   _id: string;
   userId: string;
@@ -33,6 +63,7 @@ export type ClothingItem = {
   lastWorn?: string;
   aiConfidence?: number;
   aiProcessed?: boolean;
+  semanticProfile?: SemanticProfile;
 };
 
 type WardrobeItemsResponse = {

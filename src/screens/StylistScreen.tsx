@@ -245,6 +245,7 @@ export const StylistScreen: React.FC = () => {
   const [occasion, setOccasion] = useState('Casual');
   const [showWarning, setShowWarning] = useState(false);
   const [pendingGenerate, setPendingGenerate] = useState(false);
+  const [generationVariant, setGenerationVariant] = useState(0);
   
   // Auto-detect time of day
   const getTimeOfDay = () => {
@@ -356,10 +357,12 @@ export const StylistScreen: React.FC = () => {
     }
     
     // Proceed with generation
-    await performGeneration();
+    const nextVariant = generationVariant + 1;
+    setGenerationVariant(nextVariant);
+    await performGeneration(nextVariant);
   };
 
-  const performGeneration = async () => {
+  const performGeneration = async (variant: number) => {
     if (wardrobe.length < 2) {
       Alert.alert(t('stylist.emptyTitle'), t('stylist.addMoreItemsFirst'));
       return;
@@ -375,7 +378,7 @@ export const StylistScreen: React.FC = () => {
       const rainConditions = ['rain', 'drizzle', 'thunderstorm', 'shower'];
       const fSummary = forecast?.summary;
       const weatherContext = weather ? {
-        needsLayers: weather.temperature < 15 || (fSummary?.tempSwing && fSummary.tempSwing > 8),
+        needsLayers: weather.temperature < 15 || !!(fSummary?.tempSwing && fSummary.tempSwing > 8),
         hasRainRisk: rainConditions.some(r => weather.condition?.toLowerCase().includes(r)) || (fSummary?.hasRainRisk ?? false),
         tempSwing: fSummary?.tempSwing || 0,
       } : undefined;
@@ -386,6 +389,7 @@ export const StylistScreen: React.FC = () => {
         timeOfDay: timeOfDay.toLowerCase(),
         weather: weather ? (weather.temperature > 25 ? 'hot' : weather.temperature > 20 ? 'warm' : weather.temperature > 10 ? 'cool' : 'cold') : undefined,
         limit: 3,
+        variant: `${occasion.toLowerCase()}-${timeOfDay.toLowerCase()}-${variant}`,
         forecast: weatherContext,
         weatherDetail: weather ? {
           category: weather.weatherCategory,
@@ -541,7 +545,9 @@ export const StylistScreen: React.FC = () => {
     setShowWarning(false);
     if (pendingGenerate) {
       setPendingGenerate(false);
-      performGeneration();
+      const nextVariant = generationVariant + 1;
+      setGenerationVariant(nextVariant);
+      void performGeneration(nextVariant);
     }
   };
 
@@ -727,7 +733,7 @@ export const StylistScreen: React.FC = () => {
                             item.category === 'bottom' ? 'body-outline' :
                             item.category === 'shoes' ? 'footsteps-outline' :
                             item.category === 'dress' ? 'shirt-outline' :
-                            item.category === 'outerwear' ? 'coat-outline' :
+                            item.category === 'outerwear' ? 'shirt-outline' :
                             item.category === 'accessory' ? 'diamond-outline' :
                             'cube-outline'
                           } 

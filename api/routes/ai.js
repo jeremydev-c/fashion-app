@@ -1,4 +1,5 @@
 const express = require('express');
+const { sanitizeSemanticProfile } = require('../utils/semanticStyleProfile');
 
 const router = express.Router();
 
@@ -153,9 +154,19 @@ If the image IS clothing or accessories, return ONLY minified JSON with:
 - brand: brand name if detectable, else null
 - tags: array of 3-7 style tags (lowercase, descriptive)
 - confidence: confidence score 0-1
+- semanticProfile: object with:
+  - summary: a concise 6-14 word visual summary of the item's vibe
+  - materials: array of 1-3 likely materials from ["cotton","linen","silk","satin","denim","leather","suede","wool","cashmere","knit","jersey","fleece","tweed","corduroy","chiffon","mesh"]
+  - texture: one of ["smooth","matte","textured","distressed","crisp","knit"]
+  - silhouette: one of ["tailored","straight","boxy","oversized","flowy","body-skimming"]
+  - structure: one of ["soft","relaxed","balanced","tailored","structured"]
+  - dressCode: one of ["very-casual","casual","smart-casual","polished","formal"]
+  - aesthetics: array of 1-3 from ["classic","minimalist","romantic","streetwear","edgy","sporty","bohemian","vintage","modern","utilitarian","relaxed","elegant"]
+  - vibeKeywords: array of 3-6 short keywords describing the item's fashion energy
+  - pairingKeywords: array of 2-6 short keywords describing what it pairs well with
 
 Example valid response:
-{"isClothing":true,"category":"top","subcategory":"v-neck t-shirt","color":"black","colorPalette":["black","gray","white"],"style":"casual","pattern":"solid","fit":"fitted","occasion":["casual","work"],"brand":null,"tags":["casual","basic","versatile","comfortable"],"confidence":0.95}
+{"isClothing":true,"category":"top","subcategory":"v-neck t-shirt","color":"black","colorPalette":["black","gray","white"],"style":"casual","pattern":"solid","fit":"fitted","occasion":["casual","work"],"brand":null,"tags":["casual","basic","versatile","comfortable"],"confidence":0.95,"semanticProfile":{"summary":"black fitted tee with clean casual energy","materials":["cotton"],"texture":"matte","silhouette":"body-skimming","structure":"balanced","dressCode":"casual","aesthetics":["minimalist","relaxed"],"vibeKeywords":["clean","easy","everyday"],"pairingKeywords":["layering","denim","sneakers"]}}
 
 Example rejection response:
 {"isClothing":false,"rejectionReason":"This image shows a person, not a clothing item"}`;
@@ -277,6 +288,16 @@ Example rejection response:
       brand: typeof parsed.brand === 'string' && parsed.brand ? parsed.brand : null,
       tags: Array.isArray(parsed.tags) && parsed.tags.every((t) => typeof t === 'string') ? parsed.tags : [],
       confidence: typeof parsed.confidence === 'number' ? Math.max(0, Math.min(1, parsed.confidence)) : 0.8,
+      semanticProfile: sanitizeSemanticProfile(parsed.semanticProfile || {}, {
+        name: parsed.subcategory || parsed.category,
+        category: validCategories.includes(parsed.category) ? parsed.category : 'other',
+        subcategory: typeof parsed.subcategory === 'string' ? parsed.subcategory : '',
+        color: typeof parsed.color === 'string' ? parsed.color : '',
+        style: validStyles.includes(parsed.style) ? parsed.style : 'casual',
+        pattern: validPatterns.includes(parsed.pattern) ? parsed.pattern : 'solid',
+        fit: validFits.includes(parsed.fit) ? parsed.fit : 'fitted',
+        tags: Array.isArray(parsed.tags) && parsed.tags.every((t) => typeof t === 'string') ? parsed.tags : [],
+      }),
     };
 
     res.json(result);

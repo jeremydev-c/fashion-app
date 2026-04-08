@@ -16,6 +16,8 @@ export type OutfitRecommendation = {
   score: number;
   confidence: number;
   reasons: string[];
+  title?: string;
+  description?: string;
   occasion: string;
   timeOfDay: string;
   weather: string;
@@ -50,6 +52,7 @@ export async function getRecommendations(params: {
   timeOfDay?: string;
   weather?: string;
   limit?: number;
+  variant?: string | number;
   forecast?: ForecastContext;
   weatherDetail?: WeatherContext;
 }): Promise<OutfitRecommendation[]> {
@@ -59,6 +62,7 @@ export async function getRecommendations(params: {
     ...(params.timeOfDay && { timeOfDay: params.timeOfDay }),
     ...(params.weather && { weather: params.weather }),
     limit: (params.limit || 3).toString(),
+    ...(params.variant !== undefined && { variant: String(params.variant) }),
     ...(params.forecast?.needsLayers !== undefined && { needsLayers: params.forecast.needsLayers.toString() }),
     ...(params.forecast?.hasRainRisk !== undefined && { hasRainRisk: params.forecast.hasRainRisk.toString() }),
     ...(params.forecast?.tempSwing !== undefined && { tempSwing: params.forecast.tempSwing.toString() }),
@@ -81,4 +85,3 @@ export async function getRecommendations(params: {
     throw error; // Re-throw to let caller handle
   }
 }
-

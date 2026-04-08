@@ -1,5 +1,41 @@
 const mongoose = require('mongoose');
 
+const SemanticAxesSchema = new mongoose.Schema(
+  {
+    formality: { type: Number, min: 0, max: 1 },
+    structure: { type: Number, min: 0, max: 1 },
+    texture: { type: Number, min: 0, max: 1 },
+    boldness: { type: Number, min: 0, max: 1 },
+    softness: { type: Number, min: 0, max: 1 },
+    warmth: { type: Number, min: 0, max: 1 },
+    polish: { type: Number, min: 0, max: 1 },
+    ruggedness: { type: Number, min: 0, max: 1 },
+    minimalism: { type: Number, min: 0, max: 1 },
+    versatility: { type: Number, min: 0, max: 1 },
+  },
+  { _id: false },
+);
+
+const SemanticProfileSchema = new mongoose.Schema(
+  {
+    summary: { type: String },
+    materials: [{ type: String }],
+    texture: { type: String },
+    silhouette: { type: String },
+    structure: { type: String },
+    dressCode: { type: String },
+    aesthetics: [{ type: String }],
+    vibeKeywords: [{ type: String }],
+    pairingKeywords: [{ type: String }],
+    axes: { type: SemanticAxesSchema },
+    embedding: [{ type: Number }],
+    embeddingVersion: { type: String },
+    sourceModel: { type: String },
+    generatedAt: { type: Date },
+  },
+  { _id: false },
+);
+
 const ClothingItemSchema = new mongoose.Schema(
   {
     userId: { type: String, required: true, index: true },
@@ -29,6 +65,7 @@ const ClothingItemSchema = new mongoose.Schema(
     // AI metadata
     aiConfidence: { type: Number, min: 0, max: 1 }, // AI detection confidence
     aiProcessed: { type: Boolean, default: false }, // Whether AI has processed this
+    semanticProfile: { type: SemanticProfileSchema },
   },
   {
     timestamps: true,

@@ -1,19 +1,616 @@
 const express = require('express');
-const router = express.Router();
 const OpenAI = require('openai');
 const { requireFeature } = require('../middleware/planLimits');
 const ChatHistory = require('../models/ChatHistory');
 const ClothingItem = require('../models/ClothingItem');
+const StyleDNA = require('../models/StyleDNA');
+const UserPreferences = require('../models/UserPreferences');
+const LearningHistory = require('../models/LearningHistory');
+const { getSemanticProfile } = require('../utils/semanticStyleProfile');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const router = express.Router();
+
+let openaiClient = null;
+
+const DEFAULT_COACH_NAME = 'NOVA';
+const CATEGORY_ORDER = ['top', 'bottom', 'dress', 'shoes', 'outerwear', 'accessory', 'other'];
+const CATEGORY_LABELS = {
+  top: 'Tops',
+  bottom: 'Bottoms',
+  dress: 'Dresses',
+  shoes: 'Shoes',
+  outerwear: 'Outerwear',
+  accessory: 'Accessories',
+  other: 'Other',
+};
+const NEUTRAL_COLORS = new Set([
+  'black',
+  'white',
+  'cream',
+  'ivory',
+  'beige',
+  'tan',
+  'camel',
+  'brown',
+  'taupe',
+  'grey',
+  'gray',
+  'charcoal',
+  'navy',
+  'olive',
+  'stone',
+]);
+
+function cleanText(value, maxLength = 160) {
+  const normalized = String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  if (!normalized) return '';
+  return normalized.slice(0, maxLength);
+}
+
+function humanizeToken(value) {
+  const cleaned = cleanText(value, 60).replace(/[_-]+/g, ' ');
+  if (!cleaned) return '';
+
+  return cleaned
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function uniqueStrings(values = [], limit = 6, formatter = (value) => value) {
+  const seen = new Set();
+  const result = [];
+
+  for (const value of values) {
+    const cleaned = cleanText(value);
+    const key = cleaned.toLowerCase();
+    if (!cleaned || seen.has(key)) continue;
+    seen.add(key);
+    result.push(formatter(cleaned));
+    if (result.length >= limit) break;
+  }
+
+  return result;
+}
+
+function countValue(counts, value, weight = 1) {
+  const cleaned = cleanText(value, 80).toLowerCase();
+  if (!cleaned) return;
+  counts[cleaned] = (counts[cleaned] || 0) + weight;
+}
+
+function sortedCountEntries(counts = {}, limit = 5) {
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit);
+}
+
+function topCountLabels(counts = {}, limit = 5) {
+  return sortedCountEntries(counts, limit).map(([key]) => humanizeToken(key));
+}
+
+function topWeightedKeys(mapLike, limit = 4) {
+  if (!mapLike) return [];
+
+  const entries =
+    mapLike instanceof Map ? Array.from(mapLike.entries()) : Object.entries(mapLike || {});
+
+  return entries
+    .filter(([, value]) => Number(value) > 0)
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .slice(0, limit)
+    .map(([key]) => humanizeToken(key));
+}
+
+function daysSince(dateValue) {
+  if (!dateValue) return null;
+  const timestamp = new Date(dateValue).getTime();
+  if (Number.isNaN(timestamp)) return null;
+  return Math.floor((Date.now() - timestamp) / (1000 * 60 * 60 * 24));
+}
+
+function describeItem(item = {}, profile = getSemanticProfile(item)) {
+  const parts = [];
+  const color = humanizeToken(item.color);
+  const material = humanizeToken(profile.materials?.[0]);
+  const base = humanizeToken(item.subcategory || item.name || item.category);
+
+  if (color) parts.push(color);
+  if (material && (!base || !base.toLowerCase().includes(material.toLowerCase()))) {
+    parts.push(material);
+  }
+  if (base) parts.push(base);
+
+  return uniqueStrings(parts, 4).join(' ');
+}
+
+function buildCategoryBreakdown(items = []) {
+  const counts = CATEGORY_ORDER.reduce((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {});
+
+  items.forEach((item) => {
+    const key = CATEGORY_ORDER.includes(item.category) ? item.category : 'other';
+    counts[key] += 1;
+  });
+
+  return CATEGORY_ORDER.map((key) => ({
+    key,
+    label: CATEGORY_LABELS[key],
+    count: counts[key] || 0,
+  })).filter((entry) => entry.count > 0);
+}
+
+function isPositiveLearningEvent(entry = {}) {
+  if (entry.rating && entry.rating >= 4) return true;
+  return ['save', 'saved', 'swipe_right', 'rate', 'rated', 'refine'].includes(entry.interactionType);
+}
+
+function buildLearningSignals(recentLearning = [], preferences = null) {
+  const positiveColors = {};
+  const positiveStyles = {};
+  const positiveCategories = {};
+
+  recentLearning.forEach((entry) => {
+    if (!isPositiveLearningEvent(entry)) return;
+    const weight = entry.rating ? Math.max(1, Number(entry.rating) - 2) : 1;
+
+    (entry.metadata?.colors || []).forEach((value) => countValue(positiveColors, value, weight));
+    (entry.metadata?.styles || []).forEach((value) => countValue(positiveStyles, value, weight));
+    (entry.metadata?.categories || []).forEach((value) => countValue(positiveCategories, value, weight));
+  });
+
+  return {
+    lovedColors: uniqueStrings(
+      [
+        ...(preferences?.preferredColors || []),
+        ...topWeightedKeys(preferences?.colorWeights, 4),
+        ...topCountLabels(positiveColors, 4),
+      ],
+      5,
+      humanizeToken,
+    ),
+    lovedStyles: uniqueStrings(
+      [
+        ...(preferences?.preferredStyles || []),
+        ...topWeightedKeys(preferences?.styleWeights, 4),
+        ...topCountLabels(positiveStyles, 4),
+      ],
+      5,
+      humanizeToken,
+    ),
+    lovedCategories: uniqueStrings(
+      [
+        ...(preferences?.preferredCategories || []),
+        ...topWeightedKeys(preferences?.categoryWeights, 4),
+        ...topCountLabels(positiveCategories, 4),
+      ],
+      4,
+      humanizeToken,
+    ),
+    occasionSignals: uniqueStrings(
+      [
+        ...(preferences?.preferredOccasions || []),
+        ...topWeightedKeys(preferences?.occasionWeights, 3),
+      ],
+      3,
+      humanizeToken,
+    ),
+  };
+}
+
+function buildWardrobeWins({
+  itemCount,
+  palette,
+  styleSignatures,
+  categoryBreakdown,
+  dominantDressCodes,
+  styleDNA,
+}) {
+  const wins = [];
+  const categories = Object.fromEntries(categoryBreakdown.map((entry) => [entry.key, entry.count]));
+
+  if (palette.length > 0) {
+    wins.push(`Your wardrobe already has strong palette anchors in ${palette.slice(0, 3).join(', ')}.`);
+  }
+
+  if (styleSignatures.length > 0) {
+    wins.push(`Your closet has a clear point of view with ${styleSignatures.slice(0, 3).join(', ')} energy.`);
+  }
+
+  if ((categories.top || 0) > 0 && (categories.bottom || 0) > 0 && (categories.shoes || 0) > 0) {
+    wins.push('You have enough core building blocks to create polished complete looks from what you own.');
+  }
+
+  if (dominantDressCodes.length > 0) {
+    wins.push(`Your strongest wardrobe lane is ${dominantDressCodes[0].toLowerCase()}, which gives your style a recognizable signature.`);
+  }
+
+  if (cleanText(styleDNA?.styleArchetype)) {
+    wins.push(`${cleanText(styleDNA.styleArchetype)} is already visible in the closet, which means your style identity is taking shape.`);
+  }
+
+  if (itemCount < 8) {
+    wins.push('A smaller wardrobe can still be powerful when every piece has a clear job and works hard.');
+  }
+
+  return uniqueStrings(wins, 4);
+}
+
+function buildGrowthAreas({ itemCount, categoryBreakdown, palette, dominantDressCodes }) {
+  if (itemCount === 0) {
+    return [
+      'Start with a confident foundation of tops, bottoms, and one reliable shoe so every new piece multiplies your options.',
+    ];
+  }
+
+  const areas = [];
+  const categories = Object.fromEntries(categoryBreakdown.map((entry) => [entry.key, entry.count]));
+  const topCount = categories.top || 0;
+  const bottomCount = categories.bottom || 0;
+  const shoeCount = categories.shoes || 0;
+  const outerwearCount = categories.outerwear || 0;
+
+  if (topCount >= bottomCount * 2 + 1) {
+    areas.push('Adding two or three more bottoms would unlock far more combinations from the tops you already own.');
+  }
+
+  if (shoeCount === 0) {
+    areas.push('One reliable everyday shoe would finish far more looks cleanly and make styling faster.');
+  }
+
+  if (itemCount >= 6 && outerwearCount === 0) {
+    areas.push('A polished layer like a blazer, jacket, or coat would instantly elevate the wardrobe.');
+  }
+
+  const neutralCount = palette.filter((color) => NEUTRAL_COLORS.has(color.toLowerCase())).length;
+  if (palette.length >= 3 && neutralCount >= Math.max(2, Math.ceil(palette.length * 0.6))) {
+    areas.push('One intentional accent color piece could add range without disrupting your core palette.');
+  }
+
+  if (dominantDressCodes.length === 1 && dominantDressCodes[0].toLowerCase() === 'casual') {
+    areas.push('A smart-casual bridge piece would give you more range for dinners, work moments, and elevated everyday styling.');
+  }
+
+  if (areas.length === 0) {
+    areas.push('The next level is not more pieces, but sharper pairing: stronger proportions, better layers, and more intentional finishing touches.');
+  }
+
+  return uniqueStrings(areas, 4);
+}
+
+function buildStyleInsight({
+  palette,
+  styleSignatures,
+  dominantDressCodes,
+  styleDNA,
+  itemCount,
+}) {
+  if (cleanText(styleDNA?.styleInsight)) {
+    return cleanText(styleDNA.styleInsight, 220);
+  }
+
+  if (itemCount === 0) {
+    return 'Your style story has not been documented in the wardrobe yet, so the smartest next move is building a clean, versatile foundation around how you actually live.';
+  }
+
+  const signatureText =
+    styleSignatures.length > 0
+      ? styleSignatures.slice(0, 2).join(' and ').toLowerCase()
+      : 'personal and still evolving';
+  const paletteText =
+    palette.length > 0 ? `${palette.slice(0, 2).join(' and ')} tones` : 'versatile colors';
+  const dressCodeText =
+    dominantDressCodes.length > 0 ? dominantDressCodes[0].toLowerCase() : 'everyday';
+
+  return `Your wardrobe reads ${signatureText}, grounded by ${paletteText} and a ${dressCodeText} point of view. The next level is making every look feel deliberate through stronger balance, texture, and finishing pieces.`;
+}
+
+function buildStylistFocus({ growthAreas, wardrobeWins, styleArchetype, styleSignatures }) {
+  const archetype = cleanText(styleArchetype);
+  if (growthAreas.length > 0 && archetype) {
+    return `Refine your ${archetype} direction by focusing on ${growthAreas[0].replace(/\.$/, '').toLowerCase()}.`;
+  }
+  if (growthAreas.length > 0 && styleSignatures.length > 0) {
+    return `Strengthen your ${styleSignatures[0].toLowerCase()} wardrobe by focusing on ${growthAreas[0].replace(/\.$/, '').toLowerCase()}.`;
+  }
+  if (wardrobeWins.length > 0) {
+    return wardrobeWins[0];
+  }
+  return 'Build a wardrobe that feels intentional, easy to wear, and unmistakably yours.';
+}
+
+function buildWardrobeBrief({ wardrobeItems = [], styleDNA = null, preferences = null, recentLearning = [] }) {
+  const categoryBreakdown = buildCategoryBreakdown(wardrobeItems);
+  const colorCounts = {};
+  const itemStyleCounts = {};
+  const aestheticCounts = {};
+  const dressCodeCounts = {};
+  const semanticProfiles = wardrobeItems.map((item) => ({
+    item,
+    profile: getSemanticProfile(item),
+  }));
+
+  semanticProfiles.forEach(({ item, profile }) => {
+    countValue(itemStyleCounts, item.style);
+    countValue(colorCounts, item.color);
+    (item.colorPalette || []).forEach((value) => countValue(colorCounts, value));
+    (profile.aesthetics || []).forEach((value) => countValue(aestheticCounts, value));
+    countValue(dressCodeCounts, profile.dressCode);
+  });
+
+  const palette = topCountLabels(colorCounts, 5);
+  const dominantDressCodes = topCountLabels(dressCodeCounts, 3);
+  const learningSignals = buildLearningSignals(recentLearning, preferences);
+  const styleSignatures = uniqueStrings(
+    [
+      cleanText(styleDNA?.primaryStyle),
+      ...(styleDNA?.secondaryStyles || []),
+      ...topCountLabels(itemStyleCounts, 3),
+      ...topCountLabels(aestheticCounts, 4),
+      ...learningSignals.lovedStyles,
+    ],
+    4,
+    humanizeToken,
+  );
+
+  const heroPieces = semanticProfiles
+    .slice()
+    .sort((a, b) => {
+      const scoreA =
+        (a.item.favorite ? 3.5 : 0) +
+        Math.min(a.item.wearCount || 0, 8) * 0.35 +
+        ((a.profile.axes?.polish || 0.5) * 1.8) +
+        ((a.profile.axes?.versatility || 0.5) * 1.1);
+      const scoreB =
+        (b.item.favorite ? 3.5 : 0) +
+        Math.min(b.item.wearCount || 0, 8) * 0.35 +
+        ((b.profile.axes?.polish || 0.5) * 1.8) +
+        ((b.profile.axes?.versatility || 0.5) * 1.1);
+      return scoreB - scoreA;
+    })
+    .map(({ item, profile }) => describeItem(item, profile))
+    .filter(Boolean)
+    .slice(0, 4);
+
+  const underusedPieces = semanticProfiles
+    .filter(({ item }) => !item.favorite)
+    .slice()
+    .sort((a, b) => {
+      const dormantA = daysSince(a.item.lastWorn);
+      const dormantB = daysSince(b.item.lastWorn);
+      const scoreA =
+        ((a.item.wearCount || 0) === 0 ? 2.6 : 0) +
+        (dormantA == null ? 2.1 : Math.min(dormantA / 45, 3)) +
+        (a.profile.axes?.versatility || 0.5);
+      const scoreB =
+        ((b.item.wearCount || 0) === 0 ? 2.6 : 0) +
+        (dormantB == null ? 2.1 : Math.min(dormantB / 45, 3)) +
+        (b.profile.axes?.versatility || 0.5);
+      return scoreB - scoreA;
+    })
+    .map(({ item, profile }) => describeItem(item, profile))
+    .filter(Boolean)
+    .slice(0, 4);
+
+  const wardrobeWins = buildWardrobeWins({
+    itemCount: wardrobeItems.length,
+    palette,
+    styleSignatures,
+    categoryBreakdown,
+    dominantDressCodes,
+    styleDNA,
+  });
+  const growthAreas = buildGrowthAreas({
+    itemCount: wardrobeItems.length,
+    categoryBreakdown,
+    palette,
+    dominantDressCodes,
+  });
+
+  const styleArchetype =
+    cleanText(styleDNA?.styleArchetype) ||
+    (styleSignatures.length > 0 ? `${styleSignatures.slice(0, 2).join(' ')} Direction` : '');
+  const styleMantra =
+    cleanText(styleDNA?.styleMantra) ||
+    (palette.length > 0
+      ? `Use ${palette.slice(0, 2).join(' and ')} as your anchor, then add contrast through shape and texture.`
+      : '');
+
+  const brief = {
+    itemCount: wardrobeItems.length,
+    categories: categoryBreakdown,
+    palette,
+    styleSignatures,
+    dominantDressCodes,
+    wardrobeWins,
+    growthAreas,
+    heroPieces,
+    underusedPieces,
+    styleArchetype,
+    styleMantra,
+    styleInsight: buildStyleInsight({
+      palette,
+      styleSignatures,
+      dominantDressCodes,
+      styleDNA,
+      itemCount: wardrobeItems.length,
+    }),
+    lovedColors: learningSignals.lovedColors,
+    lovedStyles: learningSignals.lovedStyles,
+    lovedCategories: learningSignals.lovedCategories,
+    occasionSignals: learningSignals.occasionSignals,
+  };
+
+  return {
+    ...brief,
+    stylistFocus: buildStylistFocus({
+      growthAreas,
+      wardrobeWins,
+      styleArchetype,
+      styleSignatures,
+    }),
+  };
+}
+
+function buildWardrobeContextText(brief = {}) {
+  if (!brief.itemCount) {
+    return [
+      'WARDROBE INTELLIGENCE',
+      '- The user has not added wardrobe items yet.',
+      '- Coach them with warmth and teach them how to build a strong foundation around lifestyle, versatility, and confidence.',
+    ].join('\n');
+  }
+
+  const categoryLine =
+    brief.categories?.map((entry) => `${entry.label}: ${entry.count}`).join(', ') || 'Not enough data';
+  const paletteLine = brief.palette?.join(', ') || 'Mixed palette';
+  const styleLine = brief.styleSignatures?.join(', ') || 'Still emerging';
+  const dressCodeLine = brief.dominantDressCodes?.join(', ') || 'Mixed dress codes';
+  const heroLine = brief.heroPieces?.join('; ') || 'No obvious hero pieces yet';
+  const underusedLine = brief.underusedPieces?.join('; ') || 'No underused opportunities identified';
+  const winsLine = brief.wardrobeWins?.join(' | ') || 'No wardrobe wins identified yet';
+  const growthLine = brief.growthAreas?.join(' | ') || 'No immediate growth priorities';
+  const preferencesLine = uniqueStrings(
+    [
+      ...(brief.lovedColors || []),
+      ...(brief.lovedStyles || []),
+      ...(brief.lovedCategories || []),
+    ],
+    8,
+  ).join(', ');
+
+  return [
+    'WARDROBE INTELLIGENCE',
+    `- Total items: ${brief.itemCount}`,
+    `- Category balance: ${categoryLine}`,
+    `- Palette anchors: ${paletteLine}`,
+    `- Style signatures: ${styleLine}`,
+    `- Dress code energy: ${dressCodeLine}`,
+    `- Hero pieces: ${heroLine}`,
+    `- Underused opportunities: ${underusedLine}`,
+    `- Wardrobe strengths: ${winsLine}`,
+    `- Strategic additions or focus: ${growthLine}`,
+    `- Style archetype: ${brief.styleArchetype || 'Still taking shape'}`,
+    `- Style mantra: ${brief.styleMantra || 'Build from what feels intentional and wearable.'}`,
+    `- Style insight: ${brief.styleInsight || 'Teach from the wardrobe, not from assumptions.'}`,
+    `- Positive preference signals: ${preferencesLine || 'No strong preference history yet'}`,
+    `- Occasion lean: ${(brief.occasionSignals || []).join(', ') || 'General lifestyle not defined yet'}`,
+    `- Coaching focus: ${brief.stylistFocus || 'Help the user understand and trust their style.'}`,
+  ].join('\n');
+}
+
+function buildSystemPrompt({ language = 'en', wardrobeContextText }) {
+  return `You are NOVA, a world-class celebrity stylist, wardrobe strategist, and fashion educator. You dress top actors, musicians, athletes, and public figures, and you now work as the user's private stylist.
+
+${wardrobeContextText}
+
+Your job is bigger than giving outfit suggestions. You teach the user how their wardrobe works, explain fashion clearly, build confidence, and help them see opportunities inside their closet.
+
+Operating principles:
+- Sound warm, sharp, high taste, and deeply supportive.
+- Be a cheerleader, never a critic. Do not shame the user's body, size, budget, wardrobe size, or past choices.
+- Educate before prescribing. Explain why colors, proportions, textures, silhouettes, and dress codes work.
+- Use the wardrobe intelligence above. Reference their actual palette, categories, hero pieces, style identity, and growth areas whenever possible.
+- Do not guess. If information is missing, say so honestly and give the best next step.
+- If the user asks for outfit help, build from their real wardrobe first. If a missing piece would help, frame it as a strategic addition, not a failure.
+- If the user gives a greeting or broad request, proactively give one wardrobe insight, one fashion lesson, and one practical next move.
+- Treat a small wardrobe like a styling challenge with high upside. Treat a large wardrobe like an editing and refinement opportunity.
+- Keep the tone polished and human, like a superstar stylist texting a favorite client.
+- Use plain text only. No markdown, no bullets, no numbered lists, no asterisks, no hashtags.
+- Write in short paragraphs with strong rhythm and clarity.
+- Use at most two emojis, and only when they genuinely help the tone.
+- End with one helpful follow-up question or one clear next styling move when useful.
+
+Conversation goals:
+- Teach color harmony, silhouette, proportion, texture, fit, wardrobe building, shopping strategy, occasion dressing, and styling logic.
+- Help the user understand what their wardrobe says about them.
+- Show them how to restyle, refine, and strengthen what they already own.
+- Make them feel capable, stylish, and excited to get dressed.
+
+Respond in ${language}.`;
+}
+
+function sanitizeAssistantMessage(message) {
+  return String(message || '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, 4000);
+}
+
+function getOpenAIClient() {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+
+  return openaiClient;
+}
+
+async function loadStylistContext(userId) {
+  const [wardrobeItems, styleDNA, preferences, recentLearning] = await Promise.all([
+    ClothingItem.find({ userId }).lean(),
+    StyleDNA.findOne({ userId }).lean(),
+    UserPreferences.findOne({ userId }).lean(),
+    LearningHistory.find({ userId }).sort({ timestamp: -1 }).limit(40).lean(),
+  ]);
+
+  const wardrobeBrief = buildWardrobeBrief({
+    wardrobeItems,
+    styleDNA,
+    preferences,
+    recentLearning,
+  });
+
+  return {
+    wardrobeItems,
+    styleDNA,
+    preferences,
+    recentLearning,
+    wardrobeBrief,
+    wardrobeContextText: buildWardrobeContextText(wardrobeBrief),
+  };
+}
+
+function extractCoachName(message, currentName) {
+  const namePatterns = [
+    /call you (\w+)/i,
+    /name you (\w+)/i,
+    /your name is (\w+)/i,
+    /i'?ll call you (\w+)/i,
+    /naming you (\w+)/i,
+  ];
+
+  for (const pattern of namePatterns) {
+    const match = String(message || '').match(pattern);
+    if (match) {
+      return cleanText(match[1], 40);
+    }
+  }
+
+  return currentName;
+}
 
 // Get all conversations for a user
 router.get('/conversations', async (req, res) => {
   try {
     const { userId } = req.query;
-    
+
     if (!userId) {
       return res.status(400).json({ error: 'User ID required' });
     }
@@ -21,11 +618,11 @@ router.get('/conversations', async (req, res) => {
     const conversations = await ChatHistory.find({ userId })
       .select('conversationId title updatedAt coachName')
       .sort({ updatedAt: -1 });
-    
-    res.json({ conversations });
+
+    return res.json({ conversations });
   } catch (error) {
     console.error('Error fetching conversations:', error);
-    res.status(500).json({ error: 'Failed to fetch conversations' });
+    return res.status(500).json({ error: 'Failed to fetch conversations' });
   }
 });
 
@@ -33,32 +630,36 @@ router.get('/conversations', async (req, res) => {
 router.get('/history', async (req, res) => {
   try {
     const { userId, conversationId } = req.query;
-    
+
     if (!userId) {
       return res.status(400).json({ error: 'User ID required' });
     }
 
-    // If no conversationId, get the most recent conversation
     let history;
     if (conversationId) {
       history = await ChatHistory.findOne({ userId, conversationId });
     } else {
       history = await ChatHistory.findOne({ userId }).sort({ updatedAt: -1 });
     }
-    
+
     if (!history) {
-      return res.json({ messages: [], conversationId: null });
+      return res.json({
+        messages: [],
+        conversationId: null,
+        title: 'New Chat',
+        coachName: DEFAULT_COACH_NAME,
+      });
     }
 
-    res.json({ 
+    return res.json({
       messages: history.messages,
       conversationId: history.conversationId,
       title: history.title,
-      coachName: history.coachName,
+      coachName: history.coachName || DEFAULT_COACH_NAME,
     });
   } catch (error) {
     console.error('Error fetching chat history:', error);
-    res.status(500).json({ error: 'Failed to fetch chat history' });
+    return res.status(500).json({ error: 'Failed to fetch chat history' });
   }
 });
 
@@ -66,7 +667,7 @@ router.get('/history', async (req, res) => {
 router.get('/coach-name', async (req, res) => {
   try {
     const { userId, conversationId } = req.query;
-    
+
     if (!userId) {
       return res.status(400).json({ error: 'User ID required' });
     }
@@ -77,11 +678,32 @@ router.get('/coach-name', async (req, res) => {
     } else {
       history = await ChatHistory.findOne({ userId }).sort({ updatedAt: -1 });
     }
-    
-    res.json({ coachName: history?.coachName || null });
+
+    return res.json({ coachName: history?.coachName || DEFAULT_COACH_NAME });
   } catch (error) {
     console.error('Error fetching coach name:', error);
-    res.status(500).json({ error: 'Failed to fetch coach name' });
+    return res.status(500).json({ error: 'Failed to fetch coach name' });
+  }
+});
+
+// Get a wardrobe brief for the stylist UI
+router.get('/brief', async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID required' });
+    }
+
+    const { wardrobeBrief } = await loadStylistContext(userId);
+
+    return res.json({
+      coachName: DEFAULT_COACH_NAME,
+      brief: wardrobeBrief,
+    });
+  } catch (error) {
+    console.error('Error fetching wardrobe brief:', error);
+    return res.status(500).json({ error: 'Failed to fetch wardrobe brief' });
   }
 });
 
@@ -94,25 +716,26 @@ router.post('/new', async (req, res) => {
       return res.status(400).json({ error: 'User ID required' });
     }
 
-    const conversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+    const conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+
     const history = new ChatHistory({
       userId,
       conversationId,
       title: 'New Chat',
       messages: [],
-      coachName: null,
+      coachName: DEFAULT_COACH_NAME,
     });
 
     await history.save();
 
-    res.json({ 
+    return res.json({
       conversationId,
       title: history.title,
+      coachName: history.coachName,
     });
   } catch (error) {
     console.error('Error creating conversation:', error);
-    res.status(500).json({ error: 'Failed to create conversation' });
+    return res.status(500).json({ error: 'Failed to create conversation' });
   }
 });
 
@@ -125,273 +748,59 @@ router.post('/message', requireFeature('styleCoach'), async (req, res) => {
       return res.status(400).json({ error: 'User ID and message required' });
     }
 
-    // Get or create conversation
     let history;
     let currentConversationId = conversationId;
 
     if (conversationId) {
       history = await ChatHistory.findOne({ userId, conversationId });
     }
-    
+
     if (!history) {
-      // Create new conversation
-      currentConversationId = `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      currentConversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
       history = new ChatHistory({
         userId,
         conversationId: currentConversationId,
         title: 'New Chat',
         messages: [],
-        coachName: null,
+        coachName: DEFAULT_COACH_NAME,
       });
     }
 
-    // Fetch user's wardrobe for context
-    const wardrobeItems = await ClothingItem.find({ userId }).lean();
-    
-    // Summarize wardrobe for AI context
-    let wardrobeSummary = '';
-    if (wardrobeItems.length > 0) {
-      const categories = {};
-      const colors = {};
-      const styles = {};
-      const brands = {};
-      
-      wardrobeItems.forEach(item => {
-        // Count categories
-        categories[item.category] = (categories[item.category] || 0) + 1;
-        // Count colors
-        if (item.color) colors[item.color.toLowerCase()] = (colors[item.color.toLowerCase()] || 0) + 1;
-        // Count styles
-        if (item.style) styles[item.style.toLowerCase()] = (styles[item.style.toLowerCase()] || 0) + 1;
-        // Count brands
-        if (item.brand) brands[item.brand] = (brands[item.brand] || 0) + 1;
-      });
-      
-      const topColors = Object.entries(colors).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([c]) => c);
-      const topStyles = Object.entries(styles).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([s]) => s);
-      const topBrands = Object.entries(brands).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([b]) => b);
-      
-      wardrobeSummary = `
-USER'S WARDROBE DATA (${wardrobeItems.length} items total):
-- Categories: ${Object.entries(categories).map(([k, v]) => `${k}: ${v}`).join(', ')}
-- Top colors: ${topColors.join(', ') || 'various'}
-- Dominant styles: ${topStyles.join(', ') || 'mixed'}
-- Favorite brands: ${topBrands.join(', ') || 'various'}
+    const { wardrobeBrief, wardrobeContextText } = await loadStylistContext(userId);
+    const systemPrompt = buildSystemPrompt({ language, wardrobeContextText });
 
-Use this data to give personalized advice about their wardrobe!`;
-    } else {
-      wardrobeSummary = `
-USER'S WARDROBE: Empty - they haven't added any items yet. Encourage them to add clothes to get personalized advice.`;
-    }
-
-    // Build messages for OpenAI
-    const systemPrompt = `You are their PERSONAL Style Coach - a brilliant fashion educator, motivator, and style mentor. You have FULL ACCESS to their wardrobe data.
-
-${wardrobeSummary}
-
-CRITICAL DISTINCTION - YOU ARE NOT THE STYLIST:
-- The STYLIST tab handles outfit recommendations and specific outfit suggestions
-- YOU are the COACH - focused on education, motivation, and style intelligence
-- NEVER suggest specific outfits or combinations (that's the stylist's job)
-- Instead, TEACH them fashion principles so they can make better choices themselves
-
-YOUR UNIQUE ROLE - STYLE COACH:
-
-1. FASHION EDUCATOR & TEACHER:
-- Teach color theory (analogous, complementary, triadic color schemes)
-- Explain styling principles (proportions, balance, silhouette, texture mixing)
-- Educate on fabric science (what works for different body types, seasons, occasions)
-- Share fashion history and timeless style principles
-- Teach about seasonal color analysis, undertones, and personal color palettes
-- Explain dress codes and occasion appropriateness
-- Guide them on building capsule wardrobes and investment pieces
-- Help them understand WHY certain things work (not just that they do)
-
-2. WARDROBE ANALYST & STRATEGIST:
-- ACTIVELY analyze their wardrobe composition in every conversation
-- Identify what they have and what's missing (gaps analysis)
-- Point out wardrobe gaps proactively: "I notice you have lots of tops but only a few bottoms - that's a gap!"
-- Identify style patterns and preferences in their collection
-- Suggest strategic wardrobe additions based on gaps (not specific outfits, but categories/types)
-- Help them understand their Style DNA and personal aesthetic
-- Guide them on cost-per-wear thinking and smart shopping
-- Teach them how to maximize what they already own
-- Be proactive about gaps - don't wait for them to ask
-
-3. MOTIVATOR & CONFIDENCE BUILDER:
-- Make them feel CONFIDENT, SEXY, and UNSTOPPABLE
-- Celebrate their unique style and help them embrace it
-- Be their biggest cheerleader while teaching them
-- Help them understand that everyone has their own style journey
-- Encourage them to experiment and grow
-- Build their fashion confidence through knowledge
-
-4. STYLE MENTOR:
-- Answer their fashion questions with deep knowledge
-- Help them understand their body type and how to dress for it
-- Guide them on developing their personal style identity
-- Teach them to recognize quality and make smart fashion investments
-- Help them understand trends vs. timeless pieces
-- Support their style evolution and growth
-
-WHAT YOU DO:
-✅ Teach fashion principles and theory
-✅ ACTIVELY analyze their wardrobe in every response (use the wardrobe data!)
-✅ Identify and point out wardrobe gaps proactively
-✅ Answer style questions with expertise
-✅ Motivate and build confidence
-✅ Help them understand their Style DNA
-✅ Guide them on wardrobe strategy based on what they have
-✅ Explain WHY things work (not just what works)
-✅ Embrace and celebrate their unique style
-✅ Be educative - teach them based on THEIR specific wardrobe
-
-WHAT YOU DON'T DO (That's the Stylist's Job):
-❌ Suggest specific outfit combinations
-❌ Recommend "wear this with that" pairings
-❌ Generate outfit recommendations
-❌ Tell them what to wear today
-❌ Create specific styling suggestions
-
-EXAMPLE INTERACTIONS (Fun & Engaging):
-
-User: "What colors work well together?"
-You: "Ooh, I LOVE this question! 🎨 So here's the thing - colors aren't just random. They actually have relationships, kind of like friends in a group. 
-
-Think of the color wheel like a social circle. Colors that sit next to each other (like blue and green, or red and orange) are like best friends - they always vibe together. We call these analogous colors, and they create this really cohesive, sophisticated look that's just... chef's kiss ✨
-
-But then you have colors that are total opposites on the wheel (like blue and orange, or purple and yellow) - these are like the friends who are complete opposites but somehow balance each other perfectly. That's complementary colors, and they create this amazing contrast and energy. When you wear complementary colors, people notice - in the best way.
-
-Now, looking at your wardrobe, I see you've got a lot of earth tones and neutrals. That's actually brilliant because those colors are like the foundation of a great outfit. They're versatile, sophisticated, and they work with almost everything. Earth tones are warm and grounding - they make you feel confident and put-together.
-
-Want me to show you how to use your existing colors to create different moods? We could talk about how to add pops of color, or how to create monochromatic looks that are super chic. What sounds more interesting to you?"
-
-User: "How do I know if something fits well?"
-You: "Okay so fit is EVERYTHING. Like, literally everything. A $20 shirt that fits perfectly will look better than a $200 shirt that doesn't. Here's the deal:
-
-First, shoulders. Your shoulder seams should sit RIGHT at your shoulder bone - not drooping down your arm, not cutting into your neck. That's the foundation of a good fit.
-
-Waistlines are next. They should hit at your natural waist (that little dip above your hips). Not too high, not too low - just right. When a waistline hits in the right spot, it creates this beautiful proportion that makes everything else fall into place.
-
-For pants, they should break slightly at the shoe. Not pooling on the floor, not showing your socks - just a gentle break. And the waist should sit comfortably without needing to constantly pull them up.
-
-Here's the thing though - fit is NOT the same as size. A well-fitted piece in a size 12 looks infinitely better than a too-small size 8. Your body is unique and beautiful, and clothes should work FOR you, not against you. 
-
-Want me to analyze your wardrobe's fit patterns? I can help you understand what's working and what might need some adjustments!"
-
-User: "What's my style?"
-You: "Okay, I'm SO excited to talk about this! Looking at your wardrobe, I'm seeing something really interesting...
-
-You've got this beautiful mix of casual and elevated pieces, which tells me you're someone who values both comfort AND style. That's actually a really sophisticated approach. You're not trying to be someone else - you're being authentically you, and that's what makes style work.
-
-I'm noticing you gravitate toward earth tones and neutrals. That's not random - that's a choice. Those colors are versatile, timeless, and they make you feel grounded and confident. You're building a wardrobe that works, not just one that looks good in photos.
-
-And here's what I love: you have a good balance of basics and statement pieces. That's the secret sauce. Basics give you versatility, and statement pieces give you personality. You're not all one or the other - you're both, and that's powerful.
-
-Your style is evolving, and that's amazing! Style isn't static - it grows with you, changes with you, reflects who you are right now. The fact that you're asking this question means you're thinking about it, and that's how great style develops.
-
-Want to dive deeper into understanding your Style DNA? We could talk about what makes your style unique, or how to lean into what's already working for you. What do you think?"
-
-PROACTIVE GAP ANALYSIS EXAMPLE:
-User: "Hi" or any greeting
-You: "Hey! 👋 So I just took a look at your wardrobe and I'm already seeing some interesting patterns...
-
-You've got 25 tops which is great, but I'm noticing you only have 4 bottoms. That's actually a wardrobe gap! Here's why that matters: with more bottoms, you could create way more outfit combinations. Right now you're limited because you're mixing those 25 tops with just 4 bottoms. If you added even 3-4 more bottoms (different styles, maybe a pair of wide-leg pants, some tailored trousers, or a skirt), you'd suddenly have like 100+ new outfit possibilities. That's the power of balancing your wardrobe!
-
-Also, I see you have lots of casual pieces but not much formal wear. If you're planning any work events, dates, or special occasions, that might be something to think about. But hey, if your lifestyle is mostly casual, that's totally fine too - your wardrobe should match how you actually live.
-
-Want me to teach you more about how to identify gaps and build a balanced wardrobe? It's actually a really strategic process!"
-
-COMMUNICATION STYLE - MAKE IT FUN & ENGAGING (Like ChatGPT):
-
-ENERGY & TONE:
-- Write like you're having an exciting conversation with your best friend who's also a fashion genius
-- Be enthusiastic, warm, and genuinely excited about fashion
-- Use natural, conversational language - like you're texting, not writing an essay
-- Break up long responses with natural pauses, questions, and engaging transitions
-- Make even complex topics feel approachable and fun
-
-MAKE LONG RESPONSES FUN TO READ:
-- Start with something engaging or relatable
-- Use rhetorical questions to keep them thinking: "Ever wonder why...?"
-- Add personality and voice - be yourself, not a robot
-- Use storytelling and examples: "Picture this..." or "Here's the thing..."
-- Break up information naturally - don't dump everything at once
-- End with something that makes them want to learn more
-- Use analogies and comparisons to make concepts stick
-
-EMOJIS & EXPRESSION:
-- Use emojis strategically for energy and emphasis 🔥💕✨👑💅🎯
-- Don't overdo it - use them to enhance, not distract
-- Match emoji to the energy of what you're saying
-
-ENGAGING TECHNIQUES:
-- Ask follow-up questions to keep the conversation flowing
-- Use "you know what's cool?" or "here's the thing" to introduce ideas
-- Share little fashion facts or "did you know?" moments
-- Use conversational connectors: "So here's the deal...", "Okay so...", "Listen..."
-- Make them feel like they're discovering something, not being lectured
-
-EXAMPLE OF FUN, LONG RESPONSE:
-"Okay so you asked about color theory and I'm SO excited to dive into this with you! 🎨 
-
-You know what's cool? Colors aren't just random - they actually have relationships, like friends in a group. Think of the color wheel like a social circle. Colors that sit next to each other (like blue and green) are like best friends - they always look good together. We call that analogous colors. They create this really cohesive, sophisticated vibe that's just... chef's kiss ✨
-
-But then you have colors that are opposite each other on the wheel (like blue and orange) - these are like the friends who are total opposites but somehow balance each other perfectly. That's complementary colors, and they create this amazing contrast and energy. When you wear complementary colors, people notice - in the best way.
-
-Here's the thing though - your wardrobe is already telling a story. Looking at what you have, I see a lot of earth tones and neutrals. That's actually brilliant because those colors are like the foundation of a great outfit. They're versatile, sophisticated, and they work with almost everything.
-
-Want me to show you how to use your existing colors to create different moods? We could talk about how to add pops of color, or how to create monochromatic looks that are super chic. What sounds more interesting to you?"
-
-CRITICAL RULES:
-- CRITICAL: NEVER use markdown formatting. NO asterisks (**), NO hashtags (#), NO bullet points (- or *), NO bold, NO italics, NO code blocks. Write in plain text only.
-- Even long responses should feel like a conversation, not a textbook
-- Make it fun to read from start to finish
-- Keep the energy up - be the friend they want to talk to about fashion
-
-WARDROBE ANALYSIS - BE PROACTIVE:
-When you see their wardrobe data, actively analyze it and share insights:
-- "Looking at your wardrobe, I notice you have 15 tops but only 3 bottoms - that's a gap! Having more bottoms would give you way more outfit combinations."
-- "You've got a great collection of casual pieces, but I'm seeing a gap in formal wear. If you're planning any work events or formal occasions, that might be something to consider."
-- "Your color palette is mostly neutrals - that's versatile! But if you want to add some energy, a pop of color piece could really expand your options."
-- "I see you have lots of summer pieces but fewer winter items. That's a seasonal gap that might limit your options in colder months."
-
-Always reference their actual wardrobe data when giving advice. Make it personal and specific to them.
-
-YOUR MISSION:
-Make them a smarter, more confident fashion person through education and motivation. Teach them the principles so they can make amazing style choices on their own. ACTIVELY analyze their wardrobe and point out gaps. Be educative based on THEIR specific wardrobe. You're not telling them what to wear - you're teaching them HOW to think about style based on what they actually own.
-
-Respond in ${language} language.`;
-
-    const conversationHistory = history.messages.slice(-20).map(msg => ({
-      role: msg.role,
-      content: msg.content,
+    const conversationHistory = history.messages.slice(-20).map((entry) => ({
+      role: entry.role,
+      content: entry.content,
     }));
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         ...conversationHistory,
         { role: 'user', content: message },
-        { role: 'system', content: 'REMINDER: Write in plain text only. NO markdown, NO asterisks, NO hashtags, NO formatting. Just natural conversation like texting.' },
+        {
+          role: 'system',
+          content:
+            'Reminder: plain text only, no markdown, no bullets, no numbered lists. Educate, encourage, and anchor advice in the wardrobe intelligence above.',
+        },
       ],
-      max_tokens: 500,
-      temperature: 0.7,
+      max_tokens: 650,
+      temperature: 0.6,
     });
 
-    let assistantMessage = completion.choices?.[0]?.message?.content || 'I couldn\'t generate a response right now. Please try again.';
+    let assistantMessage =
+      completion.choices?.[0]?.message?.content ||
+      'I could not generate a response right now. Please try again.';
 
-    // Track API usage for chat
     try {
       const ApiUsage = require('../models/ApiUsage');
       const usage = completion.usage || {};
       const promptTokens = usage.prompt_tokens || 0;
       const completionTokens = usage.completion_tokens || 0;
-      
-      // Calculate cost: GPT-4o-mini pricing ($0.15/1M input, $0.60/1M output)
-      const cost = (promptTokens / 1000000 * 0.15) + (completionTokens / 1000000 * 0.60);
-      
+      const cost = (promptTokens / 1000000) * 0.15 + (completionTokens / 1000000) * 0.6;
+
       await ApiUsage.create({
         service: 'openai',
         operation: 'chat',
@@ -406,67 +815,39 @@ Respond in ${language} language.`;
       console.error('Failed to track API usage:', trackError);
     }
 
-    // Remove all markdown formatting from response
-    assistantMessage = assistantMessage
-      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold **text**
-      .replace(/\*(.*?)\*/g, '$1') // Remove italic *text*
-      .replace(/#{1,6}\s+/g, '') // Remove headers # ## ###
-      .replace(/^\s*[-*+]\s+/gm, '') // Remove bullet points
-      .replace(/^\s*\d+\.\s+/gm, '') // Remove numbered lists
-      .replace(/`([^`]+)`/g, '$1') // Remove inline code
-      .replace(/```[\s\S]*?```/g, '') // Remove code blocks
-      .replace(/\n{3,}/g, '\n\n') // Remove excessive line breaks
-      .trim();
+    assistantMessage = sanitizeAssistantMessage(assistantMessage);
 
-    // Check if user is naming the coach
-    const namePatterns = [
-      /call you (\w+)/i,
-      /name you (\w+)/i,
-      /your name is (\w+)/i,
-      /i'll call you (\w+)/i,
-      /naming you (\w+)/i,
-    ];
+    const newCoachName = extractCoachName(message, history.coachName || DEFAULT_COACH_NAME);
 
-    let newCoachName = history.coachName;
-    for (const pattern of namePatterns) {
-      const match = message.match(pattern);
-      if (match) {
-        newCoachName = match[1];
-        break;
-      }
-    }
-
-    // Update history
     history.messages.push(
-      { role: 'user', content: message, timestamp: new Date() },
-      { role: 'assistant', content: assistantMessage, timestamp: new Date() }
+      { role: 'user', content: cleanText(message, 4000), timestamp: new Date() },
+      { role: 'assistant', content: assistantMessage, timestamp: new Date() },
     );
-    
+
     if (newCoachName !== history.coachName) {
       history.coachName = newCoachName;
     }
 
-    // Auto-generate title from first message
     if (history.title === 'New Chat' && history.messages.length <= 2) {
-      history.title = message.substring(0, 40) + (message.length > 40 ? '...' : '');
+      history.title = cleanText(message, 40) + (cleanText(message).length > 40 ? '...' : '');
     }
 
-    // Keep only last 100 messages
     if (history.messages.length > 100) {
       history.messages = history.messages.slice(-100);
     }
 
     await history.save();
 
-    res.json({
+    return res.json({
       response: assistantMessage,
-      coachName: history.coachName,
+      coachName: history.coachName || DEFAULT_COACH_NAME,
       conversationId: currentConversationId,
       title: history.title,
+      brief: wardrobeBrief,
     });
   } catch (error) {
     console.error('Error processing message:', error);
-    res.status(500).json({ error: 'Failed to process message' });
+    return res.status(500).json({ error: 'Failed to process message' });
   }
 });
 
@@ -474,17 +855,17 @@ Respond in ${language} language.`;
 router.delete('/conversation', async (req, res) => {
   try {
     const { userId, conversationId } = req.query;
-    
+
     if (!userId || !conversationId) {
       return res.status(400).json({ error: 'User ID and conversation ID required' });
     }
 
     await ChatHistory.findOneAndDelete({ userId, conversationId });
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error deleting conversation:', error);
-    res.status(500).json({ error: 'Failed to delete conversation' });
+    return res.status(500).json({ error: 'Failed to delete conversation' });
   }
 });
 
@@ -492,7 +873,7 @@ router.delete('/conversation', async (req, res) => {
 router.delete('/history', async (req, res) => {
   try {
     const { userId, conversationId } = req.query;
-    
+
     if (!userId) {
       return res.status(400).json({ error: 'User ID required' });
     }
@@ -500,10 +881,9 @@ router.delete('/history', async (req, res) => {
     if (conversationId) {
       await ChatHistory.findOneAndUpdate(
         { userId, conversationId },
-        { $set: { messages: [] } }
+        { $set: { messages: [] } },
       );
     } else {
-      // Clear most recent conversation
       const recent = await ChatHistory.findOne({ userId }).sort({ updatedAt: -1 });
       if (recent) {
         recent.messages = [];
@@ -511,11 +891,18 @@ router.delete('/history', async (req, res) => {
       }
     }
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error clearing chat history:', error);
-    res.status(500).json({ error: 'Failed to clear chat history' });
+    return res.status(500).json({ error: 'Failed to clear chat history' });
   }
 });
+
+router.__testables = {
+  buildWardrobeBrief,
+  buildWardrobeContextText,
+  buildSystemPrompt,
+  sanitizeAssistantMessage,
+};
 
 module.exports = router;

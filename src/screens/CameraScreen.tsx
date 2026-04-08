@@ -118,10 +118,22 @@ export default function CameraScreen({ onClose, onSave }: CameraScreenProps) {
         userId,
         name: analysis.subcategory || analysis.category,
         category: analysis.category,
+        subcategory: analysis.subcategory,
         color: analysis.color,
+        colorPalette: analysis.colorPalette || [],
         brand: analysis.brand,
         imageUrl: imageData.url,
+        thumbnailUrl: imageData.thumbnailUrl,
+        mediumUrl: imageData.mediumUrl,
+        cloudinaryPublicId: imageData.publicId,
         tags: analysis.tags || [],
+        style: analysis.style,
+        pattern: analysis.pattern,
+        fit: analysis.fit,
+        occasion: analysis.occasion || [],
+        aiConfidence: analysis.confidence,
+        aiProcessed: true,
+        semanticProfile: analysis.semanticProfile,
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

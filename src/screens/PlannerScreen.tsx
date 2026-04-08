@@ -21,7 +21,7 @@ import {
   PlannedOutfit,
 } from '../services/plannerApi';
 import { fetchWardrobeItems, ClothingItem } from '../services/wardrobeApi';
-import { getRecommendations } from '../services/recommendationsService';
+import { getRecommendations, type OutfitRecommendation } from '../services/recommendationsService';
 import { submitOutfitFeedback } from '../services/stylistFeedback';
 import { useUserId } from '../hooks/useUserId';
 import { getCurrentWeather, WeatherData } from '../services/weatherService';
@@ -45,6 +45,67 @@ const getWeekDates = () => {
 const formatDate = (d: Date) => d.toISOString().split('T')[0];
 const dayName = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short' });
 const dayNum = (d: Date) => d.getDate();
+
+type PlannedRecommendationCandidate = {
+  rec: OutfitRecommendation;
+  itemIds: string[];
+};
+
+const getDateDistanceInDays = (left: string, right: string) => {
+  const leftDate = new Date(left);
+  const rightDate = new Date(right);
+  if (Number.isNaN(leftDate.getTime()) || Number.isNaN(rightDate.getTime())) return 7;
+  return Math.abs(leftDate.getTime() - rightDate.getTime()) / 86400000;
+};
+
+const getItemOverlapRatio = (left: string[], right: string[]) => {
+  if (!left.length || !right.length) return 0;
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  let shared = 0;
+  leftSet.forEach(itemId => {
+    if (rightSet.has(itemId)) shared += 1;
+  });
+  return shared / Math.max(1, Math.min(leftSet.size, rightSet.size));
+};
+
+const scorePlannedRecommendation = (
+  candidate: PlannedRecommendationCandidate,
+  existingPlans: PlannedOutfit[],
+  targetDate: string,
+) => {
+  let overlapPenalty = 0;
+
+  existingPlans.forEach(plan => {
+    const overlap = getItemOverlapRatio(candidate.itemIds, plan.itemIds || []);
+    if (overlap === 0) return;
+
+    const distance = getDateDistanceInDays(plan.date, targetDate);
+    const weight = distance === 0 ? 36 : distance <= 1 ? 28 : distance <= 3 ? 16 : 8;
+    overlapPenalty += overlap * weight;
+
+    if (overlap >= 0.75 && distance <= 1) {
+      overlapPenalty += 10;
+    }
+  });
+
+  const baseScore = candidate.rec.confidence || candidate.rec.score || 70;
+  const completenessBonus = candidate.itemIds.length >= 3 ? 4 : 0;
+  return baseScore + completenessBonus - overlapPenalty;
+};
+
+const choosePlannedRecommendation = (
+  candidates: PlannedRecommendationCandidate[],
+  existingPlans: PlannedOutfit[],
+  targetDate: string,
+) => {
+  if (!candidates.length) return null;
+
+  return [...candidates].sort((left, right) =>
+    scorePlannedRecommendation(right, existingPlans, targetDate) -
+    scorePlannedRecommendation(left, existingPlans, targetDate)
+  )[0];
+};
 
 export const PlannerScreen: React.FC = () => {
   const colors = useThemeColors();
@@ -109,7 +170,8 @@ export const PlannerScreen: React.FC = () => {
         occasion: occasion.toLowerCase(),
         timeOfDay: timeOfDay.toLowerCase(),
         weather: weather ? (weather.temperature > 25 ? 'hot' : weather.temperature > 20 ? 'warm' : weather.temperature > 10 ? 'cool' : 'cold') : undefined,
-        limit: 1,
+        limit: 3,
+        variant: selectedDate,
         forecast: weather ? {
           needsLayers: weather.temperature < 15,
           hasRainRisk: rainConditions.some(r => weather.condition?.toLowerCase().includes(r)),
@@ -128,25 +190,37 @@ export const PlannerScreen: React.FC = () => {
         return;
       }
 
-      const rec = recommendations[0];
-      const itemIds = rec.items
-        .map(item => {
-          const match = wardrobe.find(
-            w => w._id?.toString() === item.id || w._id === item.id
-          );
-          return match?._id;
-        })
-        .filter(Boolean) as string[];
+      const candidatePlans: PlannedRecommendationCandidate[] = recommendations
+        .map(rec => ({
+          rec,
+          itemIds: rec.items
+            .map(item => {
+              const match = wardrobe.find(
+                w => w._id?.toString() === item.id || w._id === item.id
+              );
+              return match?._id;
+            })
+            .filter(Boolean) as string[],
+        }))
+        .filter(candidate => candidate.itemIds.length > 0);
 
-      if (itemIds.length === 0) {
+      if (candidatePlans.length === 0) {
         Alert.alert(t('planner.matchingFailed'), t('planner.matchingFailedMessage'));
         return;
       }
 
+      const pickedPlan = choosePlannedRecommendation(candidatePlans, planned, selectedDate);
+      if (!pickedPlan) {
+        Alert.alert(t('planner.noOutfitsFound'), t('planner.noOutfitsFoundMsg'));
+        return;
+      }
+
+      const { rec, itemIds } = pickedPlan;
+
       await createPlannedOutfit({
         userId,
         date: selectedDate,
-        title: (rec as any).title || `${occasion} outfit`,
+        title: rec.title || `${occasion} outfit`,
         occasion,
         timeOfDay,
         itemIds,

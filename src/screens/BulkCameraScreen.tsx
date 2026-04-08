@@ -392,10 +392,22 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
           userId,
           name: item.analysis.subcategory || item.analysis.category,
           category: item.analysis.category,
+          subcategory: item.analysis.subcategory,
           color: item.analysis.color,
+          colorPalette: item.analysis.colorPalette || [],
           brand: item.analysis.brand,
           imageUrl: imageData.url,
+          thumbnailUrl: imageData.thumbnailUrl,
+          mediumUrl: imageData.mediumUrl,
+          cloudinaryPublicId: imageData.publicId,
           tags: item.analysis.tags || [],
+          style: item.analysis.style,
+          pattern: item.analysis.pattern,
+          fit: item.analysis.fit,
+          occasion: item.analysis.occasion || [],
+          aiConfidence: item.analysis.confidence,
+          aiProcessed: true,
+          semanticProfile: item.analysis.semanticProfile,
         });
 
         setCapturedItems(prev =>
