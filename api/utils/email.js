@@ -1,6 +1,10 @@
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResendClient() {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  return new Resend(key);
+}
 
 const FROM_EMAIL = 'Fashion Fit <noreply@oldhousenanyuki.co.ke>';
 
@@ -9,6 +13,12 @@ const FROM_EMAIL = 'Fashion Fit <noreply@oldhousenanyuki.co.ke>';
  */
 async function sendVerificationEmail(to, code, name) {
   try {
+    const resend = getResendClient();
+    if (!resend) {
+      console.warn('RESEND_API_KEY is missing; skipping verification email send');
+      return { success: false, error: 'missing_resend_api_key' };
+    }
+
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: [to],
