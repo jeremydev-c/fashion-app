@@ -164,9 +164,11 @@ export async function scheduleRetentionReminders(): Promise<void> {
         data: { screen: 'recommendations' },
       },
       trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+        repeats: true,
         hour,
         minute,
+        second: 0,
       },
     });
   }

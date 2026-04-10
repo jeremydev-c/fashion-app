@@ -97,3 +97,13 @@ export async function deleteOutfit(outfitId: string): Promise<void> {
   });
 }
 
+/**
+ * Mark an outfit as worn today.
+ * Increments wearCount on the outfit and all its clothing items.
+ */
+export async function markOutfitWorn(outfitId: string): Promise<void> {
+  await apiRequest<void>(`/outfits/${encodeURIComponent(outfitId)}/wear`, {
+    method: 'POST',
+  });
+}
+

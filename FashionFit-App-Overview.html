@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fashion Fit — Complete App Overview</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --red: #FF6B6B;
+      --purple: #c94bd8;
+      --blue: #6B6BFF;
+      --bg: #0a0a0a;
+      --card: #141414;
+      --border: #222;
+      --text: #d0d0d0;
+      --muted: #888;
+      --white: #f5f5f5;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.75;
+      font-size: 15px;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: linear-gradient(135deg, #1a0a0a 0%, #160a20 50%, #0a0a1a 100%);
+      border-bottom: 1px solid #2a1a2a;
+      padding: 80px 40px 60px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(201,75,216,0.15), transparent);
+      pointer-events: none;
+    }
+    .logo-mark {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--red), var(--purple));
+      color: #fff;
+      width: 60px; height: 60px;
+      border-radius: 18px;
+      font-size: 1.8rem;
+      line-height: 60px;
+      margin-bottom: 20px;
+    }
+    header h1 {
+      font-size: 3.2rem;
+      font-weight: 900;
+      letter-spacing: -2px;
+      background: linear-gradient(90deg, #fff 30%, var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    header .tagline {
+      font-size: 1.15rem;
+      color: var(--muted);
+      margin-top: 10px;
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .badges { margin-top: 28px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+    .badge {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #ccc;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,10,10,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 40px;
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+    }
+    nav a {
+      display: block;
+      padding: 14px 18px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    nav a:hover { color: var(--white); border-bottom-color: var(--red); }
+
+    /* ── LAYOUT ── */
+    main { max-width: 1100px; margin: 0 auto; padding: 70px 30px 100px; }
+    section { margin-bottom: 80px; scroll-margin-top: 60px; }
+
+    /* ── HEADINGS ── */
+    h2 {
+      font-size: 1.65rem;
+      font-weight: 800;
+      color: var(--white);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    h2 .section-num {
+      background: linear-gradient(135deg, var(--red), var(--purple));
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+    }
+    .section-intro {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 30px;
+      max-width: 680px;
+    }
+    h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--white);
+      margin: 28px 0 8px;
+    }
+    p { color: var(--text); margin-bottom: 12px; }
+
+    /* ── DIVIDER ── */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      margin-bottom: 80px;
+    }
+
+    /* ── CARDS ── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 16px;
+    }
+    .card-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: #444; }
+    .card .icon { font-size: 1.8rem; margin-bottom: 12px; }
+    .card h3 { margin: 0 0 6px; font-size: 0.95rem; }
+    .card p { font-size: 0.88rem; color: var(--muted); margin: 0; }
+    .card.accent { border-color: rgba(201,75,216,0.3); background: rgba(201,75,216,0.05); }
+
+    /* ── FEATURE ROW ── */
+    .feature-row {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 16px;
+      align-items: start;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .feature-row:last-child { border-bottom: none; }
+    .feature-row .label { font-weight: 700; color: var(--white); font-size: 0.9rem; }
+    .feature-row .desc { color: var(--muted); font-size: 0.88rem; }
+
+    /* ── FLOW STEPS ── */
+    .flow { display: flex; flex-direction: column; }
+    .flow-step {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 20px;
+      padding: 0 0 36px 0;
+      position: relative;
+    }
+    .flow-step::after {
+      content: '';
+      position: absolute;
+      left: 23px;
+      top: 48px;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--border), transparent);
+    }
+    .flow-step:last-child::after { display: none; }
+    .step-num {
+      width: 48px; height: 48px;
+      background: linear-gradient(135deg, var(--red), var(--purple));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1rem;
+      color: #fff;
+      flex-shrink: 0;
+      z-index: 1;
+    }
+    .step-body h3 { margin: 10px 0 4px; color: var(--white); }
+    .step-body p { color: var(--muted); font-size: 0.9rem; margin: 0; }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    thead th {
+      background: #181818;
+      color: var(--white);
+      font-weight: 700;
+      padding: 14px 18px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 13px 18px;
+      color: var(--muted);
+      border-bottom: 1px solid #181818;
+      vertical-align: top;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #111; }
+    td strong { color: var(--text); }
+
+    /* ── PILLS ── */
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .pill.green  { background: #0e2a1c; color: #4cde8a; border: 1px solid #1a4a30; }
+    .pill.purple { background: #200a30; color: #c07aff; border: 1px solid #3a1a50; }
+    .pill.orange { background: #2a1800; color: #ff9b50; border: 1px solid #4a2a00; }
+    .pill.blue   { background: #0a1830; color: #60b0ff; border: 1px solid #1a3050; }
+    .pill.red    { background: #2a0a0a; color: #ff7070; border: 1px solid #4a1a1a; }
+    .pill.grey   { background: #1a1a1a; color: #888; border: 1px solid #2a2a2a; }
+
+    /* ── PLAN TABLE ── */
+    .plan-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .plan-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 26px;
+    }
+    .plan-card.featured { border-color: rgba(201,75,216,0.5); background: rgba(201,75,216,0.06); }
+    .plan-card .plan-name { font-size: 1.1rem; font-weight: 800; color: var(--white); margin-bottom: 6px; }
+    .plan-card .plan-price { font-size: 0.85rem; color: var(--muted); margin-bottom: 16px; }
+    .plan-card ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .plan-card ul li { font-size: 0.85rem; color: var(--muted); display: flex; gap: 8px; align-items: flex-start; }
+    .plan-card ul li::before { content: '✓'; color: #4cde8a; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .plan-card ul li.no::before { content: '✗'; color: #ff7070; }
+
+    /* ── ROUTE BLOCK ── */
+    .route-group { margin-bottom: 32px; }
+    .route-group h3 { color: var(--red); font-size: 0.85rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+    .route {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #181818;
+      font-size: 0.86rem;
+    }
+    .route:last-child { border-bottom: none; }
+    .method {
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 5px;
+      min-width: 48px;
+      text-align: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .method.get    { background: #0a2a0a; color: #4cde8a; }
+    .method.post   { background: #0a1a2a; color: #60b0ff; }
+    .method.put,
+    .method.patch  { background: #2a1a00; color: #ffb060; }
+    .method.delete { background: #2a0a0a; color: #ff7070; }
+    .route-path { color: var(--white); font-family: 'Courier New', monospace; flex-shrink: 0; }
+    .route-desc { color: var(--muted); }
+
+    /* ── SCREEN GRID ── */
+    .screen-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .screen-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .screen-card .screen-name { font-weight: 700; color: var(--white); font-size: 0.88rem; margin-bottom: 4px; }
+    .screen-card .screen-desc { color: var(--muted); font-size: 0.8rem; }
+
+    /* ── HIGHLIGHT BOX ── */
+    .highlight {
+      background: rgba(255,107,107,0.06);
+      border: 1px solid rgba(255,107,107,0.2);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+    .highlight p { color: var(--text); margin: 0; font-size: 0.9rem; }
+
+    /* ── TWO COL ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      padding: 50px 30px;
+      color: #333;
+      font-size: 0.82rem;
+      border-top: 1px solid var(--border);
+    }
+    footer span { color: var(--red); }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo-mark">👗</div>
+  <h1>Fashion Fit</h1>
+  <p class="tagline">A full-stack AI-powered personal styling, wardrobe management, and fashion community platform</p>
+  <div class="badges">
+    <span class="badge">React Native</span>
+    <span class="badge">Expo 51</span>
+    <span class="badge">TypeScript</span>
+    <span class="badge">Node.js + Express</span>
+    <span class="badge">MongoDB</span>
+    <span class="badge">OpenAI GPT-4o</span>
+    <span class="badge">Cloudinary</span>
+    <span class="badge">Paystack</span>
+    <span class="badge">Expo Push Notifications</span>
+    <span class="badge">JWT Auth</span>
+    <span class="badge">Railway (Backend)</span>
+    <span class="badge">EAS Build</span>
+  </div>
+</header>
+
+<!-- NAV -->
+<nav>
+  <a href="#overview">Overview</a>
+  <a href="#features">Features</a>
+  <a href="#journey">User Journey</a>
+  <a href="#screens">Screens</a>
+  <a href="#ai">AI System</a>
+  <a href="#wardrobe">Wardrobe</a>
+  <a href="#stylist">Stylist</a>
+  <a href="#nova">NOVA Chat</a>
+  <a href="#social">Social</a>
+  <a href="#notifications">Notifications</a>
+  <a href="#analytics">Analytics</a>
+  <a href="#planner">Planner</a>
+  <a href="#plans">Subscription Plans</a>
+  <a href="#api">API Reference</a>
+  <a href="#stack">Tech Stack</a>
+  <a href="#deploy">Deployment</a>
+</nav>
+
+<main>
+
+  <!-- 1. OVERVIEW -->
+  <section id="overview">
+    <h2><span class="section-num">01</span> App Overview</h2>
+    <p class="section-intro">What Fashion Fit is, who it's for, and what problem it solves.</p>
+
+    <div class="highlight">
+      <p><strong>Fashion Fit</strong> is a mobile application that turns a user's physical wardrobe into a smart, AI-powered styling system. Users photograph their clothing, the AI analyses and categorises each item, and the app uses that data to generate personalised outfit recommendations based on occasion, weather, and the user's unique style identity (Style DNA). A fashion education coach (NOVA), a social feed, an outfit planner, wardrobe analytics, and a subscription system complete the platform.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="icon">🎯</div>
+        <h3>Problem Solved</h3>
+        <p>Most people own more clothes than they wear. Fashion Fit unlocks the full value of what someone already owns before suggesting anything new.</p>
+      </div>
+      <div class="card">
+        <div class="icon">👤</div>
+        <h3>Target User</h3>
+        <p>Fashion-conscious individuals who want smarter, personalised outfit guidance without hiring a personal stylist.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🌍</div>
+        <h3>Markets</h3>
+        <p>Multilingual — English and Swahili supported natively. Designed for African and global markets.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📱</div>
+        <h3>Platform</h3>
+        <p>Android and iOS. Built with React Native + Expo for a single shared codebase across both platforms.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 2. FEATURES -->
+  <section id="features">
+    <h2><span class="section-num">02</span> Feature Set</h2>
+    <p class="section-intro">Every feature in the app and what it does.</p>
+
+    <div class="card-grid">
+      <div class="card accent">
+        <div class="icon">👗</div>
+        <h3>Digital Wardrobe</h3>
+        <p>Upload clothing photos one at a time or in bulk. AI auto-categorises every item — type, colour, occasion, season, pattern, and style tags.</p>
+      </div>
+      <div class="card accent">
+        <div class="icon">✨</div>
+        <h3>AI Outfit Recommendations</h3>
+        <p>Generates complete outfit combinations from the user's actual wardrobe, shaped by occasion, live weather, and Style DNA.</p>
+      </div>
+      <div class="card accent">
+        <div class="icon">🧬</div>
+        <h3>Style DNA</h3>
+        <p>A personal style identity profile built from an onboarding quiz and wardrobe composition analysis. Personalises every AI interaction.</p>
+      </div>
+      <div class="card accent">
+        <div class="icon">💬</div>
+        <h3>NOVA — AI Style Coach</h3>
+        <p>A conversational AI that educates users on fashion principles — colour, fit, proportion, occasion dressing — in short, punchy, emoji-forward replies.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📅</div>
+        <h3>Outfit Planner</h3>
+        <p>Plan and save outfits to specific dates. Helps users prepare for events, trips, or weekly wardrobe rotation. Premium feature.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📊</div>
+        <h3>Wardrobe Analytics</h3>
+        <p>Tracks wardrobe composition, most-worn items, category breakdown, and outfit history. Gives data-driven styling insights. Premium feature.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🌐</div>
+        <h3>Social Feed</h3>
+        <p>Users share outfit posts, follow other members, like and explore content, and build a style community.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🔔</div>
+        <h3>Retention Notifications</h3>
+        <p>Daily local outfit reminders on-device plus server-side re-engagement push notifications for inactive users at 2, 5, and 10 days.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🌦️</div>
+        <h3>Weather-Aware Styling</h3>
+        <p>Outfit recommendations factor in current local weather. Destination weather (for travel) is available on premium plans.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📷</div>
+        <h3>Bulk Upload</h3>
+        <p>Photograph and upload multiple wardrobe items in a single session. Available on Pro and Elite plans.</p>
+      </div>
+      <div class="card">
+        <div class="icon">💳</div>
+        <h3>Subscriptions</h3>
+        <p>Free, Pro (monthly), Pro Yearly, and Elite tiers enforced server-side via Paystack. Limits on items, AI calls, and premium features.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🛡️</div>
+        <h3>Admin Dashboard</h3>
+        <p>Internal dashboard for viewing platform analytics, user management, and key growth metrics.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 3. USER JOURNEY -->
+  <section id="journey">
+    <h2><span class="section-num">03</span> User Journey</h2>
+    <p class="section-intro">The complete lifecycle of a Fashion Fit user from first open to daily active use.</p>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Download &amp; Open</h3>
+          <p>User downloads the APK (Android) or installs via App Store (iOS). A branded loading screen plays on first open.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Register an Account</h3>
+          <p>User creates an account with name, email, and password. A verification code is sent to their email. Access is blocked until the email is verified.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Onboarding &amp; Style DNA Quiz</h3>
+          <p>New users complete an onboarding quiz covering style preferences, lifestyle, occasions they dress for, and aesthetic goals. Answers seed the Style DNA profile that personalises all future AI interactions.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Grant Notification Permissions</h3>
+          <p>The app requests push notification permissions. On grant, the Expo push token is saved to the backend and daily local outfit reminders (8am, 12:30pm) are scheduled on the device.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h3>Build the Wardrobe</h3>
+          <p>User photographs clothing items one at a time or in bulk (Pro+). Each image is uploaded to Cloudinary, then GPT-4o analyses the photo and returns category, colour palette, pattern, fabric type, occasion tags, and season suitability. All metadata is saved to the wardrobe database.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <h3>Request Outfit Recommendations</h3>
+          <p>User selects an occasion and location. The app fetches live weather data, then the recommendation engine builds a prompt combining wardrobe data, Style DNA, weather, and occasion. GPT-4o-mini returns a complete outfit suggestion with items drawn from the user's actual wardrobe, scored by a rule-based fashion intelligence system.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">7</div>
+        <div class="step-body">
+          <h3>Chat with NOVA</h3>
+          <p>At any time, the user can open the chat and ask NOVA fashion questions — colour matching, what to wear to an event, how to style a specific item. NOVA replies in 3 sentences or fewer with emojis and one clear insight per message. Outfit suggestions are redirected to the Stylist feature.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">8</div>
+        <div class="step-body">
+          <h3>Plan Outfits (Pro+)</h3>
+          <p>User schedules outfits to specific calendar dates using the Outfit Planner — for events, trips, or the weekly rotation.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">9</div>
+        <div class="step-body">
+          <h3>View Analytics (Pro+)</h3>
+          <p>User reviews wardrobe composition charts, most-worn items, category gaps, and outfit frequency stats to make smarter wardrobe decisions.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">10</div>
+        <div class="step-body">
+          <h3>Share on the Social Feed</h3>
+          <p>User posts outfit photos to the community feed, follows other users, explores trending styles, and likes posts from people they follow.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">11</div>
+        <div class="step-body">
+          <h3>Retention Loop</h3>
+          <p>Daily notifications pull the user back. If inactive for 2 days, a re-engagement push is sent from the server. At 5 and 10 days, escalating messages are sent. The cycle keeps the user engaged long-term.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 4. SCREENS -->
+  <section id="screens">
+    <h2><span class="section-num">04</span> App Screens</h2>
+    <p class="section-intro">Every screen in the React Native frontend.</p>
+
+    <div class="screen-grid">
+      <div class="screen-card">
+        <div class="screen-name">LoadingScreen</div>
+        <div class="screen-desc">Branded splash shown on first app open with loading animation.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">AuthScreen</div>
+        <div class="screen-desc">Login and registration forms with JWT-based authentication.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">VerifyScreen</div>
+        <div class="screen-desc">Email verification code entry. Blocks access until verified.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">OnboardingScreen</div>
+        <div class="screen-desc">Multi-step style quiz that builds the user's Style DNA profile.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">HomeScreen</div>
+        <div class="screen-desc">Main dashboard — outfit suggestions, weather card, quick actions.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">WardrobeScreen</div>
+        <div class="screen-desc">Browse, search, and manage all uploaded clothing items.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">CameraScreen</div>
+        <div class="screen-desc">Single-item photo capture and AI categorisation flow.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">BulkCameraScreen</div>
+        <div class="screen-desc">Multi-item upload in one session. Pro+ feature.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">StylistScreen</div>
+        <div class="screen-desc">AI outfit recommendation interface with occasion and weather input.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">ChatScreen</div>
+        <div class="screen-desc">NOVA AI style coach conversation interface.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">PlannerScreen</div>
+        <div class="screen-desc">Calendar-based outfit scheduling. Pro+ feature.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">AnalyticsScreen</div>
+        <div class="screen-desc">Wardrobe composition charts and outfit usage stats. Pro+ feature.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">SocialFeedScreen</div>
+        <div class="screen-desc">Community outfit posts feed with likes, follows, and explore tabs.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">ProfileScreen</div>
+        <div class="screen-desc">User's own profile — posts, followers, style stats, settings.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">PublicProfileScreen</div>
+        <div class="screen-desc">View another user's public profile and posts.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">SubscriptionScreen</div>
+        <div class="screen-desc">Plan selection and Paystack payment flow.</div>
+      </div>
+      <div class="screen-card">
+        <div class="screen-name">AdminDashboardScreen</div>
+        <div class="screen-desc">Internal admin view of platform metrics and user management.</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 5. AI SYSTEM -->
+  <section id="ai">
+    <h2><span class="section-num">05</span> AI System</h2>
+    <p class="section-intro">How artificial intelligence is used across every feature.</p>
+
+    <div class="two-col" style="margin-bottom:32px;">
+      <div class="card">
+        <div class="icon">🔵</div>
+        <h3>GPT-4o — Heavy Analysis</h3>
+        <p>Used for tasks requiring deep visual and contextual understanding: clothing image analysis and Style DNA profile generation.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🟣</div>
+        <h3>GPT-4o-mini — Fast Responses</h3>
+        <p>Used for high-frequency, lower-latency tasks: outfit recommendations and NOVA chat replies.</p>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Model</th>
+            <th>Input</th>
+            <th>Output</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Image Categorisation</strong></td>
+            <td><span class="pill blue">GPT-4o</span></td>
+            <td>Clothing photo (base64 or Cloudinary URL)</td>
+            <td>Category, colour palette, pattern, fabric, occasions, season, style tags</td>
+          </tr>
+          <tr>
+            <td><strong>Style DNA Analysis</strong></td>
+            <td><span class="pill blue">GPT-4o</span></td>
+            <td>Quiz answers + wardrobe composition summary</td>
+            <td>Style identity profile, palette, aesthetic, occasion preferences, growth areas</td>
+          </tr>
+          <tr>
+            <td><strong>Outfit Recommendations</strong></td>
+            <td><span class="pill purple">GPT-4o-mini</span></td>
+            <td>Wardrobe items + Style DNA + weather + occasion</td>
+            <td>Named outfit combination with items from the user's wardrobe + styling rationale</td>
+          </tr>
+          <tr>
+            <td><strong>NOVA Chat</strong></td>
+            <td><span class="pill purple">GPT-4o-mini</span></td>
+            <td>Chat history + wardrobe brief + Style DNA + user message</td>
+            <td>Short, punchy fashion education reply (max 200 tokens, emoji-forward)</td>
+          </tr>
+          <tr>
+            <td><strong>Fashion Intelligence Scoring</strong></td>
+            <td><span class="pill green">Pure JS (no AI)</span></td>
+            <td>Outfit combination + occasion + weather</td>
+            <td>Numeric score for occasion fit, weather match, and style coherence</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Style DNA — How it Works</h3>
+    <p>Style DNA is the personalisation backbone of the entire app. It is built in two phases:</p>
+    <div class="feature-row">
+      <div class="label">Phase 1 — Quiz</div>
+      <div class="desc">At onboarding, the user answers questions about their lifestyle, preferred occasions (work, casual, formal, night out), colour preferences, and style icons. These answers are sent to GPT-4o, which returns a structured Style DNA profile.</div>
+    </div>
+    <div class="feature-row">
+      <div class="label">Phase 2 — Wardrobe Analysis</div>
+      <div class="desc">As the user uploads clothing items, the wardrobe composition (dominant colours, categories, occasion spread) is fed back into the Style DNA model to refine and evolve the profile over time.</div>
+    </div>
+    <div class="feature-row">
+      <div class="label">Usage</div>
+      <div class="desc">Every outfit recommendation and NOVA chat session includes the user's Style DNA as context, ensuring all AI output is personalised to their aesthetic and not generic fashion advice.</div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 6. WARDROBE -->
+  <section id="wardrobe">
+    <h2><span class="section-num">06</span> Wardrobe System</h2>
+    <p class="section-intro">How clothing items are uploaded, analysed, stored, and managed.</p>
+
+    <div class="card-grid-3" style="margin-bottom:28px;">
+      <div class="card">
+        <div class="icon">📷</div>
+        <h3>Photo Capture</h3>
+        <p>User photographs a clothing item using the in-app camera or uploads from their gallery. Single-item and bulk upload modes available.</p>
+      </div>
+      <div class="card">
+        <div class="icon">☁️</div>
+        <h3>Cloudinary Storage</h3>
+        <p>Images are uploaded directly to Cloudinary. The returned URL is stored in MongoDB alongside all item metadata.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🤖</div>
+        <h3>AI Auto-Tagging</h3>
+        <p>GPT-4o analyses the image and returns structured metadata: type, colour, pattern, fabric, occasions, season, and fit category. No manual tagging required.</p>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Type</strong></td><td>Top, bottom, dress, outerwear, shoes, accessories, etc.</td></tr>
+          <tr><td><strong>Colour Palette</strong></td><td>Primary and secondary colours extracted from the image</td></tr>
+          <tr><td><strong>Pattern</strong></td><td>Solid, striped, floral, plaid, geometric, etc.</td></tr>
+          <tr><td><strong>Occasions</strong></td><td>Casual, work, formal, smart casual, night out, sports, etc.</td></tr>
+          <tr><td><strong>Season</strong></td><td>Spring, summer, autumn, winter, all-season</td></tr>
+          <tr><td><strong>Style Tags</strong></td><td>Minimalist, streetwear, classic, boho, etc.</td></tr>
+          <tr><td><strong>Image URL</strong></td><td>Cloudinary hosted URL</td></tr>
+          <tr><td><strong>User</strong></td><td>Owner reference (MongoDB ObjectId)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Plan-Based Item Limits</h3>
+    <div class="feature-row"><div class="label">Free</div><div class="desc">Up to 30 clothing items</div></div>
+    <div class="feature-row"><div class="label">Pro / Pro Yearly</div><div class="desc">Up to 200 clothing items + bulk upload</div></div>
+    <div class="feature-row"><div class="label">Elite</div><div class="desc">Unlimited items + bulk upload</div></div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 7. STYLIST -->
+  <section id="stylist">
+    <h2><span class="section-num">07</span> AI Stylist (Outfit Recommendations)</h2>
+    <p class="section-intro">How the recommendation engine builds outfits from the user's wardrobe.</p>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>User Inputs Occasion &amp; Location</h3>
+          <p>The user selects an occasion (casual, work, formal, night out, etc.) and optionally provides a location for weather data.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Weather Fetch</h3>
+          <p>The backend fetches live weather conditions for the user's location. Destination weather (for travel planning) is available on Pro Yearly and Elite plans.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Wardrobe Context Assembly</h3>
+          <p>The user's wardrobe items are loaded and described — type, colour, occasion tags, season. The Style DNA profile is included as context.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>GPT-4o-mini Recommendation</h3>
+          <p>The assembled context is sent to GPT-4o-mini, which selects items from the wardrobe and builds a complete outfit combination with a brief styling rationale.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h3>Fashion Intelligence Scoring</h3>
+          <p>The recommendation is scored by <code style="color:var(--red);">fashionIntelligence.js</code> — a pure JavaScript rule engine that evaluates occasion fit, weather appropriateness, colour harmony, and style coherence. No additional AI cost.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <h3>Outfit Returned to User</h3>
+          <p>The final outfit is displayed with item images from Cloudinary, the AI's styling notes, and an occasion-weather fit score.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 8. NOVA -->
+  <section id="nova">
+    <h2><span class="section-num">08</span> NOVA — AI Style Coach</h2>
+    <p class="section-intro">The conversational AI fashion educator built into the chat screen.</p>
+
+    <div class="card-grid" style="margin-bottom:28px;">
+      <div class="card">
+        <div class="icon">🎓</div>
+        <h3>Role: Educator</h3>
+        <p>NOVA teaches colour theory, fit, proportion, texture, dress codes, occasion dressing, and wardrobe building strategy.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📣</div>
+        <h3>Role: Cheerleader</h3>
+        <p>Every reply builds confidence. NOVA never criticises body size, budget, or wardrobe choices — only celebrates and uplifts.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🔀</div>
+        <h3>Boundary: No Outfit Suggestions</h3>
+        <p>NOVA does not suggest outfits — that's the Stylist's job. Outfit requests are warmly redirected to the Stylist feature.</p>
+      </div>
+      <div class="card">
+        <div class="icon">⚡</div>
+        <h3>Style: Short &amp; Punchy</h3>
+        <p>Max 3 sentences, max 200 tokens. Frequent emojis. One fashion gem dropped per reply. One punchy follow-up question to end.</p>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Setting</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Model</strong></td><td>GPT-4o-mini</td></tr>
+          <tr><td><strong>Max tokens</strong></td><td>200</td></tr>
+          <tr><td><strong>Context</strong></td><td>User's wardrobe brief + Style DNA + conversation history</td></tr>
+          <tr><td><strong>Gated by</strong></td><td><code style="color:var(--red);">styleCoach</code> feature flag — Pro plan and above</td></tr>
+          <tr><td><strong>Languages</strong></td><td>Responds in the user's selected app language (English or Swahili)</td></tr>
+          <tr><td><strong>Conversation storage</strong></td><td>Full chat history saved per user in MongoDB</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 9. SOCIAL -->
+  <section id="social">
+    <h2><span class="section-num">09</span> Social Features</h2>
+    <p class="section-intro">The community layer of Fashion Fit.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="icon">📸</div>
+        <h3>Outfit Posts</h3>
+        <p>Users share outfit photos with captions to the community feed. Posts are tied to the user's profile and visible to followers.</p>
+      </div>
+      <div class="card">
+        <div class="icon">❤️</div>
+        <h3>Likes</h3>
+        <p>Users like posts from others. Like counts are tracked and displayed on each post.</p>
+      </div>
+      <div class="card">
+        <div class="icon">👥</div>
+        <h3>Follow System</h3>
+        <p>Users follow other members. Follower and following counts are tracked on each profile. Following shapes what appears in the feed.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🔍</div>
+        <h3>Explore &amp; Search</h3>
+        <p>Discover new users and trending outfits beyond the follow graph. Search users by name or username.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🧑‍💼</div>
+        <h3>Public Profiles</h3>
+        <p>Every user has a public profile showing their posts, follower count, and bio. Viewable by anyone in the app.</p>
+      </div>
+      <div class="card">
+        <div class="icon">✏️</div>
+        <h3>Profile Editing</h3>
+        <p>Users update their display name, username, bio, and profile photo at any time.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 10. NOTIFICATIONS -->
+  <section id="notifications">
+    <h2><span class="section-num">10</span> Notification System</h2>
+    <p class="section-intro">Two-layer notification system — device-local and server-push.</p>
+
+    <div class="two-col" style="margin-bottom:28px;">
+      <div class="card">
+        <div class="icon">📱</div>
+        <h3>Local Notifications (Device)</h3>
+        <p>Scheduled directly on the user's device via Expo Notifications. No internet required. Set when the user logs in.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🖥️</div>
+        <h3>Push Notifications (Server)</h3>
+        <p>Sent from the Railway backend via the Expo Push Service. Requires the user's push token to be registered and notifications to be enabled.</p>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Notification</th>
+            <th>Type</th>
+            <th>Trigger</th>
+            <th>Channel</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Daily Outfit Reminder</strong></td>
+            <td><span class="pill green">Local</span></td>
+            <td>Every day at 8:00 AM</td>
+            <td>outfit</td>
+            <td>"Today's Outfit ✨ — See your personalised outfit suggestion."</td>
+          </tr>
+          <tr>
+            <td><strong>Community Nudge</strong></td>
+            <td><span class="pill green">Local</span></td>
+            <td>Every day at 12:30 PM</td>
+            <td>outfit</td>
+            <td>"Lunchtime Style Check 👗 — Share your outfit today!"</td>
+          </tr>
+          <tr>
+            <td><strong>Re-engagement (2 days)</strong></td>
+            <td><span class="pill blue">Push</span></td>
+            <td>User inactive exactly 2 days</td>
+            <td>reminders</td>
+            <td>"We miss you! 👗 — Your wardrobe is waiting."</td>
+          </tr>
+          <tr>
+            <td><strong>Re-engagement (5 days)</strong></td>
+            <td><span class="pill blue">Push</span></td>
+            <td>User inactive exactly 5 days</td>
+            <td>reminders</td>
+            <td>"Time for a style refresh ✨ — New outfit ideas are ready!"</td>
+          </tr>
+          <tr>
+            <td><strong>Re-engagement (10 days)</strong></td>
+            <td><span class="pill blue">Push</span></td>
+            <td>User inactive exactly 10 days</td>
+            <td>reminders</td>
+            <td>"Your style awaits 🛍️ — Let AI style you for the week."</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Android Notification Channels</h3>
+    <div class="feature-row"><div class="label">default</div><div class="desc">General notifications. Max importance with vibration and LED (red).</div></div>
+    <div class="feature-row"><div class="label">outfit</div><div class="desc">Outfit suggestion alerts. High importance.</div></div>
+    <div class="feature-row"><div class="label">reminders</div><div class="desc">Daily reminders and re-engagement. Default importance.</div></div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 11. ANALYTICS -->
+  <section id="analytics">
+    <h2><span class="section-num">11</span> Wardrobe Analytics</h2>
+    <p class="section-intro">Data-driven wardrobe insights for Pro and Elite users.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="icon">🗂️</div>
+        <h3>Category Breakdown</h3>
+        <p>Visual breakdown of wardrobe by clothing type — what percentage is tops, bottoms, dresses, outerwear, etc.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🎨</div>
+        <h3>Colour Distribution</h3>
+        <p>Dominant colour palette across the entire wardrobe. Reveals colour gaps or over-representation.</p>
+      </div>
+      <div class="card">
+        <div class="icon">⭐</div>
+        <h3>Most Worn Items</h3>
+        <p>Tracks which wardrobe items appear most frequently in outfit recommendations and user-selected outfits.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📈</div>
+        <h3>Outfit History</h3>
+        <p>Log of all outfit recommendations and user-confirmed outfits with dates, occasions, and weather context.</p>
+      </div>
+      <div class="card">
+        <div class="icon">💡</div>
+        <h3>Style Insights</h3>
+        <p>AI-generated observations about the wardrobe — gaps, opportunities, and styling patterns derived from usage data.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 12. PLANNER -->
+  <section id="planner">
+    <h2><span class="section-num">12</span> Outfit Planner</h2>
+    <p class="section-intro">Calendar-based outfit scheduling for Pro and Elite users.</p>
+
+    <div class="card-grid-3">
+      <div class="card">
+        <div class="icon">📅</div>
+        <h3>Schedule Outfits</h3>
+        <p>Assign saved outfits to specific calendar dates. Perfect for planning event dressing, weekly rotation, or travel wardrobes.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🗑️</div>
+        <h3>Manage Plans</h3>
+        <p>View, update, and delete planned outfits. The planner provides a clear overview of what's scheduled ahead.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🔒</div>
+        <h3>Pro+ Only</h3>
+        <p>Gated behind the <code style="color:var(--red);">planner</code> feature flag. Available on Pro, Pro Yearly, and Elite plans.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 13. PLANS -->
+  <section id="plans">
+    <h2><span class="section-num">13</span> Subscription Plans</h2>
+    <p class="section-intro">Four tiers with server-enforced limits via Paystack and the planLimits middleware.</p>
+
+    <div class="plan-grid">
+      <div class="plan-card">
+        <div class="plan-name">Free</div>
+        <div class="plan-price">No cost</div>
+        <ul>
+          <li>30 wardrobe items max</li>
+          <li>3 outfit recommendations per day</li>
+          <li>Wardrobe upload</li>
+          <li>Social feed</li>
+          <li class="no">Bulk upload</li>
+          <li class="no">AI Style Coach (NOVA)</li>
+          <li class="no">Analytics</li>
+          <li class="no">Outfit Planner</li>
+          <li class="no">Destination weather</li>
+        </ul>
+      </div>
+      <div class="plan-card featured">
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">Monthly subscription</div>
+        <ul>
+          <li>200 wardrobe items</li>
+          <li>Unlimited outfit recommendations</li>
+          <li>Bulk upload</li>
+          <li>AI Style Coach (NOVA)</li>
+          <li>Wardrobe Analytics</li>
+          <li>Outfit Planner</li>
+          <li class="no">Destination weather</li>
+        </ul>
+      </div>
+      <div class="plan-card featured">
+        <div class="plan-name">Pro Yearly</div>
+        <div class="plan-price">Annual subscription</div>
+        <ul>
+          <li>200 wardrobe items</li>
+          <li>Unlimited outfit recommendations</li>
+          <li>Bulk upload</li>
+          <li>AI Style Coach (NOVA)</li>
+          <li>Wardrobe Analytics</li>
+          <li>Outfit Planner</li>
+          <li>Destination weather</li>
+        </ul>
+      </div>
+      <div class="plan-card">
+        <div class="plan-name">Elite</div>
+        <div class="plan-price">Premium subscription</div>
+        <ul>
+          <li>Unlimited wardrobe items</li>
+          <li>Unlimited outfit recommendations</li>
+          <li>Bulk upload</li>
+          <li>AI Style Coach (NOVA)</li>
+          <li>Wardrobe Analytics</li>
+          <li>Outfit Planner</li>
+          <li>Destination weather</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 14. API -->
+  <section id="api">
+    <h2><span class="section-num">14</span> API Reference</h2>
+    <p class="section-intro">All backend routes. Base URL: Railway-hosted Express server.</p>
+
+    <div class="route-group">
+      <h3>Auth — /auth</h3>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/register</span><span class="route-desc">Create account. Returns JWT on success.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/login</span><span class="route-desc">Authenticate. Updates lastActive. Returns JWT + user object.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/verify</span><span class="route-desc">Verify email with 6-digit code.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/resend-verification</span><span class="route-desc">Resend verification email.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/forgot-password</span><span class="route-desc">Trigger password reset email.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/reset-password</span><span class="route-desc">Set new password with reset token.</span></div>
+    </div>
+
+    <div class="route-group">
+      <h3>Wardrobe — /wardrobe</h3>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/items</span><span class="route-desc">Fetch all wardrobe items for a user.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/items</span><span class="route-desc">Add a new item. Enforces plan item limit.</span></div>
+      <div class="route"><span class="method patch">PATCH</span><span class="route-path">/items/:id</span><span class="route-desc">Update item metadata.</span></div>
+      <div class="route"><span class="method delete">DELETE</span><span class="route-path">/items/:id</span><span class="route-desc">Delete a wardrobe item.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/can-bulk</span><span class="route-desc">Check if user has bulk upload access.</span></div>
+    </div>
+
+    <div class="route-group">
+      <h3>AI — /ai</h3>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/categorise</span><span class="route-desc">Analyse clothing image with GPT-4o and return category metadata.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/bulk-categorise</span><span class="route-desc">Analyse multiple images in one call.</span></div>
+    </div>
+
+    <div class="route-group">
+      <h3>Style DNA — /style-dna</h3>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/analyse</span><span class="route-desc">Generate Style DNA from quiz answers + wardrobe via GPT-4o.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/profile</span><span class="route-desc">Retrieve user's current Style DNA profile.</span></div>
+    </div>
+
+    <div class="route-group">
+      <h3>Recommendations — /recommendations</h3>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/</span><span class="route-desc">Generate outfit recommendation. Enforces daily limit on free plan.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/test</span><span class="route-desc">Health check for the recommendation route.</span></div>
+    </div>
+
+    <div class="route-group">
+      <h3>Chat (NOVA) — /chat</h3>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/message</span><span class="route-desc">Send a message to NOVA. Requires styleCoach feature. Returns AI reply.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/new</span><span class="route-desc">Start a new conversation thread.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/conversations</span><span class="route-desc">List all conversations for a user.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/history</span><span class="route-desc">Get message history for a conversation.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/brief</span><span class="route-desc">Get wardrobe brief used as NOVA's context.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/coach-name</span><span class="route-desc">Return the AI coach name (NOVA).</span></div>
+    </div>
+
+    <div class="route-group">
+      <h3>Social — /social</h3>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/feed</span><span class="route-desc">Get posts from followed users (authenticated).</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/explore</span><span class="route-desc">Get trending/recent posts for discovery.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/posts</span><span class="route-desc">Create a new outfit post.</span></div>
+      <div class="route"><span class="method delete">DELETE</span><span class="route-path">/posts/:id</span><span class="route-desc">Delete a post.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/posts/:id/like</span><span class="route-desc">Like or unlike a post.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/follow/:userId</span><span class="route-desc">Follow or unfollow a user.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/users/:userId</span><span class="route-desc">Get a user's public profile.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/users/:userId/posts</span><span class="route-desc">Get all posts by a user.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/search</span><span class="route-desc">Search users by name or username.</span></div>
+      <div class="route"><span class="method put">PUT</span><span class="route-path">/profile</span><span class="route-desc">Update own profile (bio, display name, photo).</span></div>
+    </div>
+
+    <div class="route-group">
+      <h3>Notifications — /notifications</h3>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/register-token</span><span class="route-desc">Save Expo push token for a user.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/preferences</span><span class="route-desc">Get notification enabled/disabled state.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/preferences</span><span class="route-desc">Toggle notifications on or off.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/send</span><span class="route-desc">Send a push to a specific user (admin/internal).</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/broadcast</span><span class="route-desc">Send push to all users with notifications enabled.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/retention/run</span><span class="route-desc">Manually trigger the retention notification job.</span></div>
+    </div>
+
+    <div class="route-group">
+      <h3>Analytics — /analytics</h3>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/wardrobe</span><span class="route-desc">Wardrobe composition stats. Requires analytics feature (Pro+).</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/outfits</span><span class="route-desc">Outfit usage history and frequency data.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/insights</span><span class="route-desc">AI-generated wardrobe insight summary.</span></div>
+    </div>
+
+    <div class="route-group">
+      <h3>Planner — /planner</h3>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/</span><span class="route-desc">Get all planned outfits for a user. Requires planner feature (Pro+).</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/</span><span class="route-desc">Create a new planned outfit entry.</span></div>
+      <div class="route"><span class="method delete">DELETE</span><span class="route-path">/</span><span class="route-desc">Delete a planned outfit.</span></div>
+    </div>
+
+    <div class="route-group">
+      <h3>Admin — /admin</h3>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/analytics</span><span class="route-desc">Platform-wide metrics — users, uploads, activity.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/users</span><span class="route-desc">User management list.</span></div>
+    </div>
+
+    <div class="route-group">
+      <h3>Other</h3>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/weather</span><span class="route-desc">Fetch current weather for a location.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/upload</span><span class="route-desc">Upload image to Cloudinary, return URL.</span></div>
+      <div class="route"><span class="method post">POST</span><span class="route-path">/learning/interaction</span><span class="route-desc">Log a user interaction for the learning engine.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/learning/insights</span><span class="route-desc">Get learning-derived style insights.</span></div>
+      <div class="route"><span class="method get">GET</span><span class="route-path">/health</span><span class="route-desc">Server health check.</span></div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 15. STACK -->
+  <section id="stack">
+    <h2><span class="section-num">15</span> Tech Stack</h2>
+    <p class="section-intro">Every technology used to build Fashion Fit.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Mobile App</strong></td><td>React Native + Expo ~51</td><td>Cross-platform Android and iOS app from a single TypeScript codebase</td></tr>
+          <tr><td><strong>Language</strong></td><td>TypeScript (frontend) / JavaScript (backend)</td><td>Type safety on the frontend, fast iteration on the backend</td></tr>
+          <tr><td><strong>State Management</strong></td><td>Zustand</td><td>Global client state (auth, user profile)</td></tr>
+          <tr><td><strong>Data Fetching</strong></td><td>TanStack Query</td><td>Server state, caching, background refetch</td></tr>
+          <tr><td><strong>Internationalisation</strong></td><td>i18next</td><td>English and Swahili language support</td></tr>
+          <tr><td><strong>Backend</strong></td><td>Node.js + Express</td><td>REST API server for all app logic</td></tr>
+          <tr><td><strong>Database</strong></td><td>MongoDB + Mongoose</td><td>Document storage for users, wardrobe, outfits, social, chat</td></tr>
+          <tr><td><strong>AI</strong></td><td>OpenAI GPT-4o + GPT-4o-mini</td><td>Image analysis, Style DNA, outfit recommendations, NOVA chat</td></tr>
+          <tr><td><strong>Image Storage</strong></td><td>Cloudinary</td><td>Clothing photo hosting and delivery</td></tr>
+          <tr><td><strong>Push Notifications</strong></td><td>Expo Push Notification Service</td><td>Server-sent push notifications to Android and iOS devices</td></tr>
+          <tr><td><strong>Local Notifications</strong></td><td>expo-notifications</td><td>Device-scheduled daily reminders (no server required)</td></tr>
+          <tr><td><strong>Authentication</strong></td><td>JWT (JSON Web Tokens)</td><td>Stateless auth, token issued on login, validated per request</td></tr>
+          <tr><td><strong>Payments</strong></td><td>Paystack</td><td>Subscription billing and plan management</td></tr>
+          <tr><td><strong>Backend Hosting</strong></td><td>Railway</td><td>Express API deployment with environment variable management</td></tr>
+          <tr><td><strong>App Build</strong></td><td>EAS Build (Expo Application Services)</td><td>Cloud-based APK and IPA builds via eas.json profiles</td></tr>
+          <tr><td><strong>Navigation</strong></td><td>React Navigation + Bottom Tabs</td><td>Tab-based navigation between main app sections</td></tr>
+          <tr><td><strong>HTTP Client</strong></td><td>Axios (apiClient.ts)</td><td>Configured API client with base URL and auth headers</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 16. DEPLOY -->
+  <section id="deploy">
+    <h2><span class="section-num">16</span> Build &amp; Deployment</h2>
+    <p class="section-intro">How to build the APK and deploy the backend.</p>
+
+    <div class="two-col" style="margin-bottom:28px;">
+      <div class="card">
+        <div class="icon">🔨</div>
+        <h3>Preview APK (Internal Testing)</h3>
+        <p>Builds a distributable APK for Android. Best for testing before a store release.</p>
+        <code style="display:block;margin-top:12px;background:#0e0e0e;padding:10px 14px;border-radius:8px;color:#4cde8a;font-size:0.85rem;border:1px solid #1e1e1e;">eas build --profile preview --platform android</code>
+      </div>
+      <div class="card">
+        <div class="icon">🚀</div>
+        <h3>Production APK</h3>
+        <p>Builds the production APK with auto-incrementing version for Play Store submission.</p>
+        <code style="display:block;margin-top:12px;background:#0e0e0e;padding:10px 14px;border-radius:8px;color:#4cde8a;font-size:0.85rem;border:1px solid #1e1e1e;">eas build --profile production --platform android</code>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Profile</th><th>Type</th><th>Distribution</th><th>Auto-Increment</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>development</strong></td><td>Development client</td><td>Internal</td><td>No</td></tr>
+          <tr><td><strong>preview</strong></td><td>APK (assembleRelease)</td><td>Internal</td><td>No</td></tr>
+          <tr><td><strong>production</strong></td><td>APK</td><td>Store</td><td>Yes</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Backend Deployment (Railway)</h3>
+    <div class="feature-row"><div class="label">Push changes</div><div class="desc">Push to the connected GitHub branch. Railway auto-deploys on push.</div></div>
+    <div class="feature-row"><div class="label">Environment</div><div class="desc">All secrets (OPENAI_API_KEY, MONGODB_URI, CLOUDINARY keys, PAYSTACK keys, JWT_SECRET) are set in Railway's environment variable panel.</div></div>
+    <div class="feature-row"><div class="label">Retention scheduler</div><div class="desc">Starts automatically with the server via setInterval. Runs every 24 hours to send re-engagement push notifications.</div></div>
+    <div class="feature-row"><div class="label">Android Package</div><div class="desc">com.dripnap25.fashionfit</div></div>
+    <div class="feature-row"><div class="label">EAS Project ID</div><div class="desc">93f5bd2f-4f7c-4970-aada-f89680859424</div></div>
+  </section>
+
+</main>
+
+<footer>
+  Fashion Fit &mdash; Complete App Overview &mdash; Built with <span>♥</span> using React Native, Node.js &amp; OpenAI &mdash; 2026
+</footer>
+
+</body>
+</html>

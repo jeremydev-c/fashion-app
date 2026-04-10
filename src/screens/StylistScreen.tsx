@@ -26,7 +26,7 @@ const ITEM_SIZE = Math.min(scale(70), Math.floor((CONTENT_WIDTH - scale(36)) / 4
 import { fetchWardrobeItems, ClothingItem } from '../services/wardrobeApi';
 import { getRecommendations } from '../services/recommendationsService';
 import { submitOutfitFeedback } from '../services/stylistFeedback';
-import { createOutfit, fetchOutfits } from '../services/outfitApi';
+import { createOutfit, fetchOutfits, markOutfitWorn } from '../services/outfitApi';
 import { useUserId } from '../hooks/useUserId';
 import { getCurrentWeather, WeatherData, WeatherForecast } from '../services/weatherService';
 import { DestinationPicker } from '../components/DestinationPicker';
@@ -258,6 +258,8 @@ export const StylistScreen: React.FC = () => {
   const [timeOfDay, setTimeOfDay] = useState(getTimeOfDay());
   const [savedOutfits, setSavedOutfits] = useState<Set<string>>(new Set());
   const [savedOutfitsList, setSavedOutfitsList] = useState<OutfitSuggestion[]>([]);
+  const [outfitMongoIds, setOutfitMongoIds] = useState<Record<string, string>>({}); // outfitSuggestion.id → MongoDB _id
+  const [wornOutfits, setWornOutfits] = useState<Set<string>>(new Set());
   const [showSaved, setShowSaved] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
@@ -485,7 +487,7 @@ export const StylistScreen: React.FC = () => {
 
     // Persist to database so outfit survives navigation
     try {
-      await createOutfit({
+      const saved = await createOutfit({
         userId,
         name: outfit.title || `${outfit.occasion} outfit`,
         description: outfit.reasoning,
@@ -497,6 +499,7 @@ export const StylistScreen: React.FC = () => {
         weather: weather?.weatherCategory,
         tags: [timeOfDay.toLowerCase()],
       });
+      setOutfitMongoIds(prev => ({ ...prev, [outfit.id]: saved._id }));
     } catch (err: any) {
       if (err?.status !== 409) {
         console.log('Failed to persist outfit:', err?.message);
@@ -539,6 +542,13 @@ export const StylistScreen: React.FC = () => {
       action: 'rated',
       rating,
     });
+  };
+
+  const handleWorn = async (outfit: OutfitSuggestion) => {
+    const mongoId = outfitMongoIds[outfit.id];
+    if (!mongoId) return;
+    setWornOutfits(prev => new Set(prev).add(outfit.id));
+    markOutfitWorn(mongoId).catch(() => {});
   };
 
   const handleWarningAcknowledge = () => {
@@ -770,6 +780,21 @@ export const StylistScreen: React.FC = () => {
                 <Ionicons name="close-circle-outline" size={18} color={colors.textMuted} />
                 <Text style={styles.actionText}>Skip</Text>
               </TouchableOpacity>
+
+              {savedOutfits.has(outfit.id) && (
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  style={[styles.actionBtn, wornOutfits.has(outfit.id) && styles.savedBtn]}
+                  onPress={() => handleWorn(outfit)}
+                >
+                  <Ionicons
+                    name={wornOutfits.has(outfit.id) ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                    size={18}
+                    color={wornOutfits.has(outfit.id) ? colors.primary : colors.textSecondary}
+                  />
+                  <Text style={styles.actionText}>{wornOutfits.has(outfit.id) ? 'Worn' : 'Worn Today'}</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Star Rating */}

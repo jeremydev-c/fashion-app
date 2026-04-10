@@ -1,5 +1,6 @@
 const express = require('express');
 const Outfit = require('../models/Outfit');
+const ClothingItem = require('../models/ClothingItem');
 
 const router = express.Router();
 
@@ -148,6 +149,38 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     console.error('DELETE /outfits/:id error', err);
     res.status(500).json({ error: 'Failed to delete outfit' });
+  }
+});
+
+/**
+ * POST /outfits/:id/wear
+ * Mark an outfit as worn today.
+ * Increments wearCount + sets lastWorn on the outfit AND on every ClothingItem in it.
+ */
+router.post('/:id/wear', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const now = new Date();
+
+    const outfit = await Outfit.findByIdAndUpdate(
+      id,
+      { $inc: { wearCount: 1 }, lastWorn: now },
+      { new: true }
+    );
+    if (!outfit) return res.status(404).json({ error: 'Outfit not found' });
+
+    const itemIds = outfit.items.map(i => i.itemId);
+    if (itemIds.length > 0) {
+      await ClothingItem.updateMany(
+        { _id: { $in: itemIds } },
+        { $inc: { wearCount: 1 }, lastWorn: now }
+      );
+    }
+
+    res.json({ ok: true, wearCount: outfit.wearCount, lastWorn: now });
+  } catch (err) {
+    console.error('POST /outfits/:id/wear error', err);
+    res.status(500).json({ error: 'Failed to record wear' });
   }
 });
 

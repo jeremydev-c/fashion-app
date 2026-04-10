@@ -23,7 +23,13 @@
       }
     },
     "android": {
-      "package": "com.dripnap25.fashionfit"
+      "package": "com.dripnap25.fashionfit",
+      "permissions": [
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -32,7 +38,16 @@
     },
     "plugins": [
       "expo-font",
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-notifications",
+        {
+          "icon": "./logo/app-icon.jpeg",
+          "color": "#FF6B6B",
+          "sounds": [],
+          "mode": "production"
+        }
+      ]
     ],
     "extra": {
       "eas": {
