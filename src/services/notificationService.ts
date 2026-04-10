@@ -135,3 +135,39 @@ export function removeNotificationSubscription(
 ) {
   Notifications.removeNotificationSubscription(subscription);
 }
+
+export async function scheduleRetentionReminders(): Promise<void> {
+  // Cancel stale daily reminders before rescheduling
+  await Notifications.cancelAllScheduledNotificationsAsync();
+
+  const dailyReminders = [
+    {
+      title: "Today's Outfit ✨",
+      body: 'See your personalized outfit suggestion for today.',
+      hour: 8,
+      minute: 0,
+    },
+    {
+      title: 'Lunchtime Style Check 👗',
+      body: 'Share your outfit with the community today!',
+      hour: 12,
+      minute: 30,
+    },
+  ];
+
+  for (const { title, body, hour, minute } of dailyReminders) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        sound: 'default',
+        data: { screen: 'recommendations' },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour,
+        minute,
+      },
+    });
+  }
+}

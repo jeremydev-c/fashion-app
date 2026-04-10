@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fashion Fit — Complete Application Brief (Full Stack)</title>
+  <style>
+    @page { size: A4; margin: 10mm 12mm; }
+    * { box-sizing: border-box; }
+    body { font-family: "Segoe UI", system-ui, sans-serif; font-size: 8.8pt; line-height: 1.38; color: #0f172a; max-width: 210mm; margin: 0 auto; padding: 8mm 10mm; }
+    h1 { font-size: 15pt; margin: 0 0 4px; color: #020617; }
+    .sub { font-size: 8.5pt; color: #64748b; margin-bottom: 8px; }
+    .logo { border: 1px dashed #cbd5e1; padding: 6px; text-align: center; color: #94a3b8; font-size: 8pt; margin-bottom: 8px; border-radius: 6px; }
+    h2 { font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; color: #1e293b; border-bottom: 1px solid #e2e8f0; margin: 10px 0 5px; padding-bottom: 2px; page-break-after: avoid; }
+    h3 { font-size: 9pt; margin: 6px 0 3px; color: #334155; }
+    p { margin: 0 0 5px; }
+    ul { margin: 3px 0 6px; padding-left: 1.15em; }
+    li { margin-bottom: 2px; }
+    code { font-size: 8pt; background: #f1f5f9; padding: 0 3px; border-radius: 2px; }
+    table { width: 100%; border-collapse: collapse; font-size: 8pt; margin: 4px 0 8px; }
+    th, td { border: 1px solid #e2e8f0; padding: 3px 5px; vertical-align: top; }
+    th { background: #f8fafc; font-weight: 600; }
+    .toc { font-size: 8.5pt; columns: 2; column-gap: 14px; margin: 6px 0; }
+    .toc a { color: #2563eb; text-decoration: none; }
+    .diagram { font-family: ui-monospace, monospace; font-size: 7.2pt; background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; white-space: pre-wrap; line-height: 1.3; margin: 4px 0; }
+    .page-break { page-break-before: always; }
+    .muted { color: #64748b; font-size: 8pt; }
+    .footer { margin-top: 8px; font-size: 7.5pt; color: #94a3b8; }
+    @media print { h2 { page-break-after: avoid; } table { page-break-inside: avoid; } }
+  </style>
+</head>
+<body>
+
+<div class="logo">[ Logo placeholder ]</div>
+<h1>Fashion Fit — complete application brief</h1>
+<p class="sub">Single-document reference: mobile client, API, data, AI, payments, social, notifications, distribution. Sources: repo structure, <code>api/server.js</code>, <code>package.json</code> files, route files, models, <code>src/</code> tree.</p>
+
+<div class="toc">
+  <strong>Contents</strong><br />
+  <a href="#s1">1. Product</a> · <a href="#s2">2. Tech stack</a> · <a href="#s3">3. Mobile app</a> · <a href="#s4">4. Screens</a> · <a href="#s5">5. Client services</a><br />
+  <a href="#s6">6. Components &amp; UX</a> · <a href="#s7">7. Backend routes</a> · <a href="#s8">8. Data models</a> · <a href="#s9">9. Middleware &amp; plans</a><br />
+  <a href="#s10">10. Domain utilities</a> · <a href="#s11">11. Recommendations engine</a> · <a href="#s12">12. Ops &amp; env</a> · <a href="#s13">13. Tests</a> · <a href="#s14">14–15</a> · <a href="#s16">App. A (full rec)</a>
+</div>
+
+<h2 id="s1">1. Product summary</h2>
+<p><strong>Fashion Fit</strong> is a cross-platform mobile application (Expo / React Native) backed by a Node.js API. Users photograph and catalog wardrobe items (Cloudinary-hosted images), receive AI-assisted categorization, build a <strong>Style DNA</strong> profile, obtain <strong>outfit recommendations</strong> for occasion/time/weather, chat with an <strong>AI style coach</strong>, plan outfits, view <strong>analytics</strong>, optionally use a <strong>social feed</strong> (posts, likes, follows, profiles), and manage account settings. <strong>Subscriptions</strong> via Paystack are implemented but can be disabled server-side. Push notifications (Expo) and daily nudges are supported.</p>
+
+<h2 id="s2">2. Technology stack</h2>
+<table>
+  <tr><th>Layer</th><th>Technologies</th></tr>
+  <tr><td>Mobile</td><td>Expo SDK ~51, React Native 0.74, React 18, TypeScript, React Navigation (tabs + hidden routes), TanStack Query, Zustand (if used in features), React i18next, Reanimated, Gesture Handler, Safe Area, Expo Camera / Image Picker / File System / AV / Haptics / Linear Gradient / Blur / Location / Notifications / Sharing / View Shot / Updates</td></tr>
+  <tr><td>API</td><td>Express 4, Mongoose 8, JWT (jsonwebtoken), bcryptjs, CORS, dotenv, multer, OpenAI SDK + direct REST for some flows, Cloudinary, Paystack API, Resend (email)</td></tr>
+  <tr><td>Data</td><td>MongoDB (connection via <code>MONGODB_URI</code>)</td></tr>
+  <tr><td>Media</td><td>Cloudinary (upload + transforms)</td></tr>
+  <tr><td>AI</td><td>OpenAI (GPT models — varies by route: vision categorization, Style DNA, chat, recommendation enhancement)</td></tr>
+  <tr><td>Hosting (typical)</td><td>API: Railway or similar (listens on <code>PORT</code>); App: EAS Build (APK/IPA), EAS Update (OTA JS)</td></tr>
+</table>
+
+<div class="page-break"></div>
+
+<h2 id="s3">3. Mobile application architecture</h2>
+<h3>3.1 Entry &amp; shell</h3>
+<ul>
+  <li><code>App.tsx</code> — <code>QueryClientProvider</code>, <code>ThemeProvider</code>, <code>AuthProvider</code>, boot/loading gate, optional <code>AIMisuseWarning</code>, onboarding flow, main tabs when authenticated.</li>
+  <li><strong>Push:</strong> On login, <code>registerForPushNotifications(userId)</code>; listeners for foreground receive and notification tap (navigation hook reserved).</li>
+  <li><strong>Onboarding:</strong> Local AsyncStorage key per user <code>onboarding_completed_{userId}</code>; server check via <code>GET /stylist/preferences?userId=</code> for <code>onboardingCompleted</code>.</li>
+</ul>
+<h3>3.2 Navigation</h3>
+<p><code>TabNavigator.tsx</code> — bottom tabs: Home, Wardrobe, Stylist (center emphasis), Coach (chat), Planner, Social, Profile. <strong>Hidden routes</strong> (no tab button): AdminDashboard, PublicProfile (stack-style access from social).</p>
+<h3>3.3 State &amp; context</h3>
+<ul>
+  <li><code>AuthContext</code> — session user, JWT, login/logout, persisted auth.</li>
+  <li><code>useUserId</code> hook — typed access to current user id for API calls.</li>
+</ul>
+<h3>3.4 API client</h3>
+<p><code>apiClient.ts</code> — <code>fetch</code>-based <code>apiRequest</code> + axios-like <code>apiClient</code>; base URL from <code>__DEV__</code> vs production or <code>EXPO_PUBLIC_API_URL</code>; attaches <code>Authorization: Bearer</code> from AsyncStorage; clears token on 401.</p>
+
+<h2 id="s4">4. Screens (UI modules)</h2>
+<table>
+  <tr><th>Screen</th><th>Role</th></tr>
+  <tr><td><code>LoadingScreen</code></td><td>Initial splash / loading.</td></tr>
+  <tr><td><code>AuthScreen</code></td><td>Sign in / sign up flows.</td></tr>
+  <tr><td><code>VerifyScreen</code></td><td>Email verification codes.</td></tr>
+  <tr><td><code>OnboardingScreen</code></td><td>First-run preferences / stylist onboarding.</td></tr>
+  <tr><td><code>HomeScreen</code></td><td>Dashboard / entry to recommendations &amp; quick actions.</td></tr>
+  <tr><td><code>WardrobeScreen</code></td><td>Item grid, filters, sync with wardrobe API.</td></tr>
+  <tr><td><code>CameraScreen</code> / <code>BulkCameraScreen</code></td><td>Capture or batch add items; ties to upload + AI categorization.</td></tr>
+  <tr><td><code>StylistScreen</code></td><td>Outfit recommendations UI (swipe/cards, weather context).</td></tr>
+  <tr><td><code>ChatScreen</code></td><td>AI coach chat (markdown); conversations/history via chat API.</td></tr>
+  <tr><td><code>PlannerScreen</code></td><td>Planned outfits (planner API).</td></tr>
+  <tr><td><code>SocialFeedScreen</code></td><td>Feed, create post, likes; links to public profiles.</td></tr>
+  <tr><td><code>PublicProfileScreen</code></td><td>Another user’s profile &amp; posts.</td></tr>
+  <tr><td><code>ProfileScreen</code></td><td>Account, Style DNA modal/card (incl. <code>StyleDNACard</code>, share), analytics modal, theme, language, notifications, help links.</td></tr>
+  <tr><td><code>AnalyticsScreen</code></td><td>Wardrobe/outfit analytics (React Query + analytics API).</td></tr>
+  <tr><td><code>AdminDashboardScreen</code></td><td>Admin analytics (hidden tab).</td></tr>
+  <tr><td><code>SubscriptionScreen</code></td><td>Paystack plans &amp; payment (when exposed in UI).</td></tr>
+</table>
+
+<div class="page-break"></div>
+
+<h2 id="s5">5. Client services (API surface used by the app)</h2>
+<table>
+  <tr><th>Module</th><th>Purpose</th></tr>
+  <tr><td><code>apiClient.ts</code></td><td>HTTP client, auth headers.</td></tr>
+  <tr><td><code>authService.ts</code></td><td>Login, signup, token, profile.</td></tr>
+  <tr><td><code>wardrobeApi.ts</code></td><td>CRUD items, bulk eligibility.</td></tr>
+  <tr><td><code>aiCategorization.ts</code></td><td>AI categorize endpoints.</td></tr>
+  <tr><td><code>uploadService.ts</code></td><td>Image upload to API/Cloudinary pipeline.</td></tr>
+  <tr><td><code>recommendationsService.ts</code></td><td>GET recommendations with weather/forecast query params.</td></tr>
+  <tr><td><code>styleDNAService.ts</code></td><td>Fetch/recalculate Style DNA.</td></tr>
+  <tr><td><code>outfitApi.ts</code></td><td>Saved outfits.</td></tr>
+  <tr><td><code>plannerApi.ts</code></td><td>Planner CRUD.</td></tr>
+  <tr><td><code>weatherService.ts</code></td><td>Current / city / forecast (destination weather gated).</td></tr>
+  <tr><td><code>analyticsService.ts</code></td><td>Wardrobe/outfit/insights analytics.</td></tr>
+  <tr><td><code>learningService.ts</code></td><td>Learning interactions + insights.</td></tr>
+  <tr><td><code>stylistFeedback.ts</code></td><td>Feedback to stylist route.</td></tr>
+  <tr><td><code>paymentService.ts</code></td><td>Plans, initialize, verify, cancel subscription.</td></tr>
+  <tr><td><code>notificationService.ts</code></td><td>Expo push registration + preferences API.</td></tr>
+  <tr><td><code>socialApi.ts</code></td><td>Feed, posts, likes, follow, search, profile.</td></tr>
+</table>
+
+<h2 id="s6">6. Components &amp; i18n</h2>
+<p><strong>Components (selection):</strong> buttons, cards, glass card, skeleton loaders, custom alert, badges, pull-to-refresh, responsive image, floating action button, animated button, destination picker, language switcher, swipeable recommendation card, success confetti, AI misuse warning, <strong>StyleDNACard</strong> (share/export via view-shot patterns).</p>
+<p><strong>i18n:</strong> i18next + react-i18next; <code>src/i18n/config.ts</code> bundles many locale JSON files (en, sw, fr, de, es, ar, zh, ja, ko, …). Language switcher in profile flow.</p>
+<p><strong>Theme:</strong> <code>ThemeProvider</code> — light/dark/system and shared palette/spacing used across screens.</p>
+
+<h2 id="s7">7. Backend — HTTP API (Express)</h2>
+<p>Global: CORS (<code>ALLOWED_ORIGINS</code>), simple IP rate limit, 30s request timeout, JSON body (50mb for base64 images), MongoDB connect, <code>GET /health</code>, graceful shutdown. Optional: scheduled <strong>daily outfit nudge</strong> via Expo Push API (hourly check, EAT morning window).</p>
+
+<table>
+  <tr><th>Mount</th><th>Endpoints (representative)</th></tr>
+  <tr><td><code>/auth</code></td><td><code>POST /signup</code>, <code>/verify</code>, <code>/resend-code</code>, <code>/login</code>; <code>GET/PUT /me</code> (JWT).</td></tr>
+  <tr><td><code>/wardrobe</code></td><td><code>GET/POST /items</code>, <code>PATCH/DELETE /items/:id</code>, <code>GET /can-bulk</code> (feature gate).</td></tr>
+  <tr><td><code>/ai</code></td><td><code>POST /categorize</code>, <code>/categorize-image</code> (vision + structured attributes).</td></tr>
+  <tr><td><code>/upload</code></td><td><code>POST /image</code> (multipart), <code>/image-base64</code>.</td></tr>
+  <tr><td><code>/style-dna</code></td><td><code>GET /:userId</code>, <code>POST /:userId/recalculate</code> (AI + cache logic).</td></tr>
+  <tr><td><code>/outfits</code></td><td>CRUD saved outfits.</td></tr>
+  <tr><td><code>/recommendations</code></td><td><code>GET /test</code>, <code>GET /</code> (main hybrid engine — see §11).</td></tr>
+  <tr><td><code>/weather</code></td><td><code>GET /current</code>; <code>/city</code>, <code>/forecast</code> (require <code>destinationWeather</code> feature).</td></tr>
+  <tr><td><code>/analytics</code></td><td><code>GET /wardrobe</code>, <code>/outfits</code>, <code>/insights</code> (require <code>analytics</code> feature).</td></tr>
+  <tr><td><code>/learning</code></td><td><code>POST /interaction</code>, <code>GET /insights</code>.</td></tr>
+  <tr><td><code>/chat</code></td><td>Conversations, history, coach name, brief, new thread, <code>POST /message</code> (styleCoach feature), deletes.</td></tr>
+  <tr><td><code>/stylist</code></td><td><code>POST /feedback</code>, <code>GET/POST preferences</code>, <code>POST /onboarding</code>.</td></tr>
+  <tr><td><code>/planner</code></td><td>List/create/delete planned outfits (planner feature).</td></tr>
+  <tr><td><code>/payments</code></td><td>Plans, plan-limits, initialize, verify, webhook, subscription, cancel — or <strong>503 payments_disabled</strong> if <code>DISABLE_PAYMENTS=true</code>.</td></tr>
+  <tr><td><code>/admin</code></td><td>Analytics aggregate, user listing (admin use).</td></tr>
+  <tr><td><code>/notifications</code></td><td>Register push token, get/set preferences, send, broadcast.</td></tr>
+  <tr><td><code>/social</code></td><td>Feed, explore, posts CRUD, like, user profile, user posts, follow, search, update profile.</td></tr>
+</table>
+<p class="muted">404 JSON for unknown routes; global error handler returns message / status.</p>
+
+<div class="page-break"></div>
+
+<h2 id="s8">8. Data models (Mongoose)</h2>
+<table>
+  <tr><th>Model</th><th>Purpose</th></tr>
+  <tr><td><code>User</code></td><td>Auth fields, subscription, profile, <code>pushToken</code> / notification prefs, etc.</td></tr>
+  <tr><td><code>ClothingItem</code></td><td>Wardrobe pieces, categories, colors, images, wear stats, semantic fields.</td></tr>
+  <tr><td><code>StyleDNA</code></td><td>Computed style profile, scores, archetype fields, capsule essentials, item count at calculation.</td></tr>
+  <tr><td><code>UserPreferences</code></td><td>Onboarding + learned weights, avoided combos, body, etc.</td></tr>
+  <tr><td><code>Outfit</code></td><td>Saved outfits (item references).</td></tr>
+  <tr><td><code>PlannedOutfit</code></td><td>Planner entries.</td></tr>
+  <tr><td><code>LearningHistory</code></td><td>Interaction events for recommendations learning.</td></tr>
+  <tr><td><code>OutfitFeedback</code></td><td>Feedback records where used.</td></tr>
+  <tr><td><code>ChatHistory</code></td><td>Chat threads/messages.</td></tr>
+  <tr><td><code>ApiUsage</code></td><td>Token/cost tracking for OpenAI calls.</td></tr>
+  <tr><td><code>Post</code>, <code>PostLike</code>, <code>Follow</code></td><td>Social graph &amp; content.</td></tr>
+</table>
+
+<h2 id="s9">9. Middleware &amp; subscription logic</h2>
+<ul>
+  <li><code>planLimits.js</code> — <code>PLAN_LIMITS</code> per tier: max items, daily recommendations, flags for bulk upload, destination weather, style coach, analytics, planner. <code>enforceDailyRecommendations</code>, <code>enforceItemLimit</code>, <code>requireFeature</code>. <strong>Note:</strong> <code>BYPASS_LIMITS</code> flag exists for dev/beta — should be false in strict production.</li>
+  <li><strong>Auth:</strong> JWT middleware on protected routes (pattern varies by route file).</li>
+  <li><strong>Payments:</strong> Paystack initialize/verify/webhook; subscription document on User; disabled path returns unified error JSON.</li>
+</ul>
+
+<h2 id="s10">10. Domain utilities</h2>
+<ul>
+  <li><code>fashionIntelligence.js</code> — Occasion/time profiles, weather-aware scoring, multi-signal outfit evaluation feeding recommendations.</li>
+  <li><code>semanticStyleProfile.js</code> — Semantic axes, embeddings, compatibility &amp; outfit similarity for recommendations.</li>
+  <li><code>email.js</code> — Resend client (lazy init); verification emails; safe skip if <code>RESEND_API_KEY</code> missing.</li>
+</ul>
+
+<h2 id="s11">11. Recommendations engine (full pipeline — condensed)</h2>
+<p>Implementation: <code>api/routes/recommendations.js</code> (~2.3k lines). This is the most elaborate subsystem.</p>
+<h3>11.1 Request</h3>
+<p><code>GET /recommendations?userId=…&amp;occasion&amp;timeOfDay&amp;weather&amp;limit&amp;variant&amp;forecast…&amp;weatherDetail…</code>. Limit clamped 1–6. Middleware: daily rec limit.</p>
+<h3>11.2 Loads</h3>
+<p>Wardrobe, StyleDNA, UserPreferences, recent Outfits, LearningHistory → rejected/liked item id sets. Weather normalized (bands + detail flags + forecast).</p>
+<h3>11.3 Seed &amp; cache</h3>
+<p><code>requestSeed</code> = f(user, day, occasion, time, weather, variant, wardrobe signature, weather key). In-memory cache 10 min, keyed by seed + feedback count.</p>
+<h3>11.4 Candidate generation</h3>
+<p><code>buildDiverseOutfits</code>: filter pool; weather-ranked items; dress-based and top×bottom combinations with shoes, outerwear, accessories; adaptive combo caps; quality floors; <code>selectDiverse</code> with overlap penalties.</p>
+<h3>11.5 Scoring</h3>
+<p><code>scoreOutfit</code>: fashion intelligence + semantic cohesion + DNA + color harmony + prefs + learned weights + saved-outfit similarity + rotation + feedback + completeness + trend signals (<code>TREND_SIGNALS</code>).</p>
+<h3>11.6 Hybrid AI</h3>
+<p>If <code>OPENAI_API_KEY</code>: <code>enhanceWithAI</code> — diverse candidate subset, rich prompt (embeddings, weather rules), <strong>gpt-4o</strong> for formal/date else <strong>gpt-4o-mini</strong>, JSON pick by <code>candidateIdx</code>, ApiUsage logging, blended score, post-AI diversity + fill slots. Else <code>formatResults</code>.</p>
+<h3>11.7 Response</h3>
+<p>Items (always user-owned), score, confidence, reasons, title, description, archetype, optional <code>completeTheLook</code>, occasion/time/weather; hybrid may include algorithm vs AI confidence fields before strip.</p>
+
+<div class="diagram">User → API → Mongo + Cloudinary + OpenAI
+  Wardrobe + DNA + prefs + learning → ctx
+  → buildDiverseOutfits → score → diversify
+  → [ OpenAI enhance ] → format → cache → JSON</div>
+
+<div class="page-break"></div>
+
+<h2 id="s12">12. Operations, configuration &amp; distribution</h2>
+<table>
+  <tr><th>Topic</th><th>Detail</th></tr>
+  <tr><td>API host</td><td>Listens on <code>process.env.PORT</code> (e.g. Railway assigns port; public HTTPS URL has no :4000).</td></tr>
+  <tr><td>Client base URL</td><td>Production URL in <code>apiClient</code> or <code>EXPO_PUBLIC_API_URL</code>.</td></tr>
+  <tr><td>EAS</td><td><code>app.json</code>: slug <code>fashion-fit</code>, bundle ids <code>com.dripnap25.fashionfit</code>, <code>expo-updates</code> URL, <code>runtimeVersion</code> policy appVersion, EAS project id.</td></tr>
+  <tr><td>Build profiles</td><td><code>eas.json</code>: development (dev client), preview (APK internal), production (APK + autoIncrement).</td></tr>
+  <tr><td>OTA</td><td><code>eas update --branch …</code> publishes JS bundles when runtime matches installed binary.</td></tr>
+  <tr><td>Env (names only)</td><td><code>MONGODB_URI</code>, <code>JWT_SECRET</code>, <code>OPENAI_API_KEY</code>, Cloudinary trio, Paystack keys, <code>RESEND_API_KEY</code>, <code>ALLOWED_ORIGINS</code>, <code>DISABLE_PAYMENTS</code>, <code>NODE_ENV</code>, etc.</td></tr>
+</table>
+
+<h2 id="s13">13. Automated tests (API)</h2>
+<ul>
+  <li><code>api/tests/run-tests.js</code> — test runner.</li>
+  <li><code>chat.test.js</code>, <code>recommendations.test.js</code>, <code>semanticStyleProfile.test.js</code> — unit/integration coverage areas.</li>
+  <li><code>npm run test</code> from repo root delegates to API tests.</li>
+</ul>
+
+<h2>14. Security &amp; privacy (engineering view)</h2>
+<ul>
+  <li>JWT for authenticated routes; tokens stored client-side (AsyncStorage — consider secure storage hardening for high-sensitivity deployments).</li>
+  <li>CORS allowlist configurable.</li>
+  <li>Rate limiting on API; request size limits still large for image payloads (tighten if abuse observed).</li>
+  <li>Secrets only in server environment — never commit <code>.env</code>.</li>
+  <li>AI misuse warning in app for responsible-use messaging.</li>
+</ul>
+
+<h2>15. Glossary</h2>
+<p><strong>Style DNA</strong> — aggregated profile from wardrobe (+ AI). <strong>Hybrid recommendation</strong> — algorithm candidates + optional LLM curation. <strong>Learning history</strong> — implicit training signal for future scores. <strong>Destination weather</strong> — pro-tier feature gate for travel/forecast endpoints.</p>
+
+<div class="page-break"></div>
+<h2 id="s16">Appendix A — Recommendations engine (exhaustive)</h2>
+<p class="muted">Source: <code>api/routes/recommendations.js</code>, <code>api/utils/fashionIntelligence.js</code>, <code>api/utils/semanticStyleProfile.js</code>. This appendix duplicates no other document — it is the full technical decomposition.</p>
+
+<h3>A.1 Entry &amp; guards</h3>
+<ul>
+  <li><code>GET /recommendations/test</code> — sanity check.</li>
+  <li><code>GET /</code> — <code>enforceDailyRecommendations()</code>; <code>userId</code> required; wardrobe min 2 items or 400; <code>limit</code> clamped 1–6.</li>
+</ul>
+
+<h3>A.2 Query parameters</h3>
+<p><code>userId</code>, <code>occasion</code> (aliases→profiles: casual, work, date, party, gym, formal), <code>timeOfDay</code>, <code>weather</code> or <code>temperature</code>-derived band, <code>temperature</code>, <code>condition</code>, <code>humidity</code>, <code>windSpeed</code>, <code>needsLayers</code>, <code>hasRainRisk</code>, <code>tempSwing</code>, <code>limit</code>, <code>variant</code> (seed entropy).</p>
+
+<h3>A.3 Data &amp; feedback</h3>
+<p>Parallel fetch: StyleDNA, UserPreferences, Outfits (~30), LearningHistory (~100). Feedback → <code>rejectedItemIds</code> / <code>likedItemIds</code> from reject/save/swipe/rate types.</p>
+
+<h3>A.4 Context &amp; cache</h3>
+<p><code>ctx</code> holds wardrobe, <code>wardrobeProfile</code>, <code>wardrobeById</code>, <code>semanticProfileMap</code>, DNA, prefs, saved outfits, feedback sets, normalized occasion/time/weather, <code>weatherDetail</code>, <code>forecast</code>, <code>requestSeed</code>. Cache: Map, TTL 10 min, key includes feedback count; evict when &gt;500 entries.</p>
+
+<h3>A.5 Pool &amp; combinations</h3>
+<p>Filter avoided colors (restore if pool too small). Preferred vs fallback via occasion profile, <code>checkItemAppropriateness</code>, <code>weatherItemScore</code>. Categories: tops, bottoms, shoes, outerwear, accessories, dresses. <code>needsOuterwear</code>; dress path + top×bottom loops; <code>rankPool</code> with <code>pairCompat</code> + rotation + <code>itemPreferenceFit</code> + seeded noise; adaptive <code>maxCombos</code> (30–600) and top/bottom iteration caps; accessory variants (none / best / two varied); sparse-wardrobe fallbacks; last-resort 2–4 item group.</p>
+
+<h3>A.6 Quality &amp; diversity</h3>
+<p>Quality floor varies by wardrobe size; filter by <code>score</code> and <code>intel.score</code>; relax to all if too few. <code>selectDiverse</code>: penalties for reusing tops/bottoms/dresses/shoes (conditional), direction keys, palette/style groups, item overlap, semantic overlap; diversity weight scales with wardrobe size.</p>
+
+<h3>A.7 makeCandidate</h3>
+<p><code>evaluateFashionIntelligence</code> once; <code>getCandidateSemanticDescriptor</code>; <code>semanticOutfitCohesionCached</code>; <code>scoreOutfit</code>; <code>buildReasons</code>; <code>getOutfitDirection</code>.</p>
+
+<h3>A.8 scoreOutfit components</h3>
+<p>Intel score weight; semantic cohesion; Style DNA primary/secondary match; outfit color harmony; preference match + avoided; learned color/style/category/pattern weights; per-occasion preference map; avoided color combos + style: avoids; saved-outfit Jaccard + semantic similarity bands; rotation + fresh core bonus; liked/rejected item presence; completeness adapted to wardrobe; item-count sweet spot; <code>trendAlignmentScore</code> vs <code>TREND_SIGNALS</code>; clamped output band.</p>
+
+<h3>A.9 Hybrid AI</h3>
+<p>If <code>OPENAI_API_KEY</code>: <code>enhanceWithAI</code> — user profile string; <code>diverseForAI</code> subset; prompt with season, weather line, alert rules, wardrobe counts, JSON candidates with embeddings; rules for distinct tops/bottoms; <strong>gpt-4o</strong> for formal+date else <strong>gpt-4o-mini</strong>; temperature ~0.82; parse JSON; <code>ApiUsage.create</code>; blend algo score + AI confidence; <code>deduplicateAccessories</code>; <code>classifyArchetype</code>; <code>completeTheLook</code>; post-AI diversity gate; fill from remaining candidates; <code>appendFallbackResponses</code> if needed; strip internal fields. On failure → <code>formatResults</code>.</p>
+
+<h3>A.10 formatResults (algorithm-only path)</h3>
+<p>Final diversity gate (with relaxations for tiny wardrobes); <code>buildPresentationCopy</code>; <code>computeRecommendationConfidence</code>; stable <code>makeRecommendationId</code>.</p>
+
+<h3>A.11 Test exports</h3>
+<p><code>router.__testables</code> — seed helpers, <code>makeCandidate</code>, <code>selectDiverse</code>, <code>formatResults</code>, <code>pairCompat</code>, normalizers.</p>
+
+<p class="footer">Fashion Fit — complete application brief — includes Appendix A (full recommendation decomposition). Print to PDF from Chrome. Single source file: <code>FashionFit-Complete-App-Brief.html</code>.</p>
+
+</body>
+</html>

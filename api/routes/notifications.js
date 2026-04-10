@@ -136,7 +136,59 @@ router.post('/broadcast', async (req, res) => {
   }
 });
 
+// ─── Retention Notifications ─────────────────────────────────────────────────
+
+const RETENTION_MESSAGES = [
+  {
+    days: 2,
+    title: 'We miss you! 👗',
+    body: 'Your wardrobe is waiting. Check today\'s outfit suggestion.',
+  },
+  {
+    days: 5,
+    title: 'Time for a style refresh ✨',
+    body: 'You haven\'t visited in a while — new outfit ideas are ready!',
+  },
+  {
+    days: 10,
+    title: 'Your style awaits 🛍️',
+    body: 'Come back and let AI style you for the week.',
+  },
+];
+
+async function runRetentionJob() {
+  const now = new Date();
+  for (const { days, title, body } of RETENTION_MESSAGES) {
+    const cutoff = new Date(now - days * 24 * 60 * 60 * 1000);
+    const upperCutoff = new Date(cutoff - 24 * 60 * 60 * 1000);
+    const users = await User.find({
+      notificationsEnabled: true,
+      pushToken: { $exists: true, $ne: null },
+      lastActive: { $lte: cutoff, $gte: upperCutoff },
+    }).select('pushToken');
+    if (users.length === 0) continue;
+    await Promise.allSettled(
+      users.map((u) =>
+        sendExpoPushNotification({ token: u.pushToken, title, body, channelId: 'reminders' })
+      )
+    );
+    console.log(`Retention: sent ${users.length} push(es) for ${days}-day inactive users`);
+  }
+}
+
+// POST /notifications/retention/run — manual admin trigger
+router.post('/retention/run', async (req, res) => {
+  try {
+    await runRetentionJob();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Retention job error:', err);
+    res.status(500).json({ error: 'Retention job failed' });
+  }
+});
+
 // Export helper so other routes can send notifications
 module.exports = router;
 module.exports.sendToUser = sendToUser;
 module.exports.sendExpoPushNotification = sendExpoPushNotification;
+module.exports.runRetentionJob = runRetentionJob;

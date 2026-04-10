@@ -11,6 +11,7 @@ import { apiRequest } from './src/services/apiClient';
 import { AIMisuseWarning, hasAcknowledgedWarning } from './src/components/AIMisuseWarning';
 import {
   registerForPushNotifications,
+  scheduleRetentionReminders,
   addNotificationReceivedListener,
   addNotificationResponseListener,
   removeNotificationSubscription,
@@ -39,6 +40,7 @@ const AppContent: React.FC = () => {
     if (!isAuthenticated || !user?._id) return;
 
     registerForPushNotifications(user._id).catch(() => {});
+    scheduleRetentionReminders().catch(() => {});
 
     // Listen for notifications received while app is in foreground
     notificationListener.current = addNotificationReceivedListener((notification) => {

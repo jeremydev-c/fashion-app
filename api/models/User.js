@@ -91,6 +91,10 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    lastActive: {
+      type: Date,
+      default: Date.now,
+    },
     // ── Social profile ────────────────────────────────────────────────────────
     bio: {
       type: String,

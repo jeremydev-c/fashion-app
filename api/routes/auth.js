@@ -207,6 +207,8 @@ router.post('/login', async (req, res) => {
     // Generate token
     const token = generateToken(user._id);
 
+    User.findByIdAndUpdate(user._id, { lastActive: new Date() }).catch(() => {});
+
     res.json({
       message: 'Login successful',
       user: user.toJSON(),

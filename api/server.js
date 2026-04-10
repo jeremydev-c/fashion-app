@@ -210,6 +210,13 @@ app.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
 });
 
+// ─── Retention scheduler (runs daily) ────────────────────────────────────────
+const { runRetentionJob } = require('./routes/notifications');
+const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+setInterval(() => {
+  runRetentionJob().catch((err) => console.error('Retention job error:', err));
+}, TWENTY_FOUR_HOURS);
+
 const PORT = process.env.PORT || 4000;
 const server = app.listen(PORT, () => {
   console.log(`API running on http://localhost:${PORT}`);

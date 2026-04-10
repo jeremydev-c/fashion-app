@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
+import * as Haptics from 'expo-haptics';
+import { colors as staticColors } from '../theme/colors';
 import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
@@ -86,16 +87,44 @@ const AGE_RANGE_OPTIONS = [
   { id: '55+', label: '55+' },
 ];
 
-const STEPS = [
-  { title: 'Your Style', subtitle: 'What styles do you gravitate towards?' },
-  { title: 'Favorite Colors', subtitle: 'Pick colors you love wearing' },
-  { title: 'Colors to Avoid', subtitle: 'Any colors you prefer to skip?' },
-  { title: 'Your Lifestyle', subtitle: 'What occasions do you dress for most?' },
-  { title: 'About You', subtitle: 'Help us personalize your experience' },
+// step 0 = welcome, steps 1-5 = quiz, step 6 = completion
+const QUIZ_STEPS = [
+  {
+    title: 'Your Style',
+    subtitle: 'What styles do you gravitate towards?',
+    hint: 'We use this to recommend outfits that feel like you.',
+  },
+  {
+    title: 'Favorite Colors',
+    subtitle: 'Pick colors you love wearing',
+    hint: 'Your color palette shapes every outfit we suggest.',
+  },
+  {
+    title: 'Colors to Avoid',
+    subtitle: 'Any colors you prefer to skip?',
+    hint: 'Optional — we\'ll filter these out of your recommendations.',
+  },
+  {
+    title: 'Your Lifestyle',
+    subtitle: 'What occasions do you dress for most?',
+    hint: 'Your AI stylist will prioritize looks for these moments.',
+  },
+  {
+    title: 'About You',
+    subtitle: 'Help us personalize your experience',
+    hint: 'Optional — more detail means smarter recommendations.',
+  },
+];
+
+const FEATURES = [
+  { icon: 'sparkles-outline', text: 'AI outfit recommendations built around your wardrobe' },
+  { icon: 'color-palette-outline', text: 'A Style DNA that gets smarter with every upload' },
+  { icon: 'people-outline', text: 'Share looks and discover styles from the community' },
 ];
 
 export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
   const colors = useThemeColors();
+  // step 0=welcome, 1-5=quiz, 6=completion
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingData>({
     styles: [],
@@ -106,12 +135,31 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
     ageRange: '',
   });
 
-  const progress = (step + 1) / STEPS.length;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  // Animate progress bar when quiz step changes
+  useEffect(() => {
+    if (step >= 1 && step <= 5) {
+      Animated.timing(progressAnim, {
+        toValue: (step / 5) * 100,
+        duration: 350,
+        useNativeDriver: false,
+      }).start();
+    } else if (step === 6) {
+      Animated.timing(progressAnim, {
+        toValue: 100,
+        duration: 350,
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [step]);
 
   const toggleSelection = (
     key: 'styles' | 'colors' | 'occasions' | 'avoidColors',
     value: string
   ) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setData((prev) => {
       const arr = prev[key];
       if (arr.includes(value)) {
@@ -122,28 +170,34 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
   };
 
   const setSingleSelection = (key: 'bodyType' | 'ageRange', value: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setData((prev) => ({ ...prev, [key]: value }));
   };
 
   const canProceed = () => {
     switch (step) {
-      case 0:
-        return data.styles.length >= 1;
-      case 1:
-        return data.colors.length >= 2;
-      case 2:
-        return true; // Avoid colors is optional
-      case 3:
-        return data.occasions.length >= 1;
-      case 4:
-        return true; // Body type and age are optional
-      default:
-        return false;
+      case 0: return true;
+      case 1: return data.styles.length >= 1;
+      case 2: return data.colors.length >= 2;
+      case 3: return true;
+      case 4: return data.occasions.length >= 1;
+      case 5: return true;
+      case 6: return true;
+      default: return false;
+    }
+  };
+
+  const getHintText = () => {
+    switch (step) {
+      case 1: return data.styles.length === 0 ? 'Pick at least one style to continue' : null;
+      case 2: return data.colors.length < 2 ? `Pick ${2 - data.colors.length} more color${data.colors.length === 1 ? '' : 's'} to continue` : null;
+      case 4: return data.occasions.length === 0 ? 'Pick at least one occasion to continue' : null;
+      default: return null;
     }
   };
 
   const handleNext = () => {
-    if (step < STEPS.length - 1) {
+    if (step < 6) {
       setStep(step + 1);
     } else {
       onComplete(data);
@@ -151,10 +205,42 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
   };
 
   const handleBack = () => {
-    if (step > 0) {
-      setStep(step - 1);
-    }
+    if (step > 1) setStep(step - 1);
   };
+
+  const getButtonLabel = () => {
+    if (step === 0) return 'Get Started';
+    if (step === 5) return 'Build My Style DNA';
+    if (step === 6) return 'Explore My Wardrobe';
+    return 'Continue';
+  };
+
+  // ─── Step renderers ───────────────────────────────────────────────
+
+  const renderWelcomeStep = () => (
+    <View style={styles.welcomeContainer}>
+      <View style={styles.welcomeIconWrap}>
+        <Ionicons name="sparkles" size={scale(48)} color={colors.primary} />
+      </View>
+      <Text style={[styles.welcomeTitle, { color: colors.textPrimary }]}>
+        Your Personal{'\n'}AI Stylist
+      </Text>
+      <Text style={[styles.welcomeTagline, { color: colors.textSecondary }]}>
+        Takes 2 minutes. Makes every outfit decision effortless.
+      </Text>
+
+      <View style={styles.featureList}>
+        {FEATURES.map((f, i) => (
+          <View key={i} style={styles.featureRow}>
+            <View style={[styles.featureIconWrap, { backgroundColor: colors.primarySoft }]}>
+              <Ionicons name={f.icon as any} size={scale(20)} color={colors.primary} />
+            </View>
+            <Text style={[styles.featureText, { color: colors.textSecondary }]}>{f.text}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
 
   const renderStyleStep = () => (
     <View style={styles.optionsGrid}>
@@ -163,19 +249,24 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
         return (
           <TouchableOpacity
             key={option.id}
-            style={[styles.styleOption, selected && styles.styleOptionSelected]}
+            style={[
+              styles.styleOption,
+              { backgroundColor: colors.card, borderColor: 'transparent' },
+              selected && { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+            ]}
             onPress={() => toggleSelection('styles', option.id)}
+            activeOpacity={0.75}
           >
             <Ionicons
               name={option.icon as any}
               size={28}
               color={selected ? colors.primary : colors.textMuted}
             />
-            <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
+            <Text style={[styles.optionLabel, { color: colors.textSecondary }, selected && { color: colors.textPrimary, fontWeight: '600' }]}>
               {option.label}
             </Text>
             {selected && (
-              <View style={styles.checkmark}>
+              <View style={[styles.checkmark, { backgroundColor: colors.primary }]}>
                 <Ionicons name="checkmark" size={14} color={colors.background} />
               </View>
             )}
@@ -192,19 +283,28 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
         return (
           <TouchableOpacity
             key={option.id}
-            style={[styles.colorOption, selected && styles.colorOptionSelected]}
+            style={styles.colorOption}
             onPress={() => toggleSelection(key, option.id)}
+            activeOpacity={0.75}
           >
-            <View style={[styles.colorCircle, { backgroundColor: option.hex }]}>
+            <View style={[
+              styles.colorCircle,
+              { backgroundColor: option.hex },
+              selected && styles.colorCircleSelected,
+            ]}>
               {selected && (
                 <Ionicons
                   name="checkmark"
                   size={20}
-                  color={option.id === 'white' || option.id === 'beige' || option.id === 'yellow' ? '#000' : '#fff'}
+                  color={['white', 'beige', 'yellow'].includes(option.id) ? '#000' : '#fff'}
                 />
               )}
             </View>
-            <Text style={[styles.colorLabel, selected && styles.colorLabelSelected]}>
+            <Text style={[
+              styles.colorLabel,
+              { color: colors.textMuted },
+              selected && { color: colors.textPrimary, fontWeight: '600' },
+            ]}>
               {option.label}
             </Text>
           </TouchableOpacity>
@@ -220,19 +320,24 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
         return (
           <TouchableOpacity
             key={option.id}
-            style={[styles.styleOption, selected && styles.styleOptionSelected]}
+            style={[
+              styles.styleOption,
+              { backgroundColor: colors.card, borderColor: 'transparent' },
+              selected && { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+            ]}
             onPress={() => toggleSelection('occasions', option.id)}
+            activeOpacity={0.75}
           >
             <Ionicons
               name={option.icon as any}
               size={28}
               color={selected ? colors.primary : colors.textMuted}
             />
-            <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
+            <Text style={[styles.optionLabel, { color: colors.textSecondary }, selected && { color: colors.textPrimary, fontWeight: '600' }]}>
               {option.label}
             </Text>
             {selected && (
-              <View style={styles.checkmark}>
+              <View style={[styles.checkmark, { backgroundColor: colors.primary }]}>
                 <Ionicons name="checkmark" size={14} color={colors.background} />
               </View>
             )}
@@ -244,17 +349,21 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
 
   const renderAboutStep = () => (
     <View style={styles.aboutContainer}>
-      <Text style={styles.sectionLabel}>Body Type (optional)</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>Body Type (optional)</Text>
       <View style={styles.pillRow}>
         {BODY_TYPE_OPTIONS.map((option) => {
           const selected = data.bodyType === option.id;
           return (
             <TouchableOpacity
               key={option.id}
-              style={[styles.pill, selected && styles.pillSelected]}
+              style={[
+                styles.pill,
+                { backgroundColor: colors.card, borderColor: colors.borderSubtle },
+                selected && { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+              ]}
               onPress={() => setSingleSelection('bodyType', option.id)}
             >
-              <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
+              <Text style={[styles.pillText, { color: colors.textSecondary }, selected && { color: colors.primary, fontWeight: '600' }]}>
                 {option.label}
               </Text>
             </TouchableOpacity>
@@ -262,17 +371,21 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
         })}
       </View>
 
-      <Text style={[styles.sectionLabel, { marginTop: spacing.xl }]}>Age Range (optional)</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textPrimary, marginTop: spacing.xl }]}>Age Range (optional)</Text>
       <View style={styles.pillRow}>
         {AGE_RANGE_OPTIONS.map((option) => {
           const selected = data.ageRange === option.id;
           return (
             <TouchableOpacity
               key={option.id}
-              style={[styles.pill, selected && styles.pillSelected]}
+              style={[
+                styles.pill,
+                { backgroundColor: colors.card, borderColor: colors.borderSubtle },
+                selected && { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+              ]}
               onPress={() => setSingleSelection('ageRange', option.id)}
             >
-              <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
+              <Text style={[styles.pillText, { color: colors.textSecondary }, selected && { color: colors.primary, fontWeight: '600' }]}>
                 {option.label}
               </Text>
             </TouchableOpacity>
@@ -282,22 +395,70 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
     </View>
   );
 
+  const renderCompletionStep = () => {
+    const styleCount = data.styles.length;
+    const colorCount = data.colors.length;
+    const occasionCount = data.occasions.length;
+
+    return (
+      <View style={styles.completionContainer}>
+        <View style={[styles.completionIconWrap, { backgroundColor: colors.primarySoft }]}>
+          <Ionicons name="checkmark-circle" size={scale(64)} color={colors.primary} />
+        </View>
+
+        <Text style={[styles.completionTitle, { color: colors.textPrimary }]}>
+          Your Style DNA is Ready!
+        </Text>
+        <Text style={[styles.completionSubtitle, { color: colors.textSecondary }]}>
+          We built your personalized profile based on your choices.
+        </Text>
+
+        <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+          <View style={styles.summaryRow}>
+            <Ionicons name="shirt-outline" size={scale(18)} color={colors.primary} />
+            <Text style={[styles.summaryText, { color: colors.textPrimary }]}>
+              <Text style={{ fontWeight: '700' }}>{styleCount}</Text> style{styleCount !== 1 ? 's' : ''} selected
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryRow}>
+            <Ionicons name="color-palette-outline" size={scale(18)} color={colors.primary} />
+            <Text style={[styles.summaryText, { color: colors.textPrimary }]}>
+              <Text style={{ fontWeight: '700' }}>{colorCount}</Text> color{colorCount !== 1 ? 's' : ''} in your palette
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryRow}>
+            <Ionicons name="calendar-outline" size={scale(18)} color={colors.primary} />
+            <Text style={[styles.summaryText, { color: colors.textPrimary }]}>
+              <Text style={{ fontWeight: '700' }}>{occasionCount}</Text> occasion{occasionCount !== 1 ? 's' : ''} to dress for
+            </Text>
+          </View>
+        </View>
+
+        <Text style={[styles.completionHint, { color: colors.textMuted }]}>
+          Add wardrobe items to get your first outfit recommendation
+        </Text>
+      </View>
+    );
+  };
+
   const renderStepContent = () => {
     switch (step) {
-      case 0:
-        return renderStyleStep();
-      case 1:
-        return renderColorStep('colors');
-      case 2:
-        return renderColorStep('avoidColors');
-      case 3:
-        return renderOccasionStep();
-      case 4:
-        return renderAboutStep();
-      default:
-        return null;
+      case 0: return renderWelcomeStep();
+      case 1: return renderStyleStep();
+      case 2: return renderColorStep('colors');
+      case 3: return renderColorStep('avoidColors');
+      case 4: return renderOccasionStep();
+      case 5: return renderAboutStep();
+      case 6: return renderCompletionStep();
+      default: return null;
     }
   };
+
+  const isQuizStep = step >= 1 && step <= 5;
+  const quizStepInfo = isQuizStep ? QUIZ_STEPS[step - 1] : null;
+  const hintText = getHintText();
 
   return (
     <View style={styles.root}>
@@ -306,46 +467,71 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
         style={StyleSheet.absoluteFillObject}
       />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.progressContainer}>
-          <View style={styles.progressTrack}>
-            <Animated.View style={[styles.progressBar, { width: `${progress * 100}%` }]} />
+      {/* Progress bar — only during quiz */}
+      {isQuizStep && (
+        <View style={styles.progressHeader}>
+          <View style={[styles.progressTrack, { backgroundColor: colors.card }]}>
+            <Animated.View
+              style={[
+                styles.progressBar,
+                { backgroundColor: colors.primary },
+                {
+                  width: progressAnim.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ['0%', '100%'],
+                  }),
+                },
+              ]}
+            />
           </View>
-          <Text style={styles.stepIndicator}>
-            {step + 1} of {STEPS.length}
+          <Text style={[styles.stepIndicator, { color: colors.textMuted }]}>
+            {step} of 5
           </Text>
         </View>
+      )}
 
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>{STEPS[step].title}</Text>
-          <Text style={styles.subtitle}>{STEPS[step].subtitle}</Text>
+      {/* Quiz step header */}
+      {isQuizStep && quizStepInfo && (
+        <View style={styles.quizHeader}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{quizStepInfo.title}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{quizStepInfo.subtitle}</Text>
+          <Text style={[styles.microcopy, { color: colors.textMuted }]}>{quizStepInfo.hint}</Text>
         </View>
-      </View>
+      )}
+
+      {/* Welcome / Completion headers are inside their renderers */}
 
       {/* Content */}
       <ScrollView
         style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[
+          styles.contentContainer,
+          (step === 0 || step === 6) && styles.centeredContent,
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {renderStepContent()}
       </ScrollView>
 
       {/* Footer */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { backgroundColor: colors.background, borderTopColor: colors.borderSubtle }]}>
+        {/* Validation hint */}
+        {hintText && (
+          <Text style={[styles.validationHint, { color: colors.textMuted }]}>{hintText}</Text>
+        )}
+
         <View style={styles.buttonRow}>
-          {step > 0 ? (
+          {isQuizStep && step > 1 ? (
             <TouchableOpacity style={styles.backButton} onPress={handleBack}>
               <Ionicons name="arrow-back" size={20} color={colors.textSecondary} />
-              <Text style={styles.backButtonText}>Back</Text>
+              <Text style={[styles.backButtonText, { color: colors.textSecondary }]}>Back</Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.placeholderSpacer} />
           )}
 
           <Button
-            title={step === STEPS.length - 1 ? "Let's Go!" : 'Continue'}
+            title={getButtonLabel()}
             onPress={handleNext}
             disabled={!canProceed()}
             style={styles.continueButton}
@@ -355,9 +541,11 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
         {step === 0 && (
           <TouchableOpacity
             style={styles.skipButton}
-            onPress={() => onComplete({ styles: [], colors: [], occasions: [], avoidColors: [], bodyType: '', ageRange: '' })}
+            onPress={() =>
+              onComplete({ styles: [], colors: [], occasions: [], avoidColors: [], bodyType: '', ageRange: '' })
+            }
           >
-            <Text style={styles.skipText}>Skip for now</Text>
+            <Text style={[styles.skipText, { color: colors.textMuted }]}>Skip setup for now</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -368,46 +556,44 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: staticColors.background,
   },
-  header: {
-    paddingTop: verticalScale(60),
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  progressContainer: {
+  progressHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    marginBottom: spacing.lg,
+    paddingTop: verticalScale(60),
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   progressTrack: {
     flex: 1,
     height: verticalScale(4),
-    backgroundColor: colors.card,
     borderRadius: scale(2),
     overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
-    backgroundColor: colors.primary,
     borderRadius: scale(2),
   },
   stepIndicator: {
     ...typography.caption,
-    color: colors.textMuted,
   },
-  titleContainer: {
+  quizHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
     gap: spacing.xs,
   },
   title: {
     ...typography.display,
     fontSize: scale(28),
-    color: colors.textPrimary,
   },
   subtitle: {
     ...typography.body,
-    color: colors.textSecondary,
+  },
+  microcopy: {
+    ...typography.caption,
+    marginTop: spacing.xs,
   },
   content: {
     flex: 1,
@@ -416,6 +602,56 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
   },
+  centeredContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+
+  // ── Welcome ───────────────────────────────────────────────────────
+  welcomeContainer: {
+    alignItems: 'center',
+    paddingTop: verticalScale(40),
+    paddingBottom: spacing.xl,
+  },
+  welcomeIconWrap: {
+    marginBottom: spacing.lg,
+  },
+  welcomeTitle: {
+    ...typography.display,
+    fontSize: scale(34),
+    textAlign: 'center',
+    lineHeight: scale(42),
+    marginBottom: spacing.sm,
+  },
+  welcomeTagline: {
+    ...typography.body,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
+  featureList: {
+    width: '100%',
+    gap: spacing.md,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  featureIconWrap: {
+    width: scale(40),
+    height: scale(40),
+    borderRadius: scale(12),
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  featureText: {
+    ...typography.body,
+    flex: 1,
+  },
+
+  // ── Options grid ──────────────────────────────────────────────────
   optionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -424,27 +660,16 @@ const styles = StyleSheet.create({
   },
   styleOption: {
     width: (SCREEN_WIDTH - spacing.lg * 2 - spacing.md) / 2,
-    backgroundColor: colors.card,
     borderRadius: scale(16),
     padding: spacing.lg,
     alignItems: 'center',
     gap: spacing.sm,
     borderWidth: scale(2),
-    borderColor: 'transparent',
     position: 'relative',
-  },
-  styleOptionSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
   },
   optionLabel: {
     ...typography.body,
-    color: colors.textSecondary,
     textAlign: 'center',
-  },
-  optionLabelSelected: {
-    color: colors.textPrimary,
-    fontWeight: '600',
   },
   checkmark: {
     position: 'absolute',
@@ -453,10 +678,11 @@ const styles = StyleSheet.create({
     width: scale(22),
     height: scale(22),
     borderRadius: scale(11),
-    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
+  // ── Color grid ────────────────────────────────────────────────────
   colorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -469,7 +695,6 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     width: scale(70),
   },
-  colorOptionSelected: {},
   colorCircle: {
     width: scale(52),
     height: scale(52),
@@ -479,20 +704,20 @@ const styles = StyleSheet.create({
     borderWidth: scale(3),
     borderColor: 'transparent',
   },
+  colorCircleSelected: {
+    borderColor: staticColors.primary,
+    borderWidth: scale(3),
+  },
   colorLabel: {
     ...typography.caption,
-    color: colors.textMuted,
   },
-  colorLabelSelected: {
-    color: colors.textPrimary,
-    fontWeight: '600',
-  },
+
+  // ── About ─────────────────────────────────────────────────────────
   aboutContainer: {
     marginTop: spacing.md,
   },
   sectionLabel: {
     ...typography.body,
-    color: colors.textPrimary,
     fontWeight: '600',
     marginBottom: spacing.md,
   },
@@ -504,30 +729,76 @@ const styles = StyleSheet.create({
   pill: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.card,
     borderRadius: scale(20),
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
-  },
-  pillSelected: {
-    backgroundColor: colors.primarySoft,
-    borderColor: colors.primary,
   },
   pillText: {
     ...typography.body,
-    color: colors.textSecondary,
   },
-  pillTextSelected: {
-    color: colors.primary,
-    fontWeight: '600',
+
+  // ── Completion ────────────────────────────────────────────────────
+  completionContainer: {
+    alignItems: 'center',
+    paddingTop: verticalScale(20),
+    paddingBottom: spacing.xl,
   },
+  completionIconWrap: {
+    width: scale(100),
+    height: scale(100),
+    borderRadius: scale(50),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  completionTitle: {
+    ...typography.display,
+    fontSize: scale(26),
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  completionSubtitle: {
+    ...typography.body,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
+  summaryCard: {
+    width: '100%',
+    borderRadius: scale(16),
+    padding: spacing.lg,
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: staticColors.borderSubtle,
+  },
+  summaryText: {
+    ...typography.body,
+    flex: 1,
+  },
+  completionHint: {
+    ...typography.caption,
+    textAlign: 'center',
+    paddingHorizontal: spacing.md,
+  },
+
+  // ── Footer ────────────────────────────────────────────────────────
   footer: {
     paddingHorizontal: spacing.lg,
     paddingBottom: verticalScale(40),
     paddingTop: spacing.md,
-    backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: colors.borderSubtle,
+  },
+  validationHint: {
+    ...typography.caption,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -542,7 +813,6 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     ...typography.body,
-    color: colors.textSecondary,
   },
   continueButton: {
     minWidth: scale(140),
@@ -557,8 +827,6 @@ const styles = StyleSheet.create({
   },
   skipText: {
     ...typography.body,
-    color: colors.textMuted,
     textDecorationLine: 'underline',
   },
 });
-
