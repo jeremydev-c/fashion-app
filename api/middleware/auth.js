@@ -1,6 +1,10 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fashion-fit-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('❌ FATAL: JWT_SECRET environment variable is not set. Authentication will not work.');
+  // In production this should call process.exit(1) — for now we warn loudly
+}
 
 // Generate JWT token
 const generateToken = (userId) => {

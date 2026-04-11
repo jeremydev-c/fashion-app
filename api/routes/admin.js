@@ -9,8 +9,11 @@ const { cloudinary } = require('../utils/cloudinary');
 
 const router = express.Router();
 
-// Simple admin authentication (you can enhance this later)
-const ADMIN_SECRET = process.env.ADMIN_SECRET || 'fashion-fit-admin-2025';
+// Admin secret MUST be set in .env — reject all requests if missing
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
+if (!ADMIN_SECRET) {
+  console.warn('⚠️  ADMIN_SECRET not set — admin endpoints will reject all requests');
+}
 
 /**
  * GET /admin/analytics
