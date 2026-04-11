@@ -73,6 +73,10 @@ const ClothingItemSchema = new mongoose.Schema(
 );
 
 ClothingItemSchema.index({ userId: 1, favorite: -1, updatedAt: -1 });
+// Add compound indexes for frequent Wardrobe filtering queries
+ClothingItemSchema.index({ userId: 1, category: 1 });
+ClothingItemSchema.index({ userId: 1, color: 1 });
+ClothingItemSchema.index({ userId: 1, category: 1, color: 1 });
 
 module.exports = mongoose.model('ClothingItem', ClothingItemSchema);
 
