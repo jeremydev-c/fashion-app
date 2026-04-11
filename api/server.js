@@ -2,6 +2,9 @@ const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
 
 // Load .env FIRST before importing routes
 dotenv.config();
@@ -51,6 +54,11 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
 
 const app = express();
 
+// ── Security Middlewares ──────────────────────────────────────────────────────
+app.use(helmet()); // Secures Express apps by setting HTTP response headers
+// Prevent NoSQL injection attacks
+app.use(mongoSanitize());
+
 // ── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
@@ -97,6 +105,9 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Protect against HTTP Parameter Pollution attacks
+app.use(hpp());
+
 
 mongoose
   .connect(process.env.MONGODB_URI, {
