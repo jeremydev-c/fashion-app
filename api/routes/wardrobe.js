@@ -14,11 +14,14 @@ const SEMANTIC_FIELDS = new Set([
   'category',
   'subcategory',
   'color',
+  'colorTemperature',
   'tags',
   'style',
   'pattern',
   'fit',
   'occasion',
+  'fabricSurface',
+  'visualWeight',
   'semanticProfile',
 ]);
 
@@ -85,6 +88,12 @@ function buildWardrobeItemPayload(source = {}, { existingItem = null } = {}) {
     cloudinaryPublicId: has('cloudinaryPublicId')
       ? cleanString(source.cloudinaryPublicId, 160)
       : existing.cloudinaryPublicId,
+    hexColors: has('hexColors') ? cleanStringArray(source.hexColors, 5, 7) : existing.hexColors,
+    colorTemperature: has('colorTemperature') ? cleanOptionalEnum(source.colorTemperature, ['warm', 'cool', 'neutral']) : existing.colorTemperature,
+    printScale: has('printScale') ? cleanOptionalEnum(source.printScale, ['micro', 'small', 'medium', 'large', 'oversized']) : existing.printScale,
+    fabricSurface: has('fabricSurface') ? cleanOptionalEnum(source.fabricSurface, ['matte', 'satin', 'glossy', 'metallic', 'sheer', 'nubby', 'brushed', 'waxed']) : existing.fabricSurface,
+    visualWeight: has('visualWeight') ? cleanOptionalNumber(source.visualWeight, 0, 1) : existing.visualWeight,
+    layeringRole: has('layeringRole') ? cleanOptionalEnum(source.layeringRole, ['base', 'mid', 'outer', 'standalone']) : existing.layeringRole,
     tags: has('tags') ? cleanStringArray(source.tags, 10, 24) : existing.tags,
     style: has('style') ? cleanOptionalEnum(source.style, VALID_STYLES) : existing.style,
     pattern: has('pattern') ? cleanOptionalEnum(source.pattern, VALID_PATTERNS) : existing.pattern,

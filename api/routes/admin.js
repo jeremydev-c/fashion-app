@@ -363,5 +363,98 @@ router.get('/users', async (req, res) => {
   }
 });
 
-module.exports = router;
+// ═══════════════════════════════════════════════════════════════════════════
+// VISUAL RE-ANALYSIS — upgrade heuristic-only items with GPT-4o vision
+// ═══════════════════════════════════════════════════════════════════════════
 
+const {
+  runReanalysisJob,
+  getJobStatus,
+  cancelJob,
+  getReanalysisStats,
+} = require('../services/visualReanalysis');
+
+/**
+ * GET /admin/reanalyze/stats?secret=...&userId=...
+ * Check how many items need re-analysis
+ */
+router.get('/reanalyze/stats', async (req, res) => {
+  try {
+    const { secret, userId } = req.query;
+    if (secret !== ADMIN_SECRET) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const stats = await getReanalysisStats(userId);
+    res.json(stats);
+  } catch (err) {
+    console.error('Reanalyze stats error:', err);
+    res.status(500).json({ error: 'Failed to get reanalysis stats' });
+  }
+});
+
+/**
+ * POST /admin/reanalyze/start
+ * body: { secret, userId?, limit? }
+ * Start a background re-analysis job
+ */
+router.post('/reanalyze/start', async (req, res) => {
+  try {
+    const { secret, userId, limit } = req.body || {};
+    if (secret !== ADMIN_SECRET) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: 'OPENAI_API_KEY not configured' });
+    }
+
+    const result = await runReanalysisJob({
+      userId: userId || undefined,
+      limit: limit || undefined,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Reanalyze start error:', err);
+    res.status(500).json({ error: 'Failed to start re-analysis' });
+  }
+});
+
+/**
+ * GET /admin/reanalyze/status?secret=...
+ * Check progress of the running re-analysis job
+ */
+router.get('/reanalyze/status', async (req, res) => {
+  try {
+    const { secret } = req.query;
+    if (secret !== ADMIN_SECRET) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    res.json(getJobStatus());
+  } catch (err) {
+    console.error('Reanalyze status error:', err);
+    res.status(500).json({ error: 'Failed to get job status' });
+  }
+});
+
+/**
+ * POST /admin/reanalyze/cancel
+ * body: { secret }
+ * Cancel a running re-analysis job
+ */
+router.post('/reanalyze/cancel', async (req, res) => {
+  try {
+    const { secret } = req.body || {};
+    if (secret !== ADMIN_SECRET) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    res.json(cancelJob());
+  } catch (err) {
+    console.error('Reanalyze cancel error:', err);
+    res.status(500).json({ error: 'Failed to cancel job' });
+  }
+});
+
+module.exports = router;

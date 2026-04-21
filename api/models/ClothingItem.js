@@ -48,6 +48,12 @@ const ClothingItemSchema = new mongoose.Schema(
     subcategory: { type: String }, // e.g., "v-neck t-shirt", "skinny jeans"
     color: { type: String },
     colorPalette: [{ type: String }], // Array of colors in the item
+    hexColors: [{ type: String }], // Hex codes from vision analysis (e.g., "#1B2A4A")
+    colorTemperature: { type: String, enum: ['warm', 'cool', 'neutral'] }, // Visual tone
+    printScale: { type: String, enum: ['micro', 'small', 'medium', 'large', 'oversized'] },
+    fabricSurface: { type: String, enum: ['matte', 'satin', 'glossy', 'metallic', 'sheer', 'nubby', 'brushed', 'waxed'] },
+    visualWeight: { type: Number, min: 0, max: 1 }, // 0=airy/sheer, 1=heavy/dense
+    layeringRole: { type: String, enum: ['base', 'mid', 'outer', 'standalone'] },
     brand: { type: String },
     size: { type: String },
     imageUrl: { type: String },
@@ -79,6 +85,3 @@ ClothingItemSchema.index({ userId: 1, color: 1 });
 ClothingItemSchema.index({ userId: 1, category: 1, color: 1 });
 
 module.exports = mongoose.model('ClothingItem', ClothingItemSchema);
-
-
-

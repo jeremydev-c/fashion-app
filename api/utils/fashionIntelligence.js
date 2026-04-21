@@ -651,7 +651,282 @@ function checkWowFactor(items, occasion) {
 }
 
 // ---------------------------------------------------------------------------
-// MAIN EVALUATOR — all 12 algorithms
+// SILHOUETTE BALANCE — do proportions work together visually?
+// ---------------------------------------------------------------------------
+
+const SILHOUETTE_BALANCE_RULES = {
+  // topSilhouette -> ideal bottom silhouettes (key=top, value=best bottoms)
+  oversized:       { good: ['tailored', 'straight', 'body-skimming'], neutral: ['boxy'], bad: ['oversized', 'flowy'] },
+  tailored:        { good: ['straight', 'tailored', 'flowy', 'body-skimming'], neutral: ['boxy', 'oversized'], bad: [] },
+  boxy:            { good: ['tailored', 'straight', 'body-skimming'], neutral: ['flowy'], bad: ['boxy', 'oversized'] },
+  flowy:           { good: ['tailored', 'straight', 'body-skimming'], neutral: ['boxy'], bad: ['flowy', 'oversized'] },
+  'body-skimming': { good: ['straight', 'tailored', 'flowy'], neutral: ['body-skimming', 'boxy'], bad: ['oversized'] },
+  straight:        { good: ['tailored', 'body-skimming', 'straight', 'flowy'], neutral: ['boxy', 'oversized'], bad: [] },
+};
+
+function inferSilhouette(item) {
+  const sp = item.semanticProfile || {};
+  if (sp.silhouette) return sp.silhouette;
+  const text = `${item.name || ''} ${item.subcategory || ''} ${item.fit || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
+  if (/(tailored|blazer|pencil|sheath|slim)/.test(text)) return 'tailored';
+  if (/(oversized|relaxed|loose|boyfriend)/.test(text)) return 'oversized';
+  if (/(flowy|maxi|swing|draped|a-line)/.test(text)) return 'flowy';
+  if (/(boxy|cropped|structured)/.test(text)) return 'boxy';
+  if (/(bodycon|body-con|fitted|skinny|slim fit)/.test(text)) return 'body-skimming';
+  return 'straight';
+}
+
+function checkSilhouetteBalance(items) {
+  const topItem = items.find(i => i.category === 'top' || i.category === 'outerwear');
+  const bottomItem = items.find(i => i.category === 'bottom');
+  const dressItem = items.find(i => i.category === 'dress');
+
+  // Dress-led outfits — check dress silhouette is intentional
+  if (dressItem && !topItem) {
+    const dressSil = inferSilhouette(dressItem);
+    const outerwear = items.find(i => i.category === 'outerwear');
+    if (outerwear) {
+      const owSil = inferSilhouette(outerwear);
+      const rules = SILHOUETTE_BALANCE_RULES[owSil];
+      if (rules?.good?.includes(dressSil)) return { valid: true, score: 0.95, reason: 'Proportions are on point' };
+      if (rules?.bad?.includes(dressSil)) return { valid: true, score: 0.45, reason: 'Silhouettes compete — consider a different layer' };
+    }
+    return { valid: true, score: 0.8, reason: 'Dress sets the silhouette' };
+  }
+
+  if (!topItem || !bottomItem) return { valid: true, score: 0.7, reason: 'Balanced proportions' };
+
+  const topSil = inferSilhouette(topItem);
+  const bottomSil = inferSilhouette(bottomItem);
+  const rules = SILHOUETTE_BALANCE_RULES[topSil];
+
+  if (!rules) return { valid: true, score: 0.7, reason: 'Balanced proportions' };
+
+  if (rules.good.includes(bottomSil)) {
+    return { valid: true, score: 0.95, reason: `${topSil} top + ${bottomSil} bottom — great proportions` };
+  }
+  if (rules.bad.includes(bottomSil)) {
+    return { valid: true, score: 0.35, reason: `${topSil} + ${bottomSil} — proportions feel off` };
+  }
+  return { valid: true, score: 0.65, reason: 'Acceptable proportions' };
+}
+
+// ---------------------------------------------------------------------------
+// MATERIAL/TEXTURE PAIRING — uses semantic profile data for smarter matching
+// ---------------------------------------------------------------------------
+
+const TEXTURE_PAIRING_RULES = {
+  // texture -> best paired textures, clashing textures
+  smooth:     { good: ['matte', 'textured', 'crisp', 'knit'], clash: [] },
+  matte:      { good: ['smooth', 'textured', 'crisp', 'knit'], clash: [] },
+  textured:   { good: ['smooth', 'matte', 'crisp'], clash: ['distressed'] },
+  distressed: { good: ['matte', 'smooth'], clash: ['crisp', 'smooth'] },
+  crisp:      { good: ['smooth', 'matte', 'knit'], clash: ['distressed'] },
+  knit:       { good: ['smooth', 'matte', 'crisp', 'textured'], clash: [] },
+};
+
+const MATERIAL_PAIRING_QUALITY = {
+  silk:      { premium: ['cashmere', 'wool', 'cotton', 'linen'], clash: ['fleece', 'mesh', 'jersey', 'denim'] },
+  satin:     { premium: ['cashmere', 'wool', 'silk'], clash: ['denim', 'fleece', 'corduroy'] },
+  cashmere:  { premium: ['silk', 'satin', 'wool', 'cotton'], clash: ['mesh', 'jersey'] },
+  denim:     { premium: ['cotton', 'knit', 'leather', 'suede', 'jersey'], clash: ['silk', 'satin', 'chiffon'] },
+  leather:   { premium: ['cotton', 'denim', 'knit', 'wool', 'cashmere'], clash: ['fleece', 'jersey'] },
+  cotton:    { premium: ['denim', 'linen', 'knit', 'wool', 'leather', 'silk'], clash: [] },
+  linen:     { premium: ['cotton', 'silk', 'leather'], clash: ['fleece', 'corduroy'] },
+  wool:      { premium: ['silk', 'cashmere', 'cotton', 'leather', 'suede'], clash: ['mesh'] },
+  knit:      { premium: ['denim', 'cotton', 'leather', 'wool'], clash: [] },
+  fleece:    { premium: ['cotton', 'jersey', 'knit'], clash: ['silk', 'satin', 'leather'] },
+  jersey:    { premium: ['cotton', 'denim', 'fleece'], clash: ['silk', 'satin'] },
+  chiffon:   { premium: ['silk', 'satin', 'cotton'], clash: ['denim', 'fleece', 'corduroy'] },
+  suede:     { premium: ['denim', 'cotton', 'wool', 'knit'], clash: ['mesh'] },
+  tweed:     { premium: ['cotton', 'silk', 'wool', 'cashmere'], clash: ['denim', 'jersey'] },
+  corduroy:  { premium: ['cotton', 'knit', 'wool'], clash: ['silk', 'satin', 'linen'] },
+  mesh:      { premium: ['cotton', 'jersey'], clash: ['silk', 'cashmere', 'wool', 'tweed'] },
+};
+
+function getItemTexture(item) {
+  return item.semanticProfile?.texture || null;
+}
+
+function getItemMaterials(item) {
+  return item.semanticProfile?.materials || [];
+}
+
+function checkSemanticTexturePairing(items) {
+  const withTexture = items.filter(i => getItemTexture(i)).map(i => ({ item: i, texture: getItemTexture(i), materials: getItemMaterials(i) }));
+  if (withTexture.length < 2) return { valid: true, score: 0.7, reason: 'Limited texture data' };
+
+  let texturePairScore = 0;
+  let texturePairCount = 0;
+  let materialPairScore = 0;
+  let materialPairCount = 0;
+
+  for (let i = 0; i < withTexture.length; i++) {
+    for (let j = i + 1; j < withTexture.length; j++) {
+      const a = withTexture[i];
+      const b = withTexture[j];
+
+      // Texture pairing
+      const rulesA = TEXTURE_PAIRING_RULES[a.texture];
+      if (rulesA) {
+        if (rulesA.good.includes(b.texture)) texturePairScore += 1;
+        else if (rulesA.clash.includes(b.texture)) texturePairScore -= 0.5;
+        else texturePairScore += 0.4;
+        texturePairCount++;
+      }
+
+      // Material pairing
+      for (const matA of a.materials) {
+        for (const matB of b.materials) {
+          const rulesMat = MATERIAL_PAIRING_QUALITY[matA];
+          if (rulesMat) {
+            if (rulesMat.premium.includes(matB)) materialPairScore += 1;
+            else if (rulesMat.clash.includes(matB)) materialPairScore -= 0.5;
+            else materialPairScore += 0.3;
+            materialPairCount++;
+          }
+        }
+      }
+    }
+  }
+
+  const textureAvg = texturePairCount > 0 ? Math.max(0, Math.min(1, (texturePairScore / texturePairCount + 0.5) / 1.5)) : 0.6;
+  const materialAvg = materialPairCount > 0 ? Math.max(0, Math.min(1, (materialPairScore / materialPairCount + 0.5) / 1.5)) : 0.6;
+  const combined = textureAvg * 0.45 + materialAvg * 0.55;
+
+  if (combined >= 0.8) return { valid: true, score: combined, reason: 'Textures and materials pair beautifully' };
+  if (combined >= 0.6) return { valid: true, score: combined, reason: 'Textures work together' };
+  if (combined >= 0.4) return { valid: true, score: combined, reason: 'Mixed texture pairing' };
+  return { valid: true, score: combined, reason: 'Textures clash — consider swapping a piece' };
+}
+
+// ---------------------------------------------------------------------------
+// CAPSULE ITEM CLASSIFICATION — core versatile vs statement pieces
+// ---------------------------------------------------------------------------
+
+const CAPSULE_CORE_SIGNALS = {
+  colors: new Set(['black', 'white', 'navy', 'gray', 'grey', 'beige', 'cream', 'tan', 'khaki', 'brown', 'charcoal', 'ivory', 'camel', 'taupe']),
+  patterns: new Set(['solid']),
+  styles: new Set(['classic', 'minimalist', 'casual', 'elegant']),
+  keywords: ['basic', 'essential', 'staple', 'everyday', 'versatile', 'timeless', 'neutral'],
+};
+
+const CAPSULE_STATEMENT_SIGNALS = {
+  patterns: new Set(['floral', 'animal', 'geometric', 'graphic', 'paisley', 'tie-dye', 'abstract']),
+  styles: new Set(['bold', 'edgy', 'streetwear', 'bohemian', 'punk']),
+  keywords: ['statement', 'bold', 'sequin', 'metallic', 'neon', 'oversized', 'graphic', 'printed', 'embroidered', 'unique', 'designer', 'limited'],
+};
+
+function classifyCapsuleRole(item) {
+  const color = (item.color || '').toLowerCase();
+  const pattern = (item.pattern || '').toLowerCase();
+  const style = (item.style || '').toLowerCase();
+  const text = `${item.name || ''} ${item.subcategory || ''} ${(item.tags || []).join(' ')}`.toLowerCase();
+  const versatility = item.semanticProfile?.axes?.versatility ?? 0.5;
+  const boldness = item.semanticProfile?.axes?.boldness ?? 0.5;
+  const minimalism = item.semanticProfile?.axes?.minimalism ?? 0.5;
+
+  let coreScore = 0;
+  let statementScore = 0;
+
+  // Color signals
+  if (CAPSULE_CORE_SIGNALS.colors.has(color)) coreScore += 2;
+  else statementScore += 1;
+
+  // Pattern signals
+  if (CAPSULE_CORE_SIGNALS.patterns.has(pattern) || !pattern) coreScore += 1.5;
+  if (CAPSULE_STATEMENT_SIGNALS.patterns.has(pattern)) statementScore += 2;
+
+  // Style signals
+  if (CAPSULE_CORE_SIGNALS.styles.has(style)) coreScore += 1.5;
+  if (CAPSULE_STATEMENT_SIGNALS.styles.has(style)) statementScore += 2;
+
+  // Keyword signals
+  CAPSULE_CORE_SIGNALS.keywords.forEach(kw => { if (text.includes(kw)) coreScore += 0.5; });
+  CAPSULE_STATEMENT_SIGNALS.keywords.forEach(kw => { if (text.includes(kw)) statementScore += 0.5; });
+
+  // Semantic axes
+  if (versatility >= 0.7) coreScore += 1.5;
+  if (versatility <= 0.35) statementScore += 1;
+  if (minimalism >= 0.65) coreScore += 1;
+  if (boldness >= 0.65) statementScore += 1.5;
+  if (boldness <= 0.3) coreScore += 0.5;
+
+  if (statementScore > coreScore + 1) return 'statement';
+  if (coreScore > statementScore + 1) return 'core';
+  return 'versatile';
+}
+
+function checkCapsuleBalance(items) {
+  const roles = items.map(i => classifyCapsuleRole(i));
+  const statementCount = roles.filter(r => r === 'statement').length;
+  const coreCount = roles.filter(r => r === 'core').length;
+
+  if (statementCount === 0) {
+    return { valid: true, score: 0.75, reason: 'Safe and versatile — consider a statement piece' };
+  }
+  if (statementCount === 1) {
+    return { valid: true, score: 1.0, reason: 'One statement piece anchors the look perfectly' };
+  }
+  if (statementCount === 2 && coreCount >= 1) {
+    return { valid: true, score: 0.7, reason: 'Two statement pieces — bold but intentional' };
+  }
+  if (statementCount >= 3) {
+    return { valid: true, score: 0.3, reason: 'Too many statement pieces compete for attention' };
+  }
+  return { valid: true, score: 0.8, reason: 'Good capsule balance' };
+}
+
+// ---------------------------------------------------------------------------
+// COLOR TEMPERATURE / UNDERTONE AWARENESS
+// ---------------------------------------------------------------------------
+
+const COLOR_TEMPS = {
+  warm: new Set(['red', 'orange', 'coral', 'peach', 'amber', 'gold', 'mustard', 'rust',
+    'terracotta', 'burgundy', 'wine', 'salmon', 'copper', 'bronze', 'camel', 'tan',
+    'brown', 'cream', 'ivory', 'khaki', 'olive', 'yellow', 'warm']),
+  cool: new Set(['blue', 'navy', 'sky', 'cobalt', 'teal', 'cyan', 'indigo', 'purple',
+    'violet', 'lavender', 'plum', 'magenta', 'mauve', 'mint', 'emerald', 'sage',
+    'silver', 'charcoal', 'slate', 'steel', 'ice', 'cool']),
+  neutral: new Set(['black', 'white', 'gray', 'grey', 'beige', 'taupe', 'nude', 'off-white']),
+};
+
+function getColorTemp(color) {
+  const c = (color || '').toLowerCase().trim();
+  if (COLOR_TEMPS.neutral.has(c)) return 'neutral';
+  if (COLOR_TEMPS.warm.has(c)) return 'warm';
+  if (COLOR_TEMPS.cool.has(c)) return 'cool';
+  // Check partial matches
+  for (const token of COLOR_TEMPS.warm) { if (c.includes(token)) return 'warm'; }
+  for (const token of COLOR_TEMPS.cool) { if (c.includes(token)) return 'cool'; }
+  return 'neutral';
+}
+
+function checkColorTemperature(items) {
+  const temps = items.map(i => getColorTemp(i.color)).filter(t => t !== 'neutral');
+  if (temps.length < 2) return { valid: true, score: 0.8, reason: 'Neutral-dominant palette' };
+
+  const warmCount = temps.filter(t => t === 'warm').length;
+  const coolCount = temps.filter(t => t === 'cool').length;
+  const total = temps.length;
+  const dominantRatio = Math.max(warmCount, coolCount) / total;
+
+  if (dominantRatio >= 0.9) {
+    const tone = warmCount > coolCount ? 'warm' : 'cool';
+    return { valid: true, score: 0.95, reason: `Cohesive ${tone}-toned palette` };
+  }
+  if (dominantRatio >= 0.7) {
+    const tone = warmCount > coolCount ? 'warm' : 'cool';
+    return { valid: true, score: 0.8, reason: `Mostly ${tone}-toned with a pop of contrast` };
+  }
+  if (dominantRatio >= 0.5) {
+    return { valid: true, score: 0.55, reason: 'Mixed warm and cool tones — intentional?' };
+  }
+  return { valid: true, score: 0.4, reason: 'Warm and cool tones clash' };
+}
+
+// ---------------------------------------------------------------------------
+// MAIN EVALUATOR — all 12 algorithms + new checks
 // ---------------------------------------------------------------------------
 
 function evaluateFashionIntelligence(items, occasion, weather, timeOfDay, weatherDetail) {
@@ -660,33 +935,41 @@ function evaluateFashionIntelligence(items, occasion, weather, timeOfDay, weathe
     styleCoherence: checkStyleCoherence(items),
     occasionFit: checkOccasionRules(items, occasion, timeOfDay),
     silhouetteBalance: checkProportions(items),
+    proportionalBalance: checkSilhouetteBalance(items),
     patternMixing: checkPatternMixing(items),
     textureHarmony: checkTextureCompatibility(items),
+    semanticTexture: checkSemanticTexturePairing(items),
     seasonalColors: checkSeasonalColors(items, weather),
     weatherAdaptation: checkWeatherCompleteness(items, weather, weatherDetail),
     outfitCompleteness: checkOutfitCompleteness(items, occasion),
     trendAlignment: checkTrendAlignment(items),
     versatility: checkVersatility(items),
     wowFactor: checkWowFactor(items, occasion),
+    capsuleBalance: checkCapsuleBalance(items),
+    colorTemperature: checkColorTemperature(items),
     // Bonus checks (not numbered in the 12 but contribute to final score)
     timeOfDayFit: checkTimeOfDayFit(items, timeOfDay || 'afternoon'),
     accessories: checkAccessoryCoordination(items),
   };
   
   const weights = {
-    colorHarmony: 0.09,
-    styleCoherence: 0.08,
-    occasionFit: 0.14,
-    silhouetteBalance: 0.07,
-    patternMixing: 0.06,
-    textureHarmony: 0.05,
-    seasonalColors: 0.06,
-    weatherAdaptation: 0.12,
-    outfitCompleteness: 0.09,
-    trendAlignment: 0.05,
-    versatility: 0.05,
-    wowFactor: 0.05,
-    timeOfDayFit: 0.06,
+    colorHarmony: 0.08,
+    styleCoherence: 0.07,
+    occasionFit: 0.13,
+    silhouetteBalance: 0.05,
+    proportionalBalance: 0.06,
+    patternMixing: 0.05,
+    textureHarmony: 0.03,
+    semanticTexture: 0.05,
+    seasonalColors: 0.05,
+    weatherAdaptation: 0.11,
+    outfitCompleteness: 0.08,
+    trendAlignment: 0.04,
+    versatility: 0.04,
+    wowFactor: 0.04,
+    capsuleBalance: 0.04,
+    colorTemperature: 0.04,
+    timeOfDayFit: 0.05,
     accessories: 0.03,
   };
   
@@ -730,5 +1013,11 @@ module.exports = {
   checkTrendAlignment,
   checkVersatility,
   checkWowFactor,
+  checkSilhouetteBalance,
+  checkSemanticTexturePairing,
+  checkCapsuleBalance,
+  checkColorTemperature,
+  classifyCapsuleRole,
+  getColorTemp,
   evaluateFashionIntelligence,
 };

@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fashion Fit — Your AI Personal Stylist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #c8a55a;
+    --gold-light: #e8cc8a;
+    --gold-soft: rgba(200,165,90,0.08);
+    --gold-glow: rgba(200,165,90,0.2);
+    --bg: #070707;
+    --surface: #0f0f0f;
+    --card: #141414;
+    --card2: #181818;
+    --border: rgba(200,165,90,0.12);
+    --border-bright: rgba(200,165,90,0.35);
+    --text: #f0ece6;
+    --text-sec: #8a8278;
+    --text-muted: #3a3530;
+    --green: #4ebb7a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; overflow-x: hidden; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── NOISE TEXTURE OVERLAY ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 16px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    width: min(900px, calc(100% - 32px));
+    background: rgba(10,10,10,0.8);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+  }
+  .nav-logo {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .nav-links {
+    display: flex;
+    gap: 28px;
+    list-style: none;
+  }
+  .nav-links a {
+    font-size: 13px;
+    color: var(--text-sec);
+    text-decoration: none;
+    transition: color 0.2s;
+    font-weight: 500;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta {
+    background: var(--gold);
+    color: #070707;
+    padding: 9px 20px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.2s;
+    white-space: nowrap;
+  }
+  .nav-cta:hover { background: var(--gold-light); transform: scale(1.03); }
+
+  /* ── TICKER ── */
+  .ticker {
+    width: 100%;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 0;
+    overflow: hidden;
+    margin-top: 0;
+  }
+  .ticker-track {
+    display: flex;
+    gap: 0;
+    animation: ticker 28s linear infinite;
+    width: max-content;
+  }
+  .ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 40px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-sec);
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .ticker-dot {
+    width: 4px; height: 4px;
+    background: var(--gold);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 60px;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 120px 40px 80px;
+    position: relative;
+  }
+
+  /* background orbs */
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(80px);
+  }
+  .orb-1 {
+    width: 500px; height: 500px;
+    background: rgba(200,165,90,0.07);
+    top: -100px; right: -100px;
+  }
+  .orb-2 {
+    width: 300px; height: 300px;
+    background: rgba(200,165,90,0.05);
+    bottom: 100px; left: -50px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--gold-soft);
+    border: 1px solid var(--border-bright);
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 7px 16px;
+    border-radius: 100px;
+    margin-bottom: 28px;
+  }
+  .badge-dot {
+    width: 6px; height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .hero h1 {
+    font-size: clamp(40px, 5.5vw, 72px);
+    font-weight: 900;
+    line-height: 1.04;
+    letter-spacing: -2px;
+    margin-bottom: 22px;
+  }
+  .hero h1 em {
+    font-style: normal;
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold) 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 4s linear infinite;
+  }
+  @keyframes shimmer {
+    from { background-position: 0% center; }
+    to { background-position: 200% center; }
+  }
+
+  .hero-sub {
+    font-size: clamp(15px, 1.8vw, 18px);
+    color: var(--text-sec);
+    line-height: 1.7;
+    margin-bottom: 40px;
+    max-width: 420px;
+    font-weight: 400;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--gold);
+    color: #070707;
+    padding: 15px 32px;
+    border-radius: 100px;
+    font-size: 15px;
+    font-weight: 800;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 0 0 0 var(--gold-glow);
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 40px var(--gold-glow);
+  }
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-sec);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 15px 20px;
+    transition: color 0.2s;
+  }
+  .btn-ghost:hover { color: var(--text); }
+
+  .hero-note {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.3px;
+    font-weight: 500;
+  }
+
+  /* ── PHONE MOCKUP ── */
+  .hero-right {
+    display: flex;
+    justify-content: center;
+    position: relative;
+  }
+
+  .phone-wrap {
+    position: relative;
+    width: 260px;
+  }
+
+  .phone-frame {
+    width: 260px;
+    height: 530px;
+    background: var(--card);
+    border-radius: 44px;
+    border: 1.5px solid rgba(200,165,90,0.2);
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 6px rgba(255,255,255,0.03),
+      0 40px 100px rgba(0,0,0,0.6),
+      0 0 80px rgba(200,165,90,0.1);
+  }
+
+  .phone-island {
+    width: 100px; height: 28px;
+    background: #000;
+    border-radius: 0 0 20px 20px;
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+  }
+
+  /* sliding screens */
+  .screens-container {
+    width: 100%; height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 44px 16px 20px;
+    gap: 9px;
+    background: linear-gradient(160deg, #1c1710 0%, #0d0b09 60%, #12100a 100%);
+    opacity: 0;
+    transform: translateX(30px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+    pointer-events: none;
+  }
+  .screen.active {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  .screen.exit {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+
+  .s-label {
+    font-size: 9px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--gold);
+    text-align: center;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .s-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(200,165,90,0.12);
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+
+  .s-card-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 5px;
+  }
+
+  .s-card-body {
+    font-size: 11px;
+    color: var(--text-sec);
+    line-height: 1.5;
+  }
+
+  .s-tag {
+    display: inline-block;
+    background: var(--gold-soft);
+    border: 1px solid rgba(200,165,90,0.15);
+    color: var(--gold);
+    font-size: 9px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 100px;
+    margin-top: 7px;
+    margin-right: 4px;
+  }
+
+  .s-bar-wrap {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .s-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    color: var(--text-sec);
+  }
+  .s-bar {
+    flex: 1;
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .s-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 2px;
+  }
+
+  .s-feed-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .s-avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #c8a55a40, #c8a55a20);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+  }
+  .s-feed-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .s-feed-sub {
+    font-size: 10px;
+    color: var(--text-sec);
+  }
+  .s-feed-like {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-sec);
+  }
+
+  /* screen indicator dots */
+  .screen-dots {
+    position: absolute;
+    bottom: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+  }
+  .screen-dot {
+    width: 6px; height: 6px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    transition: background 0.3s, width 0.3s;
+  }
+  .screen-dot.active {
+    background: var(--gold);
+    width: 18px;
+    border-radius: 3px;
+  }
+
+  /* floating badge on phone */
+  .phone-badge {
+    position: absolute;
+    right: -40px;
+    top: 80px;
+    background: var(--card2);
+    border: 1px solid var(--border-bright);
+    border-radius: 14px;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    animation: float1 3s ease-in-out infinite;
+  }
+  .phone-badge-sub {
+    font-size: 10px;
+    color: var(--text-sec);
+    font-weight: 400;
+    margin-top: 2px;
+  }
+  .phone-badge2 {
+    position: absolute;
+    left: -50px;
+    bottom: 100px;
+    background: var(--card2);
+    border: 1px solid var(--border-bright);
+    border-radius: 14px;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    animation: float2 3.5s ease-in-out infinite;
+  }
+
+  @keyframes float1 {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  @keyframes float2 {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(8px); }
+  }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    padding: 32px 40px;
+  }
+  .stats-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    text-align: center;
+  }
+  .stat-num {
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 900;
+    color: var(--gold);
+    letter-spacing: -1px;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-label {
+    font-size: 13px;
+    color: var(--text-sec);
+    font-weight: 500;
+  }
+
+  /* ── SECTIONS ── */
+  .section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 100px 40px;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 14px;
+    text-align: center;
+  }
+  .section-h {
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 900;
+    letter-spacing: -1px;
+    text-align: center;
+    margin-bottom: 60px;
+    line-height: 1.1;
+  }
+
+  /* ── FEATURES ── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .feat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 24px;
+    transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+  .feat::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top left, var(--gold-soft) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .feat:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .feat:hover::before { opacity: 1; }
+
+  .feat-icon {
+    font-size: 28px;
+    margin-bottom: 14px;
+    display: block;
+  }
+  .feat-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.3px;
+  }
+  .feat-desc {
+    font-size: 13.5px;
+    color: var(--text-sec);
+    line-height: 1.65;
+  }
+
+  /* ── HOW IT WORKS ── */
+  .steps-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    position: relative;
+  }
+  .steps-grid::before {
+    content: '';
+    position: absolute;
+    top: 24px;
+    left: calc(12.5% + 24px);
+    right: calc(12.5% + 24px);
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-bright), var(--border-bright), transparent);
+  }
+
+  .step {
+    padding: 0 20px 0;
+    text-align: center;
+    position: relative;
+  }
+  .step-num {
+    width: 48px; height: 48px;
+    background: var(--card);
+    border: 1px solid var(--border-bright);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 900;
+    color: var(--gold);
+    margin: 0 auto 20px;
+    position: relative;
+    z-index: 1;
+  }
+  .step-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.2px;
+  }
+  .step-desc {
+    font-size: 13px;
+    color: var(--text-sec);
+    line-height: 1.6;
+  }
+
+  /* ── SOCIAL PROOF ── */
+  .reviews-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 60px;
+  }
+
+  .review {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+  }
+  .review-stars {
+    color: var(--gold);
+    font-size: 14px;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+  }
+  .review-text {
+    font-size: 14px;
+    color: var(--text-sec);
+    line-height: 1.7;
+    margin-bottom: 20px;
+    font-style: italic;
+  }
+  .review-author {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .review-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold-soft), rgba(200,165,90,0.15));
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gold);
+  }
+  .review-name {
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .review-handle {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* ── CTA ── */
+  .cta-wrap {
+    padding: 0 40px 100px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .cta-box {
+    background: linear-gradient(135deg, #181208 0%, #0e0c07 50%, #141008 100%);
+    border: 1px solid rgba(200,165,90,0.22);
+    border-radius: 28px;
+    padding: 80px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta-box::before {
+    content: '';
+    position: absolute;
+    top: -150px; left: 50%;
+    transform: translateX(-50%);
+    width: 500px; height: 400px;
+    background: radial-gradient(circle, rgba(200,165,90,0.08) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .cta-box::after {
+    content: '';
+    position: absolute;
+    bottom: -100px; right: -50px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(200,165,90,0.05) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .cta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(78,187,122,0.1);
+    border: 1px solid rgba(78,187,122,0.25);
+    color: var(--green);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 7px 16px;
+    border-radius: 100px;
+    margin-bottom: 28px;
+  }
+  .cta-box h2 {
+    font-size: clamp(30px, 4.5vw, 54px);
+    font-weight: 900;
+    letter-spacing: -1.5px;
+    margin-bottom: 16px;
+    line-height: 1.05;
+  }
+  .cta-box p {
+    font-size: 17px;
+    color: var(--text-sec);
+    margin-bottom: 40px;
+    max-width: 440px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.65;
+  }
+  .cta-sub {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 36px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .footer-logo {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  footer p {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  /* ── SCROLL ANIMATIONS ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+  .reveal-delay-4 { transition-delay: 0.4s; }
+  .reveal-delay-5 { transition-delay: 0.5s; }
+
+  /* ══════════════════════════════════════════
+     RESPONSIVE — single source of truth
+     1200px+ : laptop/desktop (base styles)
+     860–1199px : small laptop / tablet landscape
+     600–859px  : tablet portrait
+     380–599px  : mobile
+     <380px     : small phone
+  ══════════════════════════════════════════ */
+
+  /* ── Small laptop / tablet landscape (860–1199px) ── */
+  @media (max-width: 1199px) {
+    .hero { gap: 40px; padding: 120px 32px 80px; }
+  }
+
+  /* ── Tablet portrait (600–859px) ── */
+  @media (max-width: 859px) {
+    /* Nav */
+    nav { top: 10px; padding: 12px 20px; width: calc(100% - 24px); }
+    .nav-links { display: none; }
+
+    /* Hero — single column */
+    .hero {
+      grid-template-columns: 1fr;
+      text-align: center;
+      padding: 100px 32px 60px;
+      gap: 56px;
+    }
+    .hero-right { order: -1; }
+    .hero-sub { margin: 0 auto 40px; max-width: 480px; }
+    .hero-actions { justify-content: center; }
+    .hero-badge { margin-left: auto; margin-right: auto; }
+
+    /* Phone: slightly smaller on tablet */
+    .phone-frame { width: 240px; height: 490px; }
+    .phone-badge, .phone-badge2 { display: none; }
+
+    /* Features */
+    .features-grid { grid-template-columns: 1fr 1fr; }
+
+    /* Reviews */
+    .reviews-grid { grid-template-columns: 1fr 1fr; }
+
+    /* Steps */
+    .steps-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .steps-grid::before { display: none; }
+    .step { padding: 24px 16px; }
+
+    /* Sections */
+    .section { padding: 80px 32px; }
+    .cta-wrap { padding: 0 32px 80px; }
+    .cta-box { padding: 64px 32px; }
+
+    /* Stats */
+    .stats-inner { gap: 12px; }
+    .stats-bar { padding: 28px 32px; }
+  }
+
+  /* ── Mobile (380–599px) ── */
+  @media (max-width: 599px) {
+    /* Nav */
+    nav { top: 8px; padding: 11px 16px; width: calc(100% - 16px); border-radius: 20px; }
+    .nav-logo { font-size: 13px; letter-spacing: 2px; }
+    .nav-cta { padding: 8px 16px; font-size: 12px; }
+
+    /* Ticker */
+    .ticker-item { padding: 0 24px; font-size: 11px; }
+
+    /* Hero */
+    .hero { padding: 90px 20px 50px; gap: 48px; }
+    .hero h1 { letter-spacing: -1.5px; }
+    .hero-sub { font-size: 15px; }
+    .hero-actions { flex-direction: column; align-items: stretch; width: 100%; max-width: 320px; margin: 0 auto; }
+    .btn-primary { justify-content: center; padding: 16px 24px; }
+    .btn-ghost { justify-content: center; }
+    .hero-note { margin-top: 16px; }
+
+    /* Phone */
+    .phone-frame { width: 230px; height: 470px; }
+
+    /* Sections */
+    .section { padding: 64px 20px; }
+    .section-h { margin-bottom: 40px; }
+
+    /* Features */
+    .features-grid { grid-template-columns: 1fr; gap: 12px; }
+    .feat { padding: 24px 20px; border-radius: 16px; }
+
+    /* Steps */
+    .steps-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
+    .step { padding: 20px 12px; }
+    .step-num { width: 40px; height: 40px; font-size: 14px; }
+    .step-title { font-size: 13px; }
+    .step-desc { font-size: 12px; }
+
+    /* Stats */
+    .stats-bar { padding: 24px 20px; }
+    .stats-inner { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .stat-num { font-size: clamp(22px, 6vw, 36px); }
+    .stat-label { font-size: 11px; }
+
+    /* Reviews */
+    .reviews-grid { grid-template-columns: 1fr; margin-top: 40px; }
+    .review { padding: 22px; }
+
+    /* CTA */
+    .cta-wrap { padding: 0 20px 64px; }
+    .cta-box { padding: 52px 24px; border-radius: 20px; }
+    .cta-box h2 { letter-spacing: -1px; }
+    .cta-box p { font-size: 15px; }
+
+    /* Footer */
+    footer { flex-direction: column; text-align: center; padding: 28px 20px; gap: 10px; }
+  }
+
+  /* ── Small phone (<380px) ── */
+  @media (max-width: 379px) {
+    .hero { padding: 80px 16px 40px; }
+    .phone-frame { width: 210px; height: 430px; }
+    .phone-island { width: 80px; }
+    .screen { padding: 38px 12px 16px; }
+    .steps-grid { grid-template-columns: 1fr; }
+    .stats-inner { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+    .stat-num { font-size: 20px; }
+    .stat-label { font-size: 10px; }
+    nav { border-radius: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Fashion Fit</div>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how">How it works</a></li>
+  </ul>
+  <a class="nav-cta" href="https://expo.dev/accounts/dripnap25/projects/fashion-fit/builds/ae1526d2-4063-4d52-a9f7-9d3ccd753779" target="_blank">Download Beta</a>
+</nav>
+
+<!-- TICKER -->
+<div class="ticker" style="margin-top:0; padding-top:0;">
+  <div class="ticker-track" id="ticker">
+    <div class="ticker-item"><span class="ticker-dot"></span> AI Outfit Generator</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Style DNA Profiling</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Weather-Aware Picks</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Smart Wardrobe</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Social Style Feed</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> AI Stylist Chat</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Daily Outfit Push</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Free Beta Access</div>
+    <!-- duplicate for seamless loop -->
+    <div class="ticker-item"><span class="ticker-dot"></span> AI Outfit Generator</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Style DNA Profiling</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Weather-Aware Picks</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Smart Wardrobe</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Social Style Feed</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> AI Stylist Chat</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Daily Outfit Push</div>
+    <div class="ticker-item"><span class="ticker-dot"></span> Free Beta Access</div>
+  </div>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+
+  <div class="hero-left">
+    <div class="hero-badge">
+      <span class="badge-dot"></span>
+      Beta — Free to Join
+    </div>
+    <h1>Dress better.<br><em>Every single day.</em></h1>
+    <p class="hero-sub">Upload your wardrobe once. Fashion Fit's AI builds daily outfits tailored to your style DNA, occasion, and the weather outside.</p>
+    <div class="hero-actions">
+      <a class="btn-primary" href="https://expo.dev/accounts/dripnap25/projects/fashion-fit/builds/ae1526d2-4063-4d52-a9f7-9d3ccd753779" target="_blank">
+        ↓ Download Free
+      </a>
+      <a class="btn-ghost" href="#how">See how it works →</a>
+    </div>
+    <p class="hero-note">Free during beta &nbsp;·&nbsp; Android &nbsp;·&nbsp; No credit card</p>
+  </div>
+
+  <div class="hero-right">
+    <div class="phone-wrap">
+      <div class="phone-frame">
+        <div class="phone-island"></div>
+        <div class="screens-container">
+
+          <!-- Screen 1: Outfit of the day -->
+          <div class="screen active" data-screen="0">
+            <div class="s-label">Today's Outfit</div>
+            <div class="s-card">
+              <div class="s-card-title">Business Casual</div>
+              <div class="s-card-body">Navy slim trousers · White Oxford · Tan loafers</div>
+              <span class="s-tag">Office Ready</span>
+              <span class="s-tag">25°C</span>
+            </div>
+            <div class="s-card">
+              <div class="s-card-title">Style DNA Match</div>
+              <div class="s-bar-wrap">
+                <div class="s-bar-row">
+                  Minimalist
+                  <div class="s-bar"><div class="s-bar-fill" style="width:88%"></div></div>
+                  88%
+                </div>
+                <div class="s-bar-row">
+                  Classic
+                  <div class="s-bar"><div class="s-bar-fill" style="width:72%"></div></div>
+                  72%
+                </div>
+                <div class="s-bar-row">
+                  Smart
+                  <div class="s-bar"><div class="s-bar-fill" style="width:65%"></div></div>
+                  65%
+                </div>
+              </div>
+            </div>
+            <div class="s-card">
+              <div class="s-card-title">Evening Option</div>
+              <div class="s-card-body">Black chinos · Linen shirt · White sneakers</div>
+              <span class="s-tag">Casual Chic</span>
+            </div>
+          </div>
+
+          <!-- Screen 2: Style DNA -->
+          <div class="screen" data-screen="1">
+            <div class="s-label">Your Style DNA</div>
+            <div class="s-card">
+              <div class="s-card-title">🧬 Style Profile</div>
+              <div class="s-bar-wrap">
+                <div class="s-bar-row">
+                  Minimalist
+                  <div class="s-bar"><div class="s-bar-fill" style="width:90%"></div></div>
+                  90%
+                </div>
+                <div class="s-bar-row">
+                  Streetwear
+                  <div class="s-bar"><div class="s-bar-fill" style="width:55%"></div></div>
+                  55%
+                </div>
+                <div class="s-bar-row">
+                  Formal
+                  <div class="s-bar"><div class="s-bar-fill" style="width:40%"></div></div>
+                  40%
+                </div>
+                <div class="s-bar-row">
+                  Bohemian
+                  <div class="s-bar"><div class="s-bar-fill" style="width:20%"></div></div>
+                  20%
+                </div>
+              </div>
+            </div>
+            <div class="s-card">
+              <div class="s-card-title">Top Colours</div>
+              <div class="s-card-body" style="display:flex;gap:8px;margin-top:4px">
+                <div style="width:24px;height:24px;border-radius:50%;background:#1a2540;border:1px solid var(--border)"></div>
+                <div style="width:24px;height:24px;border-radius:50%;background:#f5f0e8;border:1px solid var(--border)"></div>
+                <div style="width:24px;height:24px;border-radius:50%;background:#8b7355;border:1px solid var(--border)"></div>
+                <div style="width:24px;height:24px;border-radius:50%;background:#2d3d2d;border:1px solid var(--border)"></div>
+              </div>
+            </div>
+            <div class="s-card">
+              <div class="s-card-title">Wardrobe Items</div>
+              <div class="s-card-body">42 items catalogued · 8 complete looks</div>
+              <span class="s-tag">Updated today</span>
+            </div>
+          </div>
+
+          <!-- Screen 3: Social Feed -->
+          <div class="screen" data-screen="2">
+            <div class="s-label">Style Feed</div>
+            <div class="s-card">
+              <div class="s-feed-item">
+                <div class="s-avatar">A</div>
+                <div>
+                  <div class="s-feed-name">Amani K.</div>
+                  <div class="s-feed-sub">Summer OOTD 🌞</div>
+                </div>
+                <div class="s-feed-like">❤️ 48</div>
+              </div>
+              <div class="s-feed-item">
+                <div class="s-avatar">Z</div>
+                <div>
+                  <div class="s-feed-name">Zara M.</div>
+                  <div class="s-feed-sub">Nairobi street style</div>
+                </div>
+                <div class="s-feed-like">❤️ 31</div>
+              </div>
+              <div class="s-feed-item" style="border:none">
+                <div class="s-avatar">J</div>
+                <div>
+                  <div class="s-feed-name">Jabari T.</div>
+                  <div class="s-feed-sub">Work from home fit</div>
+                </div>
+                <div class="s-feed-like">❤️ 22</div>
+              </div>
+            </div>
+            <div class="s-card">
+              <div class="s-card-title">✨ Trending Today</div>
+              <span class="s-tag">#MinimalistFit</span>
+              <span class="s-tag">#NairobiStyle</span>
+              <span class="s-tag">#OOTD</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <div class="screen-dots">
+        <div class="screen-dot active" data-dot="0"></div>
+        <div class="screen-dot" data-dot="1"></div>
+        <div class="screen-dot" data-dot="2"></div>
+      </div>
+
+      <!-- floating badges -->
+      <div class="phone-badge">
+        ✨ 3 new outfits ready
+        <div class="phone-badge-sub">Based on today's weather</div>
+      </div>
+      <div class="phone-badge2">
+        🧬 92% style match
+        <div class="phone-badge-sub" style="font-size:10px;color:var(--text-sec);font-weight:400;margin-top:2px">Style DNA updated</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stats-inner">
+    <div>
+      <div class="stat-num reveal">6+</div>
+      <div class="stat-label">AI-powered features</div>
+    </div>
+    <div>
+      <div class="stat-num reveal reveal-delay-1">100%</div>
+      <div class="stat-label">Free during beta</div>
+    </div>
+    <div>
+      <div class="stat-num reveal reveal-delay-2">∞</div>
+      <div class="stat-label">Outfit combinations</div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="eyebrow reveal">What You Get</div>
+  <h2 class="section-h reveal">Built different.<br>Styled for you.</h2>
+  <div class="features-grid">
+    <div class="feat reveal reveal-delay-1">
+      <span class="feat-icon">🧬</span>
+      <div class="feat-title">Style DNA</div>
+      <div class="feat-desc">A personalized style profile built from your wardrobe and a quick taste quiz. Every recommendation gets smarter over time.</div>
+    </div>
+    <div class="feat reveal reveal-delay-2">
+      <span class="feat-icon">✨</span>
+      <div class="feat-title">AI Outfit Generator</div>
+      <div class="feat-desc">Tell the AI your occasion and it builds complete outfits from clothes you already own — no shopping required.</div>
+    </div>
+    <div class="feat reveal reveal-delay-3">
+      <span class="feat-icon">🌤️</span>
+      <div class="feat-title">Weather-Aware</div>
+      <div class="feat-desc">Recommendations factor in real-time weather so you're always dressed right for the day ahead.</div>
+    </div>
+    <div class="feat reveal reveal-delay-1">
+      <span class="feat-icon">👗</span>
+      <div class="feat-title">Smart Wardrobe</div>
+      <div class="feat-desc">Photograph your clothes once. AI categorizes colour, style, and occasion automatically — no manual tagging.</div>
+    </div>
+    <div class="feat reveal reveal-delay-2">
+      <span class="feat-icon">👥</span>
+      <div class="feat-title">Style Community</div>
+      <div class="feat-desc">Share your best fits, follow style-forward users, and discover looks from people with your aesthetic.</div>
+    </div>
+    <div class="feat reveal reveal-delay-3">
+      <span class="feat-icon">💬</span>
+      <div class="feat-title">AI Stylist Chat</div>
+      <div class="feat-desc">Ask anything — "what do I wear to a beach wedding?" — and get instant, personalized styling advice.</div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how" style="padding-top:0">
+  <div class="eyebrow reveal">How It Works</div>
+  <h2 class="section-h reveal">Up and running<br>in under 5 minutes</h2>
+  <div class="steps-grid">
+    <div class="step reveal reveal-delay-1">
+      <div class="step-num">1</div>
+      <div class="step-title">Upload Your Wardrobe</div>
+      <div class="step-desc">Photograph each item. AI reads colour, style, and fabric instantly.</div>
+    </div>
+    <div class="step reveal reveal-delay-2">
+      <div class="step-num">2</div>
+      <div class="step-title">Build Your Style DNA</div>
+      <div class="step-desc">A short taste quiz builds a style profile that's uniquely yours.</div>
+    </div>
+    <div class="step reveal reveal-delay-3">
+      <div class="step-num">3</div>
+      <div class="step-title">Get Daily Outfits</div>
+      <div class="step-desc">Open the app each morning. A full look is already waiting for you.</div>
+    </div>
+    <div class="step reveal reveal-delay-4">
+      <div class="step-num">4</div>
+      <div class="step-title">Share &amp; Discover</div>
+      <div class="step-desc">Post your favourite fits. Follow creators. Build your style rep.</div>
+    </div>
+  </div>
+</section>
+
+<!-- SOCIAL PROOF -->
+<section class="section" style="padding-top:0">
+  <div class="eyebrow reveal">Beta Feedback</div>
+  <h2 class="section-h reveal">Early users love it</h2>
+  <div class="reviews-grid">
+    <div class="review reveal reveal-delay-1">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">"Finally an app that actually uses what's already in my wardrobe instead of telling me to buy more things."</p>
+      <div class="review-author">
+        <div class="review-avatar">A</div>
+        <div>
+          <div class="review-name">Amara N.</div>
+          <div class="review-handle">Beta tester</div>
+        </div>
+      </div>
+    </div>
+    <div class="review reveal reveal-delay-2">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">"The Style DNA feature is genuinely impressive. It nailed my aesthetic after like 10 uploads."</p>
+      <div class="review-author">
+        <div class="review-avatar">K</div>
+        <div>
+          <div class="review-name">Kevin O.</div>
+          <div class="review-handle">Beta tester</div>
+        </div>
+      </div>
+    </div>
+    <div class="review reveal reveal-delay-3">
+      <div class="review-stars">★★★★★</div>
+      <p class="review-text">"I used to spend 20 minutes every morning deciding what to wear. Now I just open Fashion Fit."</p>
+      <div class="review-author">
+        <div class="review-avatar">S</div>
+        <div>
+          <div class="review-name">Sasha W.</div>
+          <div class="review-handle">Beta tester</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="cta-wrap">
+  <div class="cta-box reveal">
+    <div class="cta-pill">
+      <span class="badge-dot"></span>
+      Beta Access — Free Now
+    </div>
+    <h2>Stop staring<br>at your wardrobe.</h2>
+    <p>Join the Fashion Fit beta. Let AI handle the hard part — free, no credit card, no catch.</p>
+    <a class="btn-primary" href="https://expo.dev/accounts/dripnap25/projects/fashion-fit/builds/ae1526d2-4063-4d52-a9f7-9d3ccd753779" target="_blank">
+      ↓ Download Now — It's Free
+    </a>
+    <p class="cta-sub">Android &nbsp;·&nbsp; Free during beta &nbsp;·&nbsp; No sign-up fee</p>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">Fashion Fit</div>
+  <p>&copy; 2026 Fashion Fit &nbsp;·&nbsp; Built for style-conscious humans</p>
+</footer>
+
+<script>
+  // Scroll reveal
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // Rotating phone screens
+  const screens = document.querySelectorAll('.screen');
+  const dots = document.querySelectorAll('.screen-dot');
+  let current = 0;
+  let timer;
+
+  function goTo(idx) {
+    screens[current].classList.remove('active');
+    screens[current].classList.add('exit');
+    dots[current].classList.remove('active');
+    setTimeout(() => screens[(idx + screens.length) % screens.length === current ? current : current].classList.remove('exit'), 600);
+    current = (idx + screens.length) % screens.length;
+    screens[current].classList.remove('exit');
+    screens[current].classList.add('active');
+    dots[current].classList.add('active');
+  }
+
+  function next() {
+    const n = (current + 1) % screens.length;
+    screens[current].classList.remove('active');
+    screens[current].classList.add('exit');
+    dots[current].classList.remove('active');
+    const prev = current;
+    current = n;
+    screens[current].classList.remove('exit');
+    screens[current].classList.add('active');
+    dots[current].classList.add('active');
+    setTimeout(() => screens[prev].classList.remove('exit'), 700);
+  }
+
+  timer = setInterval(next, 3200);
+
+  dots.forEach((dot, i) => {
+    dot.addEventListener('click', () => {
+      clearInterval(timer);
+      if (i === current) return;
+      const prev = current;
+      screens[prev].classList.remove('active');
+      screens[prev].classList.add('exit');
+      dots[prev].classList.remove('active');
+      current = i;
+      screens[current].classList.remove('exit');
+      screens[current].classList.add('active');
+      dots[current].classList.add('active');
+      setTimeout(() => screens[prev].classList.remove('exit'), 700);
+      timer = setInterval(next, 3200);
+    });
+  });
+</script>
+</body>
+</html>

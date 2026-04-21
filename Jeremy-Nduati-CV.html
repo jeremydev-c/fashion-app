@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Jeremy Nduati — CV</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;900&display=swap');
+
+  :root {
+    --accent: #2563EB;
+    --accent-light: #EFF6FF;
+    --dark: #0F172A;
+    --mid: #334155;
+    --muted: #64748B;
+    --border: #E2E8F0;
+    --bg: #FFFFFF;
+    --tag-bg: #F1F5F9;
+  }
+
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { font-family:'Inter', system-ui, sans-serif; background:#F8FAFC; color:var(--dark); }
+
+  /* ── DOWNLOAD BUTTON ── */
+  .dl-btn {
+    position:fixed; bottom:24px; right:24px; z-index:9999;
+    background:var(--accent); color:#fff; border:none;
+    padding:12px 24px; font-family:'Inter', sans-serif;
+    font-size:0.75rem; font-weight:700; letter-spacing:1.5px;
+    text-transform:uppercase; border-radius:6px; cursor:pointer;
+    box-shadow:0 4px 20px rgba(37,99,235,0.35);
+    transition:background 0.2s;
+  }
+  .dl-btn:hover { background:#1D4ED8; }
+
+  /* ── PAGE WRAPPER ── */
+  .page {
+    max-width:210mm;
+    margin:24px auto;
+    background:var(--bg);
+    box-shadow:0 1px 40px rgba(0,0,0,0.08);
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background:var(--dark);
+    padding:44px 48px 36px;
+    position:relative;
+    overflow:hidden;
+  }
+  .header::after {
+    content:'';
+    position:absolute; bottom:0; left:0; right:0; height:3px;
+    background:linear-gradient(90deg, var(--accent), transparent);
+  }
+  .header-inner { position:relative; z-index:1; }
+  .name {
+    font-family:'Playfair Display', Georgia, serif;
+    font-size:2.8rem; font-weight:900; color:#fff;
+    letter-spacing:-1.5px; line-height:1; margin-bottom:6px;
+  }
+  .title-line {
+    font-size:0.78rem; font-weight:600; letter-spacing:3px;
+    text-transform:uppercase; color:var(--accent);
+    margin-bottom:20px;
+  }
+  .contact-row {
+    display:flex; flex-wrap:wrap; gap:8px 20px;
+    font-size:0.72rem; color:#94A3B8;
+  }
+  .contact-row a { color:#94A3B8; text-decoration:none; }
+  .contact-row a:hover { color:#fff; }
+  .contact-item { display:flex; align-items:center; gap:5px; }
+  .contact-dot { width:4px; height:4px; border-radius:50%; background:var(--accent); flex-shrink:0; }
+
+  /* ── BODY ── */
+  .body { padding:40px 48px; }
+
+  /* ── SECTION ── */
+  .section { margin-bottom:32px; }
+  .section:last-child { margin-bottom:0; }
+  .section-title {
+    font-size:0.6rem; font-weight:800; letter-spacing:3.5px;
+    text-transform:uppercase; color:var(--accent);
+    padding-bottom:8px; margin-bottom:16px;
+    border-bottom:2px solid var(--accent-light);
+  }
+
+  /* ── SUMMARY ── */
+  .summary {
+    font-size:0.82rem; line-height:1.8; color:var(--mid);
+    border-left:3px solid var(--accent);
+    padding:10px 16px;
+    background:var(--accent-light);
+    border-radius:0 4px 4px 0;
+  }
+
+  /* ── TWO COL ── */
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+  /* ── SKILL BLOCK ── */
+  .skill-block {
+    background:var(--tag-bg); border-radius:6px;
+    padding:12px 14px;
+  }
+  .skill-label {
+    font-size:0.58rem; font-weight:800; letter-spacing:2px;
+    text-transform:uppercase; color:var(--accent); margin-bottom:6px;
+  }
+  .skill-tags { display:flex; flex-wrap:wrap; gap:4px; }
+  .tag {
+    background:#fff; border:1px solid var(--border);
+    border-radius:3px; padding:2px 7px;
+    font-size:0.65rem; color:var(--mid); font-weight:500;
+  }
+
+  /* ── EXPERIENCE ITEM ── */
+  .exp-item { margin-bottom:20px; }
+  .exp-item:last-child { margin-bottom:0; }
+  .exp-header { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px; flex-wrap:wrap; gap:4px; }
+  .exp-role { font-size:0.82rem; font-weight:700; color:var(--dark); }
+  .exp-company { font-size:0.72rem; font-weight:600; color:var(--accent); }
+  .exp-date { font-size:0.65rem; color:var(--muted); font-weight:500; }
+  .exp-bullets { list-style:none; margin-top:6px; display:flex; flex-direction:column; gap:4px; }
+  .exp-bullets li {
+    font-size:0.72rem; color:var(--mid); line-height:1.55;
+    display:flex; gap:8px; align-items:flex-start;
+  }
+  .exp-bullets li::before { content:'▸'; color:var(--accent); font-size:0.6rem; flex-shrink:0; margin-top:2px; }
+
+  /* ── PROJECT ── */
+  .project { margin-bottom:18px; padding-bottom:18px; border-bottom:1px solid var(--border); }
+  .project:last-child { border-bottom:none; margin-bottom:0; padding-bottom:0; }
+  .project-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; flex-wrap:wrap; gap:4px; }
+  .project-name { font-size:0.82rem; font-weight:700; color:var(--dark); }
+  .project-status {
+    font-size:0.58rem; font-weight:700; letter-spacing:1.5px;
+    text-transform:uppercase; color:#fff;
+    background:var(--accent); padding:2px 7px; border-radius:3px;
+  }
+  .project-status.client { background:#059669; }
+  .project-stack { font-size:0.65rem; color:var(--muted); margin-bottom:6px; font-style:italic; }
+  .project-bullets { list-style:none; display:flex; flex-direction:column; gap:3px; }
+  .project-bullets li {
+    font-size:0.7rem; color:var(--mid); line-height:1.5;
+    display:flex; gap:8px; align-items:flex-start;
+  }
+  .project-bullets li::before { content:'◆'; color:var(--accent); font-size:0.42rem; flex-shrink:0; margin-top:4px; }
+
+  /* ── ACHIEVEMENT ROW ── */
+  .achievement {
+    display:flex; gap:10px; align-items:flex-start;
+    padding:8px 12px; background:var(--tag-bg); border-radius:4px;
+    margin-bottom:6px;
+  }
+  .achievement:last-child { margin-bottom:0; }
+  .achievement-icon { font-size:0.6rem; font-weight:800; color:var(--accent); flex-shrink:0; line-height:1.4; min-width:18px; }
+  .achievement-text { font-size:0.72rem; color:var(--mid); line-height:1.5; }
+  .achievement-text strong { color:var(--dark); }
+
+  /* ── CERT GRID ── */
+  .cert-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .cert-item {
+    display:flex; gap:8px; align-items:flex-start;
+    padding:7px 10px; background:var(--tag-bg); border-radius:4px;
+  }
+  .cert-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); flex-shrink:0; margin-top:4px; }
+  .cert-name { font-size:0.68rem; color:var(--mid); line-height:1.4; }
+  .cert-name strong { color:var(--dark); font-weight:600; display:block; }
+
+  /* ── EDUCATION ── */
+  .edu-item { display:flex; justify-content:space-between; align-items:center; }
+  .edu-school { font-size:0.78rem; font-weight:700; color:var(--dark); }
+  .edu-detail { font-size:0.68rem; color:var(--muted); }
+
+  /* ── DIVIDER ── */
+  hr { border:none; border-top:1px solid var(--border); margin:0; }
+
+  /* ── PRINT ── */
+  @media print {
+    @page { size:A4; margin:0; }
+    body { background:#fff; }
+    .page { box-shadow:none; margin:0; max-width:100%; }
+    .dl-btn { display:none !important; }
+    * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+  }
+  @media screen { body { padding:0 0 80px; } }
+</style>
+</head>
+<body>
+
+<button class="dl-btn" onclick="window.print()">Download PDF</button>
+
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-inner">
+      <div class="name">Jeremy Nduati</div>
+      <div class="title-line">Full-Stack Developer &nbsp;·&nbsp; AI Engineer &nbsp;·&nbsp; UI/UX Lead</div>
+      <div class="contact-row">
+        <span class="contact-item"><span class="contact-dot"></span>jeremynduati@gmail.com</span>
+        <span class="contact-item"><span class="contact-dot"></span>+254 710 517 091</span>
+        <span class="contact-item"><span class="contact-dot"></span>Nanyuki, Kenya</span>
+        <span class="contact-item"><span class="contact-dot"></span><a href="https://jeremy-portfolio-dpkh.vercel.app" target="_blank">jeremy-portfolio-dpkh.vercel.app</a></span>
+        <span class="contact-item"><span class="contact-dot"></span><a href="https://github.com/jeremynduati" target="_blank">github.com/jeremynduati</a></span>
+        <span class="contact-item"><span class="contact-dot"></span><a href="https://linkedin.com/in/jeremy-nduati" target="_blank">linkedin.com/in/jeremy-nduati</a></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- SUMMARY -->
+    <div class="section">
+      <div class="section-title">Professional Summary</div>
+      <div class="summary">
+        Full-stack developer and AI engineer, 16, with a track record of shipping production-ready applications across mobile, web, and AI domains. Built and deployed a complete AI-powered mobile app entirely solo — React Native frontend, Node.js backend, GPT-4o Vision AI pipeline, Paystack payments, and 31-language internationalisation — without a team or funding. Experienced across the full stack from database architecture to UI design. 3rd Place, Kenya National Science &amp; Engineering Fair 2025. Available for freelance projects globally.
+      </div>
+    </div>
+
+    <!-- SKILLS -->
+    <div class="section">
+      <div class="section-title">Core Skills</div>
+      <div class="two-col">
+        <div class="skill-block">
+          <div class="skill-label">Mobile</div>
+          <div class="skill-tags">
+            <span class="tag">React Native</span>
+            <span class="tag">Expo</span>
+            <span class="tag">EAS Build</span>
+            <span class="tag">TypeScript</span>
+            <span class="tag">Cross-Platform</span>
+          </div>
+        </div>
+        <div class="skill-block">
+          <div class="skill-label">Frontend</div>
+          <div class="skill-tags">
+            <span class="tag">Next.js</span>
+            <span class="tag">React</span>
+            <span class="tag">HTML/CSS</span>
+            <span class="tag">Responsive Design</span>
+            <span class="tag">UI/UX</span>
+          </div>
+        </div>
+        <div class="skill-block">
+          <div class="skill-label">Backend</div>
+          <div class="skill-tags">
+            <span class="tag">Node.js</span>
+            <span class="tag">Express</span>
+            <span class="tag">MongoDB</span>
+            <span class="tag">REST APIs</span>
+            <span class="tag">JWT Auth</span>
+          </div>
+        </div>
+        <div class="skill-block">
+          <div class="skill-label">AI / Integrations</div>
+          <div class="skill-tags">
+            <span class="tag">OpenAI GPT-4o</span>
+            <span class="tag">Vision API</span>
+            <span class="tag">GPT-4o-mini</span>
+            <span class="tag">AI Pipelines</span>
+            <span class="tag">Chatbots</span>
+          </div>
+        </div>
+        <div class="skill-block">
+          <div class="skill-label">Cloud & Payments</div>
+          <div class="skill-tags">
+            <span class="tag">Railway</span>
+            <span class="tag">Cloudinary</span>
+            <span class="tag">Vercel</span>
+            <span class="tag">Paystack</span>
+            <span class="tag">Stripe</span>
+          </div>
+        </div>
+        <div class="skill-block">
+          <div class="skill-label">Tools & Other</div>
+          <div class="skill-tags">
+            <span class="tag">Git / GitHub</span>
+            <span class="tag">Python</span>
+            <span class="tag">i18n (31 langs)</span>
+            <span class="tag">System Design</span>
+            <span class="tag">Leadership</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPERIENCE -->
+    <div class="section">
+      <div class="section-title">Professional Experience</div>
+
+      <div class="exp-item">
+        <div class="exp-header">
+          <div>
+            <div class="exp-role">UI/UX Lead &amp; Product Engineer</div>
+            <div class="exp-company">Iwaju</div>
+          </div>
+          <div class="exp-date">Present</div>
+        </div>
+        <ul class="exp-bullets">
+          <li>Direct UX strategy and product design across full development lifecycles</li>
+          <li>Engineer and deploy features integrating design systems with backend infrastructure</li>
+          <li>Integrate OpenAI AI/ML models for personalised, real-time user experiences</li>
+          <li>Manage cloud infrastructure on Railway with monitoring and uptime protocols</li>
+        </ul>
+      </div>
+
+      <div class="exp-item">
+        <div class="exp-header">
+          <div>
+            <div class="exp-role">Chief Creative Officer &amp; Deputy Head of Engineering</div>
+            <div class="exp-company">Luxa Labs</div>
+          </div>
+          <div class="exp-date">Present</div>
+        </div>
+        <ul class="exp-bullets">
+          <li>Define brand identity and creative vision across all products</li>
+          <li>Lead engineering architecture decisions using Node.js, Express, and MongoDB</li>
+          <li>Drive cost optimisation, security, and scalability for enterprise-grade systems</li>
+          <li>Maintain code quality standards across the engineering team</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- PROJECTS -->
+    <div class="section">
+      <div class="section-title">Key Projects</div>
+
+      <div class="project">
+        <div class="project-header">
+          <div class="project-name">Fashion Fit — AI Personal Stylist App</div>
+          <span class="project-status">Solo Build · Deployed</span>
+        </div>
+        <div class="project-stack">React Native · TypeScript · Node.js · MongoDB · GPT-4o Vision · Paystack · Cloudinary · EAS Build</div>
+        <ul class="project-bullets">
+          <li>Built entire product solo: 17 screens, 16 API route modules, 4 AI integration layers, zero external help</li>
+          <li>GPT-4o Vision pipeline categorises clothing photos into structured data at upload — zero AI cost at recommendation time</li>
+          <li>Style DNA engine builds a persistent personalised style profile per user, updating on every interaction</li>
+          <li>Weather-aware, occasion-specific outfit recommendations drawn exclusively from the user's own wardrobe</li>
+          <li>Paystack subscription billing (4 tiers) with server-side plan enforcement and 5-layer push notification retention system</li>
+          <li>31-language internationalisation live at launch — Africa, Middle East, Asia coverage from day one</li>
+        </ul>
+      </div>
+
+      <div class="project">
+        <div class="project-header">
+          <div class="project-name">ShopStar — Enterprise E-Commerce Platform</div>
+          <span class="project-status client">Client · Production</span>
+        </div>
+        <div class="project-stack">Next.js · Python · Stripe · MongoDB</div>
+        <ul class="project-bullets">
+          <li>Full e-commerce ecosystem with secure Stripe payments and AI-driven product recommendations</li>
+          <li>Real-time inventory management and personalisation features for enterprise clients</li>
+        </ul>
+      </div>
+
+      <div class="project">
+        <div class="project-header">
+          <div class="project-name">EventVerse — Event Management App</div>
+          <span class="project-status">Personal · Production</span>
+        </div>
+        <div class="project-stack">React · MongoDB</div>
+        <ul class="project-bullets">
+          <li>Real-time collaboration platform for event planning with third-party integrations</li>
+        </ul>
+      </div>
+
+      <div class="project">
+        <div class="project-header">
+          <div class="project-name">Custom Portfolio Websites &amp; Client Projects</div>
+          <span class="project-status client">Multiple Clients</span>
+        </div>
+        <div class="project-stack">Next.js · React · Node.js</div>
+        <ul class="project-bullets">
+          <li>Bespoke portfolio and business sites for professionals across Kenya and internationally</li>
+          <li>Clients include hospitality (Old House Nanyuki), e-commerce, and personal brands</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ACHIEVEMENTS -->
+    <div class="section">
+      <div class="section-title">Awards &amp; Achievements</div>
+      <div class="achievement">
+        <div class="achievement-icon">01</div>
+        <div class="achievement-text"><strong>3rd Place — Kenya Science &amp; Engineering Fair 2025</strong><br>County Level · Computer Science Category · Kianyaga Boys High School</div>
+      </div>
+      <div class="achievement">
+        <div class="achievement-icon">02</div>
+        <div class="achievement-text"><strong>#50 — 10Alytics Global Hackathon 2025</strong><br>Competitive ranking among international participants in innovation challenge</div>
+      </div>
+      <div class="achievement">
+        <div class="achievement-icon">03</div>
+        <div class="achievement-text"><strong>C-Level Executive Roles at Age 15</strong><br>CCO at Luxa Labs · UI/UX Lead at Iwaju · International collaborations across Kenya, Ghana, and Lithuania</div>
+      </div>
+      <div class="achievement">
+        <div class="achievement-icon">04</div>
+        <div class="achievement-text"><strong>1,200+ Hours of Technical Training</strong><br>Software engineering, AI/ML, data science, and full-stack development</div>
+      </div>
+    </div>
+
+    <!-- CERTIFICATIONS -->
+    <div class="section">
+      <div class="section-title">Certifications</div>
+      <div class="cert-grid">
+        <div class="cert-item">
+          <div class="cert-dot"></div>
+          <div class="cert-name"><strong>Meta Front-End Developer</strong>Professional Certificate · 2024</div>
+        </div>
+        <div class="cert-item">
+          <div class="cert-dot"></div>
+          <div class="cert-name"><strong>Meta Back-End Developer</strong>Professional Certificate · 2024</div>
+        </div>
+        <div class="cert-item">
+          <div class="cert-dot"></div>
+          <div class="cert-name"><strong>Google AI Essentials</strong>Specialization · 2025</div>
+        </div>
+        <div class="cert-item">
+          <div class="cert-dot"></div>
+          <div class="cert-name"><strong>Google Data Analytics</strong>Professional Certificate · 2025</div>
+        </div>
+        <div class="cert-item">
+          <div class="cert-dot"></div>
+          <div class="cert-name"><strong>freeCodeCamp</strong>Responsive Web Design · JS Algorithms · Front End Libraries · Back End &amp; APIs · Data Visualization</div>
+        </div>
+        <div class="cert-item">
+          <div class="cert-dot"></div>
+          <div class="cert-name"><strong>EA Software Engineering Simulation</strong>Forage · October 2025</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDUCATION -->
+    <div class="section">
+      <div class="section-title">Education</div>
+      <div class="edu-item">
+        <div class="edu-school">Kianyaga Boys High School</div>
+        <div class="edu-detail">Kenya · Ongoing</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fashion Fit — Visual Pipeline</title>
+<style>
+  :root {
+    --gold: #c8a55a;
+    --gold-soft: rgba(200,165,90,0.12);
+    --gold-dim: rgba(200,165,90,0.35);
+    --bg: #080808;
+    --bg2: #101010;
+    --surface: #141414;
+    --card: #1a1a1a;
+    --border: rgba(200,165,90,0.15);
+    --border-bright: rgba(200,165,90,0.4);
+    --text: #f7f3ee;
+    --text-sec: #a09890;
+    --text-muted: #585048;
+    --green: #5ecc8a;
+    --blue: #5ab4c8;
+    --purple: #a07acc;
+    --orange: #e8844a;
+    --rose: #cc5a7a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── Header ── */
+  .page-header {
+    text-align: center;
+    margin-bottom: 64px;
+  }
+  .page-header .eyebrow {
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .page-header h1 {
+    font-size: clamp(28px, 4vw, 48px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: var(--text);
+  }
+  .page-header h1 span { color: var(--gold); }
+  .page-header .subtitle {
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--text-sec);
+    letter-spacing: 0.3px;
+  }
+
+  /* ── Section titles ── */
+  .section-title {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    padding-left: 4px;
+  }
+
+  /* ── Pipeline container ── */
+  .pipeline {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── Layer row ── */
+  .layer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+  }
+  .layer + .layer {
+    margin-top: 8px;
+  }
+
+  .layer-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 4px;
+  }
+  .layer-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .layer-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .layer-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Card grid ── */
+  .card-grid {
+    display: grid;
+    gap: 12px;
+  }
+  .grid-1 { grid-template-columns: 1fr; }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-5 { grid-template-columns: repeat(5, 1fr); }
+  @media (max-width: 700px) {
+    .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 420px) {
+    .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
+  }
+
+  /* ── Node card ── */
+  .node {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    transition: border-color 0.2s, transform 0.2s;
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+  }
+  .node:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-2px);
+  }
+  .node::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    border-radius: 12px 12px 0 0;
+  }
+  .node-icon {
+    font-size: 20px;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .node-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+  .node-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .node-badge {
+    display: inline-block;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    margin-top: 8px;
+  }
+  .node-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .node-tag {
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text-sec);
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+
+  /* Color themes per layer */
+  .theme-gold .node::before  { background: var(--gold); }
+  .theme-gold .node { border-top-color: var(--gold-dim); }
+
+  .theme-green .node::before { background: var(--green); }
+  .theme-green .node { border-top-color: rgba(94,204,138,0.3); }
+
+  .theme-blue .node::before  { background: var(--blue); }
+  .theme-blue .node { border-top-color: rgba(90,180,200,0.3); }
+
+  .theme-purple .node::before { background: var(--purple); }
+  .theme-purple .node { border-top-color: rgba(160,122,204,0.3); }
+
+  .theme-orange .node::before { background: var(--orange); }
+  .theme-orange .node { border-top-color: rgba(232,132,74,0.3); }
+
+  .theme-rose .node::before  { background: var(--rose); }
+  .theme-rose .node { border-top-color: rgba(204,90,122,0.3); }
+
+  /* Badge colours */
+  .badge-ai     { background: rgba(160,122,204,0.15); color: var(--purple); }
+  .badge-db     { background: rgba(90,180,200,0.12); color: var(--blue); }
+  .badge-ext    { background: rgba(232,132,74,0.12); color: var(--orange); }
+  .badge-free   { background: rgba(94,204,138,0.12); color: var(--green); }
+  .badge-paid   { background: rgba(200,165,90,0.15); color: var(--gold); }
+
+  /* ── Arrow connector ── */
+  .arrow-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0;
+    position: relative;
+  }
+  .arrow-row::before {
+    content: '';
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+  .arrow-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 10px;
+    color: var(--text-sec);
+    letter-spacing: 1px;
+    white-space: nowrap;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .arrow-chip .arr { color: var(--gold); font-size: 12px; }
+
+  /* ── Flow diagram (central pipeline) ── */
+  .flow-wrap {
+    max-width: 1100px;
+    margin: 0 auto 60px;
+  }
+  .flow-row {
+    display: flex;
+    gap: 0;
+    align-items: stretch;
+    justify-content: center;
+  }
+  .flow-step {
+    flex: 1;
+    max-width: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+  .flow-step + .flow-step::before {
+    content: '→';
+    position: absolute;
+    left: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gold-dim);
+    font-size: 16px;
+    z-index: 2;
+  }
+  .flow-box {
+    width: 100%;
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 14px 12px;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+  }
+  .flow-icon { font-size: 24px; margin-bottom: 6px; display: block; }
+  .flow-name { font-size: 12px; font-weight: 700; color: var(--text); }
+  .flow-sub  { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+  .flow-connector {
+    width: 1px;
+    flex-shrink: 0;
+    background: linear-gradient(to right, transparent 0, var(--border) 50%, transparent 100%);
+    margin: 0 8px;
+    position: relative;
+  }
+
+  /* ── Data model table ── */
+  .model-grid {
+    max-width: 1100px;
+    margin: 0 auto 60px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  .model-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .model-card-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gold);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .model-field {
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    display: flex;
+    justify-content: space-between;
+  }
+  .model-field:last-child { border-bottom: none; }
+  .field-type { color: var(--blue); font-size: 9px; }
+
+  /* ── Legend ── */
+  .legend {
+    max-width: 1100px;
+    margin: 0 auto 40px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    color: var(--text-sec);
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    max-width: 1100px;
+    margin: 48px auto 40px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+
+  /* ── AI cost callout ── */
+  .callout {
+    max-width: 1100px;
+    margin: 0 auto 40px;
+    background: var(--gold-soft);
+    border: 1px solid var(--gold-dim);
+    border-radius: 14px;
+    padding: 20px 24px;
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .callout-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
+  .callout-body {}
+  .callout-title { font-size: 13px; font-weight: 700; color: var(--gold); margin-bottom: 6px; }
+  .callout-text  { font-size: 12px; color: var(--text-sec); line-height: 1.6; }
+  .callout-text code {
+    background: rgba(200,165,90,0.15);
+    color: var(--gold);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="page-header">
+  <div class="eyebrow">System Architecture</div>
+  <h1>Fashion Fit <span>Visual Pipeline</span></h1>
+  <div class="subtitle">End-to-end data flow · AI touchpoints · Feature map</div>
+</div>
+
+<div class="pipeline">
+
+  <!-- ══════════════════════════════════════════
+       LAYER 1 — USER ENTRY
+  ══════════════════════════════════════════ -->
+  <div class="layer theme-gold">
+    <div class="layer-header">
+      <div class="layer-dot" style="background:var(--gold)"></div>
+      <div class="layer-label">Layer 1 — User Entry</div>
+      <div class="layer-line"></div>
+    </div>
+    <div class="card-grid grid-4">
+      <div class="node">
+        <span class="node-icon">📱</span>
+        <div class="node-name">Onboarding</div>
+        <div class="node-desc">Style quiz, body type, occasion prefs, colour preferences</div>
+        <div class="node-tags"><span class="node-tag">OnboardingScreen</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">🔐</span>
+        <div class="node-name">Auth</div>
+        <div class="node-desc">JWT sign-up / sign-in. Token stored in AsyncStorage</div>
+        <div class="node-tags"><span class="node-tag">AuthScreen</span><span class="node-tag">User model</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">✉️</span>
+        <div class="node-name">Email Verify</div>
+        <div class="node-desc">OTP sent via Resend API. Required before full access</div>
+        <div class="node-tags"><span class="node-tag">VerifyScreen</span><span class="node-tag">Resend</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">💳</span>
+        <div class="node-name">Subscriptions</div>
+        <div class="node-desc">Free / Pro / Elite tiers via Paystack. Enforces daily limits</div>
+        <span class="node-badge badge-paid">Paystack</span>
+        <div class="node-tags"><span class="node-tag">planLimits.js</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row">
+    <div class="arrow-chip"><span class="arr">↓</span> Authenticated user proceeds</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       LAYER 2 — WARDROBE INGESTION
+  ══════════════════════════════════════════ -->
+  <div class="layer theme-green">
+    <div class="layer-header">
+      <div class="layer-dot" style="background:var(--green)"></div>
+      <div class="layer-label">Layer 2 — Wardrobe Ingestion</div>
+      <div class="layer-line"></div>
+    </div>
+    <div class="card-grid grid-3">
+      <div class="node">
+        <span class="node-icon">📷</span>
+        <div class="node-name">Photo Capture</div>
+        <div class="node-desc">Camera or gallery pick via expo-image-picker. Supports bulk upload</div>
+        <div class="node-tags"><span class="node-tag">CameraScreen</span><span class="node-tag">BulkCameraScreen</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">☁️</span>
+        <div class="node-name">Cloudinary Storage</div>
+        <div class="node-desc">Images uploaded to Cloudinary. Returns secure URL + public_id</div>
+        <span class="node-badge badge-ext">External CDN</span>
+      </div>
+      <div class="node">
+        <span class="node-icon">🤖</span>
+        <div class="node-name">AI Categorisation</div>
+        <div class="node-desc">gpt-4o vision analyses image → category, color, style, pattern, fit, occasion tags</div>
+        <span class="node-badge badge-ai">gpt-4o</span>
+        <div class="node-tags"><span class="node-tag">ai.js → /categorize</span></div>
+      </div>
+    </div>
+    <div class="card-grid grid-2" style="margin-top:12px">
+      <div class="node">
+        <span class="node-icon">🗄️</span>
+        <div class="node-name">ClothingItem Model</div>
+        <div class="node-desc">Persisted to MongoDB. Fields: category, subcategory, color, style, pattern, fit, occasion[], brand, imageUrl, tags, aiConfidence</div>
+        <span class="node-badge badge-db">MongoDB</span>
+      </div>
+      <div class="node">
+        <span class="node-icon">👗</span>
+        <div class="node-name">Wardrobe Screen</div>
+        <div class="node-desc">Browse, filter, edit, delete items. Real-time category breakdown. Triggers Style DNA recalculation on change</div>
+        <div class="node-tags"><span class="node-tag">WardrobeScreen</span><span class="node-tag">wardrobe.js</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row">
+    <div class="arrow-chip"><span class="arr">↓</span> Wardrobe ready → intelligence layer</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       LAYER 3 — AI INTELLIGENCE
+  ══════════════════════════════════════════ -->
+  <div class="layer theme-purple">
+    <div class="layer-header">
+      <div class="layer-dot" style="background:var(--purple)"></div>
+      <div class="layer-label">Layer 3 — AI Intelligence Core</div>
+      <div class="layer-line"></div>
+    </div>
+    <div class="card-grid grid-3">
+      <div class="node">
+        <span class="node-icon">🧬</span>
+        <div class="node-name">Style DNA Engine</div>
+        <div class="node-desc">Analyses full wardrobe. Returns archetype, mantra, insight, colour profile, seasonal palette, capsule essentials. 24h smart cache.</div>
+        <span class="node-badge badge-ai">gpt-4o-mini</span>
+        <div class="node-tags"><span class="node-tag">styleDNA.js</span><span class="node-tag">StyleDNA model</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">🌤️</span>
+        <div class="node-name">Weather Context</div>
+        <div class="node-desc">OpenWeather API fetches real-time temp, condition, humidity, wind. Feeds into recommendation scoring</div>
+        <span class="node-badge badge-ext">OpenWeather</span>
+        <div class="node-tags"><span class="node-tag">weather.js</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">🧠</span>
+        <div class="node-name">Fashion Intelligence</div>
+        <div class="node-desc">Pure-JS occasion profiles, time-of-day weights, formality scoring, weather suitability. No AI tokens used here.</div>
+        <span class="node-badge badge-free">Zero cost</span>
+        <div class="node-tags"><span class="node-tag">fashionIntelligence.js</span></div>
+      </div>
+    </div>
+    <div class="card-grid grid-2" style="margin-top:12px">
+      <div class="node">
+        <span class="node-icon">✨</span>
+        <div class="node-name">Outfit Recommendations</div>
+        <div class="node-desc">Algorithm scores wardrobe items → selects top candidates → gpt-4o-mini enhances with styling tips. Respects daily plan limits.</div>
+        <span class="node-badge badge-ai">gpt-4o-mini enhance</span>
+        <div class="node-tags"><span class="node-tag">recommendations.js</span><span class="node-tag">HomeScreen</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">💬</span>
+        <div class="node-name">AI Stylist Chat</div>
+        <div class="node-desc">Conversational fashion advice. Context-aware: knows wardrobe, Style DNA, preferences. History stored per user.</div>
+        <span class="node-badge badge-ai">gpt-4o-mini</span>
+        <div class="node-tags"><span class="node-tag">chat.js</span><span class="node-tag">ChatScreen</span><span class="node-tag">ChatHistory model</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row">
+    <div class="arrow-chip"><span class="arr">↓</span> Output surfaced across app screens</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       LAYER 4 — SCREENS & FEATURES
+  ══════════════════════════════════════════ -->
+  <div class="layer theme-blue">
+    <div class="layer-header">
+      <div class="layer-dot" style="background:var(--blue)"></div>
+      <div class="layer-label">Layer 4 — App Screens & Features</div>
+      <div class="layer-line"></div>
+    </div>
+    <div class="card-grid grid-5">
+      <div class="node">
+        <span class="node-icon">🏠</span>
+        <div class="node-name">Home</div>
+        <div class="node-desc">Daily outfit recommendations. Weather card. Occasion selector.</div>
+        <div class="node-tags"><span class="node-tag">HomeScreen</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">🗓️</span>
+        <div class="node-name">Planner</div>
+        <div class="node-desc">Calendar-based outfit planning. Save outfits to future dates.</div>
+        <div class="node-tags"><span class="node-tag">PlannerScreen</span><span class="node-tag">PlannedOutfit</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">👤</span>
+        <div class="node-name">Profile</div>
+        <div class="node-desc">Style DNA card (shareable). Stats. Subscription. Settings. Analytics.</div>
+        <div class="node-tags"><span class="node-tag">ProfileScreen</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">📊</span>
+        <div class="node-name">Analytics</div>
+        <div class="node-desc">Wardrobe insights, outfit frequency, category breakdown, trend tracking.</div>
+        <div class="node-tags"><span class="node-tag">AnalyticsScreen</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">💬</span>
+        <div class="node-name">Stylist Chat</div>
+        <div class="node-desc">Ask anything fashion. AI remembers context and wardrobe.</div>
+        <div class="node-tags"><span class="node-tag">ChatScreen</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row">
+    <div class="arrow-chip"><span class="arr">↓</span> Community layer</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       LAYER 5 — SOCIAL
+  ══════════════════════════════════════════ -->
+  <div class="layer theme-rose">
+    <div class="layer-header">
+      <div class="layer-dot" style="background:var(--rose)"></div>
+      <div class="layer-label">Layer 5 — Social & Community</div>
+      <div class="layer-line"></div>
+    </div>
+    <div class="card-grid grid-4">
+      <div class="node">
+        <span class="node-icon">📰</span>
+        <div class="node-name">Social Feed</div>
+        <div class="node-desc">Discover outfits from people you follow. Chronological + curated.</div>
+        <div class="node-tags"><span class="node-tag">SocialFeedScreen</span><span class="node-tag">social.js</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">❤️</span>
+        <div class="node-name">Posts & Likes</div>
+        <div class="node-desc">Share outfit posts. Like others. Post stored with outfit reference.</div>
+        <div class="node-tags"><span class="node-tag">Post model</span><span class="node-tag">PostLike model</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">👥</span>
+        <div class="node-name">Follow System</div>
+        <div class="node-desc">Follow/unfollow users. Public profiles with wardrobe count + Style DNA.</div>
+        <div class="node-tags"><span class="node-tag">Follow model</span><span class="node-tag">PublicProfileScreen</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">🔔</span>
+        <div class="node-name">Push Notifications</div>
+        <div class="node-desc">Expo push notifications for likes, follows, daily outfit reminder.</div>
+        <div class="node-tags"><span class="node-tag">notificationService</span><span class="node-tag">notifications.js</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row">
+    <div class="arrow-chip"><span class="arr">↓</span> Feedback loop → improves recommendations</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       LAYER 6 — LEARNING & OPS
+  ══════════════════════════════════════════ -->
+  <div class="layer theme-orange">
+    <div class="layer-header">
+      <div class="layer-dot" style="background:var(--orange)"></div>
+      <div class="layer-label">Layer 6 — Learning Loop & Operations</div>
+      <div class="layer-line"></div>
+    </div>
+    <div class="card-grid grid-4">
+      <div class="node">
+        <span class="node-icon">👍</span>
+        <div class="node-name">Outfit Feedback</div>
+        <div class="node-desc">Swipe left/right or rate outfits. Liked/rejected item IDs feed back into next recommendation pass.</div>
+        <div class="node-tags"><span class="node-tag">LearningHistory</span><span class="node-tag">OutfitFeedback</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">💾</span>
+        <div class="node-name">Saved Outfits</div>
+        <div class="node-desc">Bookmark outfits to wardrobe. Used as positive signal + accessible in Planner.</div>
+        <div class="node-tags"><span class="node-tag">Outfit model</span><span class="node-tag">outfits.js</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">📈</span>
+        <div class="node-name">API Usage Tracker</div>
+        <div class="node-desc">Every OpenAI call logged: model, tokens, cost. Viewable in Admin Dashboard.</div>
+        <div class="node-tags"><span class="node-tag">ApiUsage model</span><span class="node-tag">admin.js</span></div>
+      </div>
+      <div class="node">
+        <span class="node-icon">🛡️</span>
+        <div class="node-name">Admin Dashboard</div>
+        <div class="node-desc">User management, API cost totals, OpenAI usage breakdown by operation, Cloudinary stats.</div>
+        <div class="node-tags"><span class="node-tag">AdminDashboardScreen</span></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /pipeline -->
+
+<!-- ══════════════════════════════════════════
+     AI COST CALLOUT
+══════════════════════════════════════════ -->
+<div class="divider"></div>
+<div class="callout">
+  <div class="callout-icon">💰</div>
+  <div class="callout-body">
+    <div class="callout-title">AI Cost Strategy</div>
+    <div class="callout-text">
+      <strong>gpt-4o</strong> is only used for <code>image categorisation</code> (vision required) and <code>Style DNA</code> initial analysis.
+      Everything else uses <code>gpt-4o-mini</code> (17× cheaper).
+      Style DNA has a <code>24h smart cache</code> — no AI call made unless wardrobe changes by 3+ items.
+      Outfit recommendations use a <code>pure-JS algorithm</code> first; mini only adds the final styling narrative.
+      All calls are token-capped via <code>max_tokens</code> and logged to <code>ApiUsage</code>.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     DATA MODELS
+══════════════════════════════════════════ -->
+<div class="divider"></div>
+<div class="pipeline">
+  <div class="layer-header" style="max-width:1100px;margin:0 auto 20px;padding:0 4px">
+    <div class="layer-dot" style="background:var(--gold)"></div>
+    <div class="layer-label">MongoDB Data Models</div>
+    <div class="layer-line"></div>
+  </div>
+</div>
+<div class="model-grid">
+  <div class="model-card">
+    <div class="model-card-name">👤 User</div>
+    <div class="model-field"><span>name, username</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>email, password</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>avatar</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>plan</span><span class="field-type">free|pro|elite</span></div>
+    <div class="model-field"><span>isVerified</span><span class="field-type">Boolean</span></div>
+    <div class="model-field"><span>pushToken</span><span class="field-type">String</span></div>
+  </div>
+  <div class="model-card">
+    <div class="model-card-name">👗 ClothingItem</div>
+    <div class="model-field"><span>category</span><span class="field-type">top|bottom|dress…</span></div>
+    <div class="model-field"><span>color, style</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>pattern, fit</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>occasion[]</span><span class="field-type">Array</span></div>
+    <div class="model-field"><span>imageUrl</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>brand, tags[]</span><span class="field-type">String</span></div>
+  </div>
+  <div class="model-card">
+    <div class="model-card-name">🧬 StyleDNA</div>
+    <div class="model-field"><span>primaryStyle</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>styleArchetype</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>styleMantra</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>styleInsight</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>capsuleEssentials[]</span><span class="field-type">Array</span></div>
+    <div class="model-field"><span>colorPreferences{}</span><span class="field-type">Object</span></div>
+    <div class="model-field"><span>uniqueness/consistency/trend</span><span class="field-type">0–1</span></div>
+  </div>
+  <div class="model-card">
+    <div class="model-card-name">✨ Outfit</div>
+    <div class="model-field"><span>items[]</span><span class="field-type">ClothingItem refs</span></div>
+    <div class="model-field"><span>occasion</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>stylingTip</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>score</span><span class="field-type">Number</span></div>
+    <div class="model-field"><span>isSaved</span><span class="field-type">Boolean</span></div>
+  </div>
+  <div class="model-card">
+    <div class="model-card-name">🗓️ PlannedOutfit</div>
+    <div class="model-field"><span>date</span><span class="field-type">Date</span></div>
+    <div class="model-field"><span>outfitId</span><span class="field-type">Outfit ref</span></div>
+    <div class="model-field"><span>occasion</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>notes</span><span class="field-type">String</span></div>
+  </div>
+  <div class="model-card">
+    <div class="model-card-name">💬 ChatHistory</div>
+    <div class="model-field"><span>messages[]</span><span class="field-type">role+content</span></div>
+    <div class="model-field"><span>sessionId</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>createdAt</span><span class="field-type">Date</span></div>
+  </div>
+  <div class="model-card">
+    <div class="model-card-name">📰 Post</div>
+    <div class="model-field"><span>userId</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>outfitId</span><span class="field-type">Outfit ref</span></div>
+    <div class="model-field"><span>caption</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>imageUrl</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>likesCount</span><span class="field-type">Number</span></div>
+  </div>
+  <div class="model-card">
+    <div class="model-card-name">📈 ApiUsage</div>
+    <div class="model-field"><span>service</span><span class="field-type">openai|cloudinary</span></div>
+    <div class="model-field"><span>operation</span><span class="field-type">String</span></div>
+    <div class="model-field"><span>model</span><span class="field-type">gpt-4o|mini</span></div>
+    <div class="model-field"><span>tokens{prompt,completion}</span><span class="field-type">Number</span></div>
+    <div class="model-field"><span>cost</span><span class="field-type">Number ($)</span></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     LEGEND
+══════════════════════════════════════════ -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--gold)"></div> User entry / auth / payments</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Wardrobe ingestion</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div> AI intelligence core</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> App screens & features</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--rose)"></div> Social & community</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div> Learning loop & ops</div>
+  <div class="legend-item" style="margin-left:auto">
+    <span class="node-badge badge-ai" style="font-size:9px;padding:2px 8px">AI</span> OpenAI call
+  </div>
+  <div class="legend-item">
+    <span class="node-badge badge-db" style="font-size:9px;padding:2px 8px">DB</span> MongoDB
+  </div>
+  <div class="legend-item">
+    <span class="node-badge badge-ext" style="font-size:9px;padding:2px 8px">EXT</span> External API
+  </div>
+  <div class="legend-item">
+    <span class="node-badge badge-free" style="font-size:9px;padding:2px 8px">FREE</span> Zero AI cost
+  </div>
+</div>
+
+</body>
+</html>

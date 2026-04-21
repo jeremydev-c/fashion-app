@@ -441,14 +441,34 @@ function sanitizeSemanticProfile(raw = {}, item = {}) {
     profile.summary = buildSemanticSummary(item, profile);
   }
 
-  const axes = buildSemanticAxes(profile, item);
+  const heuristicAxes = buildSemanticAxes(profile, item);
+
+  // If vision provided direct axes scores, blend them with heuristic (vision-dominant)
+  const visionAxes = raw.axes || {};
+  const hasVisionAxes = SEMANTIC_AXIS_KEYS.every(
+    (key) => typeof visionAxes[key] === 'number' && visionAxes[key] >= 0 && visionAxes[key] <= 1,
+  );
+
+  let axes;
+  let version;
+  if (hasVisionAxes) {
+    // Vision axes are direct observations — weight them 75%, heuristic 25% for stability
+    axes = SEMANTIC_AXIS_KEYS.reduce((acc, key) => {
+      acc[key] = round3(visionAxes[key] * 0.75 + heuristicAxes[key] * 0.25);
+      return acc;
+    }, {});
+    version = 'vision-v2';
+  } else {
+    axes = heuristicAxes;
+    version = 'semantic-v1';
+  }
 
   return {
     ...profile,
     axes,
     embedding: buildEmbeddingFromAxes(axes),
-    embeddingVersion: 'semantic-v1',
-    sourceModel: cleanString(raw.sourceModel || raw.model, 40) || 'vision-derived',
+    embeddingVersion: version,
+    sourceModel: cleanString(raw.sourceModel || raw.model, 40) || (hasVisionAxes ? 'gpt-4o-vision' : 'heuristic'),
     generatedAt: raw.generatedAt ? new Date(raw.generatedAt) : new Date(),
   };
 }
