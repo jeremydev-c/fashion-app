@@ -91,6 +91,10 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    utcOffset: {
+      type: Number,
+      default: null,  // hours from UTC (e.g. 3 for EAT, -5 for EST). Null = unknown
+    },
     lastActive: {
       type: Date,
       default: Date.now,

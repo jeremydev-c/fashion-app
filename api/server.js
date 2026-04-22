@@ -120,17 +120,18 @@ mongoose
   })
   .catch((err) => { console.error('❌ Mongo connection failed:', err); process.exit(1); });
 
-// ── Scheduled notifications (3 slots per day) ───────────────────────────────
-// All times in EAT (UTC+3). Checks every 30 min; per-slot flag prevents double-send.
-// Slots: 8 AM morning outfit · 12:30 PM midday style · 6 PM evening planning
+// ── Timezone-aware scheduled notifications ───────────────────────────────────
+// Runs every hour. For each user, calculates their local hour from their stored
+// utcOffset and sends the appropriate slot (morning 8AM / midday 13PM / evening 18PM).
+// Users without a stored offset default to UTC+0.
+// Per-user per-slot tracking prevents double-sends.
 function startScheduledNotifications() {
   const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
   const { buildExpoPushHeaders } = require('./routes/notifications');
 
   const SLOTS = [
     {
-      id: 'morning',       // 08:00 EAT = 05:00 UTC
-      utcHour: 5, utcMinute: 0,
+      id: 'morning', localHour: 8,
       channelId: 'outfit',
       messages: [
         { title: "Good Morning, Stylish ✨", body: "Your AI stylist picked a fresh look for today — tap to see it." },
@@ -143,8 +144,7 @@ function startScheduledNotifications() {
       ],
     },
     {
-      id: 'midday',        // 12:30 EAT = 09:30 UTC
-      utcHour: 9, utcMinute: 30,
+      id: 'midday', localHour: 13,
       channelId: 'outfit',
       messages: [
         { title: "Midday Style Check 👀", body: "How's today's look holding up? Browse fresh combos for this afternoon." },
@@ -155,8 +155,7 @@ function startScheduledNotifications() {
       ],
     },
     {
-      id: 'evening',       // 18:00 EAT = 15:00 UTC
-      utcHour: 15, utcMinute: 0,
+      id: 'evening', localHour: 18,
       channelId: 'outfit',
       messages: [
         { title: "Plan Tomorrow's Fit 🌙", body: "Get ahead — pick your outfit for tomorrow before the day ends." },
@@ -168,33 +167,47 @@ function startScheduledNotifications() {
     },
   ];
 
-  const lastSent = {};
+  // Track sent notifications: { "userId_slotId_date": true }
+  const sentTracker = {};
 
   const run = async () => {
     const now = new Date();
+    const utcHour = now.getUTCHours();
     const todayKey = now.toISOString().slice(0, 10);
-    const h = now.getUTCHours();
-    const m = now.getUTCMinutes();
+    const dayOfMonth = now.getUTCDate();
 
-    for (const slot of SLOTS) {
-      const sentKey = `${slot.id}_${todayKey}`;
-      if (lastSent[sentKey]) continue;
-      if (h !== slot.utcHour || m < slot.utcMinute || m >= slot.utcMinute + 30) continue;
+    try {
+      const User = require('./models/User');
+      const users = await User.find({
+        notificationsEnabled: true,
+        pushToken: { $exists: true, $ne: null },
+      }).select('pushToken utcOffset').lean();
 
-      lastSent[sentKey] = true;
+      if (!users.length) return;
 
-      try {
-        const User = require('./models/User');
-        const users = await User.find({
-          notificationsEnabled: true,
-          pushToken: { $exists: true, $ne: null },
-        }).select('pushToken').lean();
+      // For each slot, find users whose local hour matches
+      for (const slot of SLOTS) {
+        // Collect users who should receive this slot right now
+        const eligible = [];
+        for (const user of users) {
+          const offset = typeof user.utcOffset === 'number' ? user.utcOffset : 0;
+          const userLocalHour = (utcHour + offset + 24) % 24;
 
-        if (!users.length) continue;
+          if (userLocalHour !== slot.localHour) continue;
 
-        const pick = slot.messages[now.getUTCDate() % slot.messages.length];
+          // Prevent double-send
+          const trackKey = `${user._id}_${slot.id}_${todayKey}`;
+          if (sentTracker[trackKey]) continue;
+          sentTracker[trackKey] = true;
 
-        const messages = users.map(u => ({
+          eligible.push(user);
+        }
+
+        if (!eligible.length) continue;
+
+        const pick = slot.messages[dayOfMonth % slot.messages.length];
+
+        const messages = eligible.map(u => ({
           to: u.pushToken,
           sound: 'default',
           title: pick.title,
@@ -224,21 +237,21 @@ function startScheduledNotifications() {
             console.error(`[${slot.id}] batch send failed:`, batchErr.message);
           }
         }
-        console.log(`✅ [${slot.id}] nudge sent to ${users.length} users`);
-      } catch (err) {
-        console.error(`[${slot.id}] nudge error:`, err);
+        console.log(`✅ [${slot.id}] nudge sent to ${eligible.length} users (UTC hour ${utcHour})`);
       }
-    }
 
-    // Clean up old tracking keys
-    for (const key of Object.keys(lastSent)) {
-      if (!key.endsWith(todayKey)) delete lastSent[key];
+      // Clean up old tracking keys (anything not from today)
+      for (const key of Object.keys(sentTracker)) {
+        if (!key.endsWith(todayKey)) delete sentTracker[key];
+      }
+    } catch (err) {
+      console.error('Scheduled notification error:', err);
     }
   };
 
-  // Check every 30 minutes
+  // Run every hour on the hour
   run();
-  setInterval(run, 30 * 60 * 1000);
+  setInterval(run, 60 * 60 * 1000);
 }
 
 mongoose.connection.on('disconnected', () => console.warn('⚠️  MongoDB disconnected — mongoose will auto-reconnect'));

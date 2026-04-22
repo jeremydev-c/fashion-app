@@ -82,7 +82,7 @@ async function sendToUser(userId, { title, body, data = {}, channelId = 'default
 // Save push token for a user
 router.post('/register-token', async (req, res) => {
   try {
-    const { userId, token, platform } = req.body;
+    const { userId, token, platform, utcOffset } = req.body;
     if (!userId || !token) return res.status(400).json({ error: 'userId and token required' });
 
     if (!isValidPushToken(token)) {
@@ -90,12 +90,18 @@ router.post('/register-token', async (req, res) => {
       return res.status(400).json({ error: 'Invalid push token format' });
     }
 
-    await User.findByIdAndUpdate(userId, {
+    const update = {
       pushToken: token,
       pushPlatform: platform || null,
-    });
+    };
+    // Save timezone offset if provided (hours from UTC, e.g. 3 for EAT, -5 for EST)
+    if (utcOffset !== undefined && typeof utcOffset === 'number' && utcOffset >= -12 && utcOffset <= 14) {
+      update.utcOffset = utcOffset;
+    }
 
-    console.log(`✅ Push token registered for user ${userId} | platform=${platform} | token=${token.slice(0, 30)}...`);
+    await User.findByIdAndUpdate(userId, update);
+
+    console.log(`✅ Push token registered for user ${userId} | platform=${platform} | utcOffset=${utcOffset ?? 'unknown'} | token=${token.slice(0, 30)}...`);
     res.json({ success: true });
   } catch (err) {
     console.error('POST /notifications/register-token', err);
