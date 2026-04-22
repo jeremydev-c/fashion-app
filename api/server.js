@@ -127,6 +127,7 @@ mongoose
 function startDailyNudge() {
   const NUDGE_HOUR_UTC = 5; // 08:00 EAT
   const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+  const { buildExpoPushHeaders } = require('./routes/notifications');
   let lastSentDate = '';
 
   const run = async () => {
@@ -144,31 +145,48 @@ function startDailyNudge() {
 
       if (!users.length) return;
 
-      // Build messages
+      // Build messages — varied, engaging copy that feels premium
       const nudges = [
-        { body: "Your AI stylist has a fresh look ready for today ✨" },
-        { body: "What's the occasion today? Let's build your outfit 👗" },
-        { body: "New day, new look. Open Fashion Fit to get started 🌅" },
-        { body: "Your wardrobe is waiting — tap to get today's outfit 👔" },
+        { title: "Good Morning, Stylish ✨", body: "Your AI stylist picked a fresh look for today — tap to see it." },
+        { title: "Today's Outfit is Ready 👗", body: "What's the vibe today? Let's put together something amazing." },
+        { title: "Rise & Style 🌅", body: "New day, new fit. Your personalized outfit suggestion is waiting." },
+        { title: "Your Wardrobe Called 👔", body: "It says you have 3 outfits you haven't tried yet. Let's fix that." },
+        { title: "Dress to Impress Today 🔥", body: "Your AI stylist found the perfect combo from your wardrobe." },
+        { title: "Style Tip of the Day 💡", body: "Mix something unexpected today — your AI has a bold suggestion ready." },
+        { title: "Looking for Outfit Inspo? 🪞", body: "We've matched pieces from your wardrobe you haven't paired before." },
       ];
       const pick = nudges[now.getUTCDate() % nudges.length];
 
       const messages = users.map(u => ({
         to: u.pushToken,
         sound: 'default',
-        title: "Fashion Fit",
+        title: pick.title,
+        subtitle: 'Fashion Fit',
         body: pick.body,
         channelId: 'outfit',
-        priority: 'normal', // 'normal' = no wake lock — saves battery, still delivered
+        priority: 'high',
+        ttl: 86400,
+        color: '#FF6B6B',
+        badge: 1,
       }));
 
       // Expo allows up to 100 per batch request
+      const headers = buildExpoPushHeaders();
       for (let i = 0; i < messages.length; i += 100) {
-        await fetch(EXPO_PUSH_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(messages.slice(i, i + 100)),
-        }).catch(() => {});
+        try {
+          const resp = await fetch(EXPO_PUSH_URL, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(messages.slice(i, i + 100)),
+          });
+          const result = await resp.json();
+          if (Array.isArray(result.data)) {
+            const errors = result.data.filter(r => r.status === 'error');
+            if (errors.length) console.error('Daily nudge push errors:', JSON.stringify(errors));
+          }
+        } catch (batchErr) {
+          console.error('Daily nudge batch send failed:', batchErr.message);
+        }
       }
       console.log(`✅ Daily nudge sent to ${users.length} users`);
     } catch (err) {

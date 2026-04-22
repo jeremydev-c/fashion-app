@@ -6,8 +6,34 @@ const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-async function sendExpoPushNotification({ token, title, body, data = {}, channelId = 'default' }) {
-  if (!token || !token.startsWith('ExponentPushToken')) return;
+function isValidPushToken(token) {
+  if (!token || typeof token !== 'string') return false;
+  // Accept Expo push tokens (ExponentPushToken[...]) and native device tokens (alphanumeric strings 20+ chars)
+  if (token.startsWith('ExponentPushToken')) return true;
+  if (/^[a-zA-Z0-9_:=-]{20,}$/.test(token)) return true;
+  return false;
+}
+
+function buildExpoPushHeaders() {
+  const headers = {
+    'Accept': 'application/json',
+    'Accept-encoding': 'gzip, deflate',
+    'Content-Type': 'application/json',
+  };
+  // Required for standalone APK/AAB builds — without this, push is silently dropped
+  if (process.env.EXPO_ACCESS_TOKEN) {
+    headers['Authorization'] = `Bearer ${process.env.EXPO_ACCESS_TOKEN}`;
+  } else {
+    console.warn('⚠️  EXPO_ACCESS_TOKEN not set — push notifications will NOT reach standalone builds');
+  }
+  return headers;
+}
+
+async function sendExpoPushNotification({ token, title, body, subtitle, data = {}, channelId = 'default', badge }) {
+  if (!isValidPushToken(token)) {
+    console.warn('⚠️  Skipping invalid push token:', token?.slice(0, 30));
+    return null;
+  }
 
   const message = {
     to: token,
@@ -17,25 +43,30 @@ async function sendExpoPushNotification({ token, title, body, data = {}, channel
     data,
     channelId,
     priority: 'high',
+    ttl: 86400, // 24 hours — retry delivery if device is offline
+    // Rich notification fields
+    ...(subtitle && { subtitle }),       // iOS subtitle line
+    ...(badge !== undefined && { badge }),// iOS badge count
+    mutableContent: true,                 // Allows iOS notification extensions
+    color: '#FF6B6B',                     // Android accent color (matches app theme)
   };
 
   try {
     const response = await fetch(EXPO_PUSH_URL, {
       method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
+      headers: buildExpoPushHeaders(),
       body: JSON.stringify(message),
     });
     const result = await response.json();
     if (result.data?.status === 'error') {
-      console.error('Expo push error:', result.data.message);
+      console.error('Expo push error:', result.data.message, '| details:', JSON.stringify(result.data.details));
+    } else {
+      console.log('✅ Push sent to', token.slice(0, 25) + '...', '| ticket:', result.data?.id);
     }
     return result;
   } catch (err) {
-    console.error('Failed to send push notification:', err);
+    console.error('Failed to send push notification:', err.message);
+    return null;
   }
 }
 
@@ -54,11 +85,17 @@ router.post('/register-token', async (req, res) => {
     const { userId, token, platform } = req.body;
     if (!userId || !token) return res.status(400).json({ error: 'userId and token required' });
 
+    if (!isValidPushToken(token)) {
+      console.warn('⚠️  Rejected invalid push token from user', userId, ':', token?.slice(0, 40));
+      return res.status(400).json({ error: 'Invalid push token format' });
+    }
+
     await User.findByIdAndUpdate(userId, {
       pushToken: token,
       pushPlatform: platform || null,
     });
 
+    console.log(`✅ Push token registered for user ${userId} | platform=${platform} | token=${token.slice(0, 30)}...`);
     res.json({ success: true });
   } catch (err) {
     console.error('POST /notifications/register-token', err);
@@ -141,24 +178,27 @@ router.post('/broadcast', async (req, res) => {
 const RETENTION_MESSAGES = [
   {
     days: 2,
-    title: 'We miss you! 👗',
-    body: 'Your wardrobe is waiting. Check today\'s outfit suggestion.',
+    title: 'Your Style Misses You 👗',
+    subtitle: 'Fashion Fit',
+    body: 'Your AI stylist curated new looks while you were away — come see what\'s trending for you.',
   },
   {
     days: 5,
-    title: 'Time for a style refresh ✨',
-    body: 'You haven\'t visited in a while — new outfit ideas are ready!',
+    title: 'Fresh Outfit Ideas Await ✨',
+    subtitle: 'Style Refresh',
+    body: 'It\'s been a few days! Your wardrobe has new mix-and-match possibilities ready to explore.',
   },
   {
     days: 10,
-    title: 'Your style awaits 🛍️',
-    body: 'Come back and let AI style you for the week.',
+    title: 'Let\'s Get You Styled 🛍️',
+    subtitle: 'Welcome Back',
+    body: 'Your personal AI stylist has been working on seasonal looks just for you. Tap to discover them.',
   },
 ];
 
 async function runRetentionJob() {
   const now = new Date();
-  for (const { days, title, body } of RETENTION_MESSAGES) {
+  for (const { days, title, subtitle, body } of RETENTION_MESSAGES) {
     const cutoff = new Date(now - days * 24 * 60 * 60 * 1000);
     const upperCutoff = new Date(cutoff - 24 * 60 * 60 * 1000);
     const users = await User.find({
@@ -169,7 +209,7 @@ async function runRetentionJob() {
     if (users.length === 0) continue;
     await Promise.allSettled(
       users.map((u) =>
-        sendExpoPushNotification({ token: u.pushToken, title, body, channelId: 'reminders' })
+        sendExpoPushNotification({ token: u.pushToken, title, subtitle, body, channelId: 'reminders', badge: 1 })
       )
     );
     console.log(`Retention: sent ${users.length} push(es) for ${days}-day inactive users`);
@@ -187,8 +227,64 @@ router.post('/retention/run', async (req, res) => {
   }
 });
 
+// GET /notifications/debug/:userId — check push readiness for a user (admin/dev)
+router.get('/debug/:userId', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId).select(
+      'pushToken pushPlatform notificationsEnabled lastActive'
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const tokenValid = isValidPushToken(user.pushToken);
+    const hasAccessToken = !!process.env.EXPO_ACCESS_TOKEN;
+
+    res.json({
+      pushToken: user.pushToken ? user.pushToken.slice(0, 30) + '...' : null,
+      pushPlatform: user.pushPlatform,
+      notificationsEnabled: user.notificationsEnabled,
+      lastActive: user.lastActive,
+      tokenValid,
+      expoAccessTokenConfigured: hasAccessToken,
+      issues: [
+        !user.pushToken && 'No push token stored — device has not registered',
+        user.pushToken && !tokenValid && 'Push token format is invalid',
+        !user.notificationsEnabled && 'Notifications are disabled by user',
+        !hasAccessToken && 'EXPO_ACCESS_TOKEN env var not set — required for standalone APK builds',
+      ].filter(Boolean),
+    });
+  } catch (err) {
+    console.error('GET /notifications/debug', err);
+    res.status(500).json({ error: 'Debug check failed' });
+  }
+});
+
+// POST /notifications/test-push/:userId — send a test push to verify delivery
+router.post('/test-push/:userId', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId).select('pushToken notificationsEnabled');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user.pushToken) return res.status(400).json({ error: 'No push token stored for this user' });
+
+    const result = await sendExpoPushNotification({
+      token: user.pushToken,
+      title: 'Fashion Fit 🔔',
+      subtitle: 'Test Notification',
+      body: 'Looking good! Push notifications are working perfectly.',
+      data: { test: true },
+      channelId: 'default',
+      badge: 1,
+    });
+
+    res.json({ success: true, expoResult: result });
+  } catch (err) {
+    console.error('POST /notifications/test-push', err);
+    res.status(500).json({ error: 'Test push failed' });
+  }
+});
+
 // Export helper so other routes can send notifications
 module.exports = router;
 module.exports.sendToUser = sendToUser;
 module.exports.sendExpoPushNotification = sendExpoPushNotification;
 module.exports.runRetentionJob = runRetentionJob;
+module.exports.buildExpoPushHeaders = buildExpoPushHeaders;
