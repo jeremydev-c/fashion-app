@@ -116,37 +116,23 @@ mongoose
   })
   .then(() => {
     console.log('✅ Connected to MongoDB');
-    startDailyNudge();
+    startScheduledNotifications();
   })
   .catch((err) => { console.error('❌ Mongo connection failed:', err); process.exit(1); });
 
-// ── Daily outfit nudge ────────────────────────────────────────────────────────
-// Fires at 8 AM East Africa Time (UTC+3 = 05:00 UTC).
-// Checks every hour; in-memory flag prevents double-send on the same day.
-// Uses Expo batch API (max 100/request) — no extra packages needed.
-function startDailyNudge() {
-  const NUDGE_HOUR_UTC = 5; // 08:00 EAT
+// ── Scheduled notifications (3 slots per day) ───────────────────────────────
+// All times in EAT (UTC+3). Checks every 30 min; per-slot flag prevents double-send.
+// Slots: 8 AM morning outfit · 12:30 PM midday style · 6 PM evening planning
+function startScheduledNotifications() {
   const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
   const { buildExpoPushHeaders } = require('./routes/notifications');
-  let lastSentDate = '';
 
-  const run = async () => {
-    const now = new Date();
-    const todayUTC = now.toISOString().slice(0, 10);
-    if (now.getUTCHours() !== NUDGE_HOUR_UTC || lastSentDate === todayUTC) return;
-    lastSentDate = todayUTC;
-
-    try {
-      const User = require('./models/User');
-      const users = await User.find({
-        notificationsEnabled: true,
-        pushToken: { $exists: true, $ne: null },
-      }).select('pushToken').lean();
-
-      if (!users.length) return;
-
-      // Build messages — varied, engaging copy that feels premium
-      const nudges = [
+  const SLOTS = [
+    {
+      id: 'morning',       // 08:00 EAT = 05:00 UTC
+      utcHour: 5, utcMinute: 0,
+      channelId: 'outfit',
+      messages: [
         { title: "Good Morning, Stylish ✨", body: "Your AI stylist picked a fresh look for today — tap to see it." },
         { title: "Today's Outfit is Ready 👗", body: "What's the vibe today? Let's put together something amazing." },
         { title: "Rise & Style 🌅", body: "New day, new fit. Your personalized outfit suggestion is waiting." },
@@ -154,49 +140,105 @@ function startDailyNudge() {
         { title: "Dress to Impress Today 🔥", body: "Your AI stylist found the perfect combo from your wardrobe." },
         { title: "Style Tip of the Day 💡", body: "Mix something unexpected today — your AI has a bold suggestion ready." },
         { title: "Looking for Outfit Inspo? 🪞", body: "We've matched pieces from your wardrobe you haven't paired before." },
-      ];
-      const pick = nudges[now.getUTCDate() % nudges.length];
+      ],
+    },
+    {
+      id: 'midday',        // 12:30 EAT = 09:30 UTC
+      utcHour: 9, utcMinute: 30,
+      channelId: 'outfit',
+      messages: [
+        { title: "Midday Style Check 👀", body: "How's today's look holding up? Browse fresh combos for this afternoon." },
+        { title: "Outfit Upgrade? 🔄", body: "Heading out later? Your stylist has a quick refresh idea for you." },
+        { title: "Lunchtime Inspo 🍽️", body: "Take a break and explore a new outfit pairing from your wardrobe." },
+        { title: "Your Afternoon Look 🌤️", body: "Your AI matched something bold for this afternoon — come take a peek." },
+        { title: "Style Moment ✨", body: "Quick — your stylist just dropped a new look suggestion. Worth a glance!" },
+      ],
+    },
+    {
+      id: 'evening',       // 18:00 EAT = 15:00 UTC
+      utcHour: 15, utcMinute: 0,
+      channelId: 'outfit',
+      messages: [
+        { title: "Plan Tomorrow's Fit 🌙", body: "Get ahead — pick your outfit for tomorrow before the day ends." },
+        { title: "Evening Style Prep 🛏️", body: "Wind down with a quick wardrobe browse. Tomorrow's look is one tap away." },
+        { title: "What's Tomorrow's Vibe? 🎯", body: "Casual? Sharp? Let your AI stylist set you up for the morning." },
+        { title: "Outfit Sorted? ✅", body: "Save time tomorrow — your AI already has 3 outfit ideas ready for you." },
+        { title: "Tomorrow, Styled 💫", body: "Don't sleep on your style — check out what your AI has planned for you." },
+      ],
+    },
+  ];
 
-      const messages = users.map(u => ({
-        to: u.pushToken,
-        sound: 'default',
-        title: pick.title,
-        subtitle: 'Fashion Fit',
-        body: pick.body,
-        channelId: 'outfit',
-        priority: 'high',
-        ttl: 86400,
-        color: '#FF6B6B',
-        badge: 1,
-      }));
+  const lastSent = {};
 
-      // Expo allows up to 100 per batch request
-      const headers = buildExpoPushHeaders();
-      for (let i = 0; i < messages.length; i += 100) {
-        try {
-          const resp = await fetch(EXPO_PUSH_URL, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(messages.slice(i, i + 100)),
-          });
-          const result = await resp.json();
-          if (Array.isArray(result.data)) {
-            const errors = result.data.filter(r => r.status === 'error');
-            if (errors.length) console.error('Daily nudge push errors:', JSON.stringify(errors));
+  const run = async () => {
+    const now = new Date();
+    const todayKey = now.toISOString().slice(0, 10);
+    const h = now.getUTCHours();
+    const m = now.getUTCMinutes();
+
+    for (const slot of SLOTS) {
+      const sentKey = `${slot.id}_${todayKey}`;
+      if (lastSent[sentKey]) continue;
+      if (h !== slot.utcHour || m < slot.utcMinute || m >= slot.utcMinute + 30) continue;
+
+      lastSent[sentKey] = true;
+
+      try {
+        const User = require('./models/User');
+        const users = await User.find({
+          notificationsEnabled: true,
+          pushToken: { $exists: true, $ne: null },
+        }).select('pushToken').lean();
+
+        if (!users.length) continue;
+
+        const pick = slot.messages[now.getUTCDate() % slot.messages.length];
+
+        const messages = users.map(u => ({
+          to: u.pushToken,
+          sound: 'default',
+          title: pick.title,
+          subtitle: 'Fashion Fit',
+          body: pick.body,
+          channelId: slot.channelId,
+          priority: 'high',
+          ttl: 86400,
+          color: '#FF6B6B',
+          badge: 1,
+        }));
+
+        const headers = buildExpoPushHeaders();
+        for (let i = 0; i < messages.length; i += 100) {
+          try {
+            const resp = await fetch(EXPO_PUSH_URL, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify(messages.slice(i, i + 100)),
+            });
+            const result = await resp.json();
+            if (Array.isArray(result.data)) {
+              const errors = result.data.filter(r => r.status === 'error');
+              if (errors.length) console.error(`[${slot.id}] push errors:`, JSON.stringify(errors));
+            }
+          } catch (batchErr) {
+            console.error(`[${slot.id}] batch send failed:`, batchErr.message);
           }
-        } catch (batchErr) {
-          console.error('Daily nudge batch send failed:', batchErr.message);
         }
+        console.log(`✅ [${slot.id}] nudge sent to ${users.length} users`);
+      } catch (err) {
+        console.error(`[${slot.id}] nudge error:`, err);
       }
-      console.log(`✅ Daily nudge sent to ${users.length} users`);
-    } catch (err) {
-      console.error('Daily nudge error:', err);
+    }
+
+    // Clean up old tracking keys
+    for (const key of Object.keys(lastSent)) {
+      if (!key.endsWith(todayKey)) delete lastSent[key];
     }
   };
 
-  // Check once immediately (in case server restarted at nudge hour), then every hour
+  // Check every 30 minutes
   run();
-  setInterval(run, 60 * 60 * 1000);
+  setInterval(run, 30 * 60 * 1000);
 }
 
 mongoose.connection.on('disconnected', () => console.warn('⚠️  MongoDB disconnected — mongoose will auto-reconnect'));
