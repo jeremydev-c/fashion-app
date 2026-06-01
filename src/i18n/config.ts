@@ -1,6 +1,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getLocales } from 'expo-localization';
 
 // Import all language files
 import en from './locales/en.json';
@@ -69,39 +70,56 @@ const resources = {
   zh: { translation: zh },
 };
 
+export const RTL_LANGUAGES = new Set(['ar', 'he']);
+
 export const supportedLanguages = [
-  { code: 'en', name: 'English', nativeName: 'English' },
-  { code: 'ar', name: 'Arabic', nativeName: 'العربية' },
-  { code: 'bg', name: 'Bulgarian', nativeName: 'Български' },
-  { code: 'cs', name: 'Czech', nativeName: 'Čeština' },
-  { code: 'da', name: 'Danish', nativeName: 'Dansk' },
-  { code: 'de', name: 'German', nativeName: 'Deutsch' },
-  { code: 'el', name: 'Greek', nativeName: 'Ελληνικά' },
-  { code: 'es', name: 'Spanish', nativeName: 'Español' },
-  { code: 'fi', name: 'Finnish', nativeName: 'Suomi' },
-  { code: 'fr', name: 'French', nativeName: 'Français' },
-  { code: 'he', name: 'Hebrew', nativeName: 'עברית' },
-  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी' },
-  { code: 'hu', name: 'Hungarian', nativeName: 'Magyar' },
-  { code: 'id', name: 'Indonesian', nativeName: 'Bahasa Indonesia' },
-  { code: 'it', name: 'Italian', nativeName: 'Italiano' },
-  { code: 'ja', name: 'Japanese', nativeName: '日本語' },
-  { code: 'ko', name: 'Korean', nativeName: '한국어' },
-  { code: 'ms', name: 'Malay', nativeName: 'Bahasa Melayu' },
-  { code: 'nl', name: 'Dutch', nativeName: 'Nederlands' },
-  { code: 'no', name: 'Norwegian', nativeName: 'Norsk' },
-  { code: 'pl', name: 'Polish', nativeName: 'Polski' },
-  { code: 'pt', name: 'Portuguese', nativeName: 'Português' },
-  { code: 'ro', name: 'Romanian', nativeName: 'Română' },
-  { code: 'ru', name: 'Russian', nativeName: 'Русский' },
-  { code: 'sv', name: 'Swedish', nativeName: 'Svenska' },
-  { code: 'sw', name: 'Swahili', nativeName: 'Kiswahili' },
-  { code: 'th', name: 'Thai', nativeName: 'ไทย' },
-  { code: 'tr', name: 'Turkish', nativeName: 'Türkçe' },
-  { code: 'uk', name: 'Ukrainian', nativeName: 'Українська' },
-  { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt' },
-  { code: 'zh', name: 'Chinese', nativeName: '中文' },
+  { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧' },
+  { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
+  { code: 'bg', name: 'Bulgarian', nativeName: 'Български', flag: '🇧🇬' },
+  { code: 'cs', name: 'Czech', nativeName: 'Čeština', flag: '🇨🇿' },
+  { code: 'da', name: 'Danish', nativeName: 'Dansk', flag: '🇩🇰' },
+  { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
+  { code: 'el', name: 'Greek', nativeName: 'Ελληνικά', flag: '🇬🇷' },
+  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+  { code: 'fi', name: 'Finnish', nativeName: 'Suomi', flag: '🇫🇮' },
+  { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
+  { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳' },
+  { code: 'hu', name: 'Hungarian', nativeName: 'Magyar', flag: '🇭🇺' },
+  { code: 'id', name: 'Indonesian', nativeName: 'Bahasa Indonesia', flag: '🇮🇩' },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵' },
+  { code: 'ko', name: 'Korean', nativeName: '한국어', flag: '🇰🇷' },
+  { code: 'ms', name: 'Malay', nativeName: 'Bahasa Melayu', flag: '🇲🇾' },
+  { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
+  { code: 'no', name: 'Norwegian', nativeName: 'Norsk', flag: '🇳🇴' },
+  { code: 'pl', name: 'Polish', nativeName: 'Polski', flag: '🇵🇱' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇧🇷' },
+  { code: 'ro', name: 'Romanian', nativeName: 'Română', flag: '🇷🇴' },
+  { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
+  { code: 'sv', name: 'Swedish', nativeName: 'Svenska', flag: '🇸🇪' },
+  { code: 'sw', name: 'Swahili', nativeName: 'Kiswahili', flag: '🇰🇪' },
+  { code: 'th', name: 'Thai', nativeName: 'ไทย', flag: '🇹🇭' },
+  { code: 'tr', name: 'Turkish', nativeName: 'Türkçe', flag: '🇹🇷' },
+  { code: 'uk', name: 'Ukrainian', nativeName: 'Українська', flag: '🇺🇦' },
+  { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt', flag: '🇻🇳' },
+  { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
 ];
+
+const supportedCodes = new Set(supportedLanguages.map(l => l.code));
+
+export const isRTL = (langCode?: string) => RTL_LANGUAGES.has(langCode || i18n.language);
+
+function detectDeviceLanguage(): string {
+  try {
+    const locales = getLocales();
+    if (locales?.length > 0) {
+      const deviceLang = locales[0].languageCode;
+      if (deviceLang && supportedCodes.has(deviceLang)) return deviceLang;
+    }
+  } catch {}
+  return 'en';
+}
 
 export const saveLanguage = async (langCode: string) => {
   try {
@@ -119,6 +137,13 @@ export const loadSavedLanguage = async () => {
     if (savedLang && savedLang !== i18n.language) {
       await i18n.changeLanguage(savedLang);
       console.log('Loaded saved language:', savedLang);
+    } else if (!savedLang) {
+      const detected = detectDeviceLanguage();
+      if (detected !== 'en') {
+        await i18n.changeLanguage(detected);
+        await AsyncStorage.setItem('@fashion_fit_language', detected);
+        console.log('Auto-detected device language:', detected);
+      }
     }
   } catch (error) {
     console.error('Error loading saved language:', error);
@@ -132,7 +157,7 @@ i18n
     resources,
     lng: 'en',
     fallbackLng: 'en',
-    compatibilityJSON: 'v3',
+    compatibilityJSON: 'v4',
     interpolation: {
       escapeValue: false,
     },

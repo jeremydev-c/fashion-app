@@ -75,7 +75,6 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
               {buttons.map((button, index) => {
                 const isPrimary = button.style === 'primary' || (index === buttons.length - 1 && buttons.length === 1);
                 const isDestructive = button.style === 'destructive';
-                const isCancel = button.text.toLowerCase().includes('cancel');
                 
                 return (
                   <TouchableOpacity
@@ -217,4 +216,3 @@ const styles = StyleSheet.create({
     color: '#ef4444',
   },
 });
-

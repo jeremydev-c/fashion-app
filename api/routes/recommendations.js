@@ -9,6 +9,10 @@ const { generateHybridRecommendations, __testables } = require('../services/reco
 const { clamp, normalizeOccasion, normalizeTimeOfDay, normalizeWeatherBand, buildRequestSeed, normalizeSeedPart, getWardrobeProfile } = __testables;
 
 const { enforceDailyRecommendations } = require('../middleware/planLimits');
+const { mineFeedbackPatterns } = require('../services/feedbackPatterns');
+const { getRecentlyServed } = require('../services/outfitMemory');
+const { detectUserColorTemperature } = require('../services/colorTemperature');
+const { parseOccasionSubVariant } = require('../services/occasionVariants');
 
 const router = express.Router();
 
@@ -21,7 +25,7 @@ router.get('/test', (_req, res) => {
  */
 router.get('/', enforceDailyRecommendations(), async (req, res) => {
   try {
-    const { userId, occasion, timeOfDay, weather, limit, variant, needsLayers, hasRainRisk, tempSwing, temperature, condition, humidity, windSpeed } = req.query;
+    const { userId, occasion, timeOfDay, weather, limit, variant, needsLayers, hasRainRisk, tempSwing, temperature, condition, humidity, windSpeed, language } = req.query;
     const recommendationLimit = Math.max(1, Math.min(6, parseInt(limit, 10) || 3));
 
     if (!userId) return res.status(400).json({ error: 'userId is required' });
@@ -34,12 +38,17 @@ router.get('/', enforceDailyRecommendations(), async (req, res) => {
       return res.status(400).json({ error: 'Add at least one more item to start getting outfit recommendations.' });
     }
 
-    const [styleDNA, preferences, savedOutfits, recentFeedback] = await Promise.all([
+    const [styleDNA, preferences, savedOutfits, recentFeedback, feedbackPatterns, recentlyServed] = await Promise.all([
       StyleDNA.findOne({ userId }).lean(),
       UserPreferences.findOne({ userId }).lean(),
       Outfit.find({ userId }).limit(30).sort({ createdAt: -1 }).lean(),
       LearningHistory.find({ userId }).sort({ timestamp: -1 }).limit(100).lean(),
+      mineFeedbackPatterns(userId),
+      getRecentlyServed(userId),
     ]);
+
+    const userColorTemp = detectUserColorTemperature(wardrobe, preferences);
+    const occasionSubVariant = parseOccasionSubVariant(occasion);
 
     // Build a set of recently rejected item IDs (last 50 negative signals) to deprioritize
     const rejectedItemIds = new Set();
@@ -119,6 +128,11 @@ router.get('/', enforceDailyRecommendations(), async (req, res) => {
       requestVariant,
       requestSeed,
       forecast,
+      feedbackPatterns,
+      recentlyServed,
+      userColorTemp,
+      occasionSubVariant,
+      language: language || 'en',
     };
 
     const recommendations = await generateHybridRecommendations(ctx);

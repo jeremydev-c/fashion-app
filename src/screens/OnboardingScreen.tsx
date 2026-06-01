@@ -136,7 +136,6 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
   });
 
   const progressAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   // Animate progress bar when quiz step changes
   useEffect(() => {
@@ -153,7 +152,7 @@ export const OnboardingScreen: React.FC<Props> = ({ onComplete }) => {
         useNativeDriver: false,
       }).start();
     }
-  }, [step]);
+  }, [progressAnim, step]);
 
   const toggleSelection = (
     key: 'styles' | 'colors' | 'occasions' | 'avoidColors',

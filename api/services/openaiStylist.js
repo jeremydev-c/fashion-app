@@ -23,8 +23,20 @@ function normalizeRecommendationScore(value) {
 // AI ENHANCEMENT — adds personality, confidence, and final curation
 // ═══════════════════════════════════════════════════════════════════════════
 
+const LANGUAGE_NAMES = {
+  en: 'English', ar: 'Arabic', bg: 'Bulgarian', cs: 'Czech', da: 'Danish',
+  de: 'German', el: 'Greek', es: 'Spanish', fi: 'Finnish', fr: 'French',
+  he: 'Hebrew', hi: 'Hindi', hu: 'Hungarian', id: 'Indonesian', it: 'Italian',
+  ja: 'Japanese', ko: 'Korean', ms: 'Malay', nl: 'Dutch', no: 'Norwegian',
+  pl: 'Polish', pt: 'Portuguese', ro: 'Romanian', ru: 'Russian', sv: 'Swedish',
+  sw: 'Swahili', th: 'Thai', tr: 'Turkish', uk: 'Ukrainian', vi: 'Vietnamese',
+  zh: 'Chinese',
+};
+
 async function enhanceWithAI(candidates, ctx) {
-  const { wardrobe, styleDNA, preferences, occasion, timeOfDay, weather, limit, forecast, weatherDetail: wd } = ctx;
+  const { wardrobe, styleDNA, preferences, occasion, timeOfDay, weather, limit, forecast, weatherDetail: wd, language: langCode } = ctx;
+  const language = langCode || 'en';
+  const languageName = LANGUAGE_NAMES[language] || 'English';
 
   // Build user profile summary
   const colorDist = {}, styleDist = {};
@@ -201,6 +213,7 @@ RULES:
 3. Work with what the user OWNS. ${wardrobeSize === 'very small' || wardrobeSize === 'small' ? 'This user has a limited wardrobe — be creative with what they have. Show them how to style a few pieces differently rather than expecting variety they don\'t have. Every outfit you pick should still feel considered and intentional.' : 'With this many pieces available, select outfits that showcase the FULL breadth of their wardrobe — pull from different items, not just the same favorites. Avoid underutilizing any category. Every item deserves to be styled.'}
 4. Give each a catchy 3-4 word title and a one-liner (max 15 words) that speaks directly to the user. The description should acknowledge the weather when relevant (e.g. "Keeping you dry and sharp through the rain" or "Light and breezy for this sunny afternoon").${wardrobeSize === 'very small' || wardrobeSize === 'small' ? ' For smaller wardrobes, emphasize how versatile their pieces are.' : ''}
 5. Provide 2-3 enhanced reasons — personal, confident, no generic filler. At least one reason should reference weather-appropriateness if conditions are notable (rain, cold, hot, windy, humid).
+6. LANGUAGE: Write ALL titles, descriptions, and enhancedReasons in ${languageName}${language !== 'en' ? `. The user speaks ${languageName} — respond naturally in that language, not translated English.` : '.'}
 
 OUTPUT (JSON only, no markdown):
 {

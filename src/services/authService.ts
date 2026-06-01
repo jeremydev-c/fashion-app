@@ -22,7 +22,7 @@ export type AuthResponse = {
 
 // Sign up
 export async function signUp(email: string, password: string, name: string): Promise<AuthResponse> {
-  const response = await apiRequest('/auth/signup', {
+  const response = await apiRequest<AuthResponse>('/auth/signup', {
     method: 'POST',
     body: JSON.stringify({ email, password, name }),
   });
@@ -36,7 +36,7 @@ export async function signUp(email: string, password: string, name: string): Pro
 
 // Login
 export async function login(email: string, password: string): Promise<AuthResponse> {
-  const response = await apiRequest('/auth/login', {
+  const response = await apiRequest<AuthResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
@@ -79,7 +79,7 @@ export async function isLoggedIn(): Promise<boolean> {
 
 // Get current user from API
 export async function getCurrentUser(): Promise<User> {
-  const response = await apiRequest('/auth/me');
+  const response = await apiRequest<{ user: User }>('/auth/me');
   return response.user;
 }
 
@@ -90,7 +90,7 @@ export async function updateUser(data: {
   avatar?: string; 
   profilePictureBase64?: string;
 }): Promise<User> {
-  const response = await apiRequest('/auth/me', {
+  const response = await apiRequest<{ user: User }>('/auth/me', {
     method: 'PUT',
     body: JSON.stringify(data),
   });

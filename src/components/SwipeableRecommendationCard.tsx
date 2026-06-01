@@ -49,8 +49,6 @@ export const SwipeableRecommendationCard: React.FC<SwipeableRecommendationCardPr
     },
     onActive: (event, ctx) => {
       translateX.value = ctx.startX + event.translationX;
-      // Add rotation based on swipe distance
-      const rotation = (event.translationX / SCREEN_WIDTH) * 20;
       scale.value = 1 - Math.abs(event.translationX) / SCREEN_WIDTH * 0.1;
     },
     onEnd: (event) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -31,7 +31,6 @@ import { useUserId } from '../hooks/useUserId';
 import { getCurrentWeather, WeatherData, WeatherForecast } from '../services/weatherService';
 import { DestinationPicker } from '../components/DestinationPicker';
 import { AIMisuseWarning, hasAcknowledgedWarning } from '../components/AIMisuseWarning';
-import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useTranslation } from 'react-i18next';
 
 
@@ -69,11 +68,11 @@ const StylingLoader: React.FC<{ occasion: string; timeOfDay: string; done: boole
   const progressAnim = useRef(new Animated.Value(0)).current;
   const containerOpacity = useRef(new Animated.Value(1)).current;
   const [doneText, setDoneText] = useState(false);
-  const dotAnims = [
-    useRef(new Animated.Value(0)).current,
-    useRef(new Animated.Value(0)).current,
-    useRef(new Animated.Value(0)).current,
-  ];
+  const dotAnims = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
 
   useEffect(() => {
     Animated.loop(
@@ -112,7 +111,7 @@ const StylingLoader: React.FC<{ occasion: string; timeOfDay: string; done: boole
     }, 2800);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [dotAnims, iconRotate, progressAnim, pulseAnim, shimmerAnim, tipFade]);
 
   // When data arrives: snap bar to 100%, show "Done!", then fade out and reveal results
   useEffect(() => {
@@ -127,7 +126,7 @@ const StylingLoader: React.FC<{ occasion: string; timeOfDay: string; done: boole
         }, 600);
       });
     });
-  }, [done]);
+  }, [containerOpacity, done, onFinished, progressAnim]);
 
   const pulseScale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
   const pulseOpacity = pulseAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 1, 0.6] });
@@ -236,7 +235,7 @@ export const StylistScreen: React.FC = () => {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const userId = useUserId();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [wardrobe, setWardrobe] = useState<ClothingItem[]>([]);
   const [outfits, setOutfits] = useState<OutfitSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -272,13 +271,7 @@ export const StylistScreen: React.FC = () => {
   const [showDestinationPicker, setShowDestinationPicker] = useState(false);
   const [loadingWeather, setLoadingWeather] = useState(true);
 
-  useEffect(() => {
-    loadWardrobe();
-    loadCurrentLocationWeather();
-    loadSavedOutfitsFromDB();
-  }, [userId]);
-
-  const loadCurrentLocationWeather = async () => {
+  const loadCurrentLocationWeather = useCallback(async () => {
     try {
       setLoadingWeather(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -298,7 +291,7 @@ export const StylistScreen: React.FC = () => {
     } finally {
       setLoadingWeather(false);
     }
-  };
+  }, []);
 
   const handleSelectDestination = (weatherData: WeatherData, isCurrent: boolean, forecastData?: WeatherForecast) => {
     setWeather(weatherData);
@@ -308,7 +301,7 @@ export const StylistScreen: React.FC = () => {
     }
   };
 
-  const loadWardrobe = async () => {
+  const loadWardrobe = useCallback(async () => {
     try {
       if (!userId) return;
       const items = await fetchWardrobeItems(userId);
@@ -316,9 +309,9 @@ export const StylistScreen: React.FC = () => {
     } catch (err) {
       console.log('Failed to load wardrobe', err);
     }
-  };
+  }, [userId]);
 
-  const loadSavedOutfitsFromDB = async () => {
+  const loadSavedOutfitsFromDB = useCallback(async () => {
     try {
       if (!userId) return;
       const dbOutfits = await fetchOutfits(userId);
@@ -347,7 +340,13 @@ export const StylistScreen: React.FC = () => {
     } catch {
       // Saved outfits are optional
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    loadWardrobe();
+    loadCurrentLocationWeather();
+    loadSavedOutfitsFromDB();
+  }, [loadCurrentLocationWeather, loadSavedOutfitsFromDB, loadWardrobe]);
 
   const generateOutfits = async () => {
     // Check if user has acknowledged AI misuse warning
@@ -400,6 +399,7 @@ export const StylistScreen: React.FC = () => {
           humidity: weather.humidity,
           windSpeed: weather.windSpeed,
         } : undefined,
+        language: i18n.language || 'en',
       });
 
       const mappedOutfits: OutfitSuggestion[] = recommendations.map((rec) => {
@@ -471,6 +471,11 @@ export const StylistScreen: React.FC = () => {
       setShowResults(true);
     }
   };
+
+  const handleLoaderFinished = useCallback(() => {
+    setLoading(false);
+    setShowResults(true);
+  }, []);
 
   const getItemIds = (outfit: OutfitSuggestion): string[] =>
     outfit.items.map((i: any) => i._id || i.id).filter(Boolean);
@@ -706,7 +711,7 @@ export const StylistScreen: React.FC = () => {
             occasion={occasion}
             timeOfDay={timeOfDay}
             done={dataReady}
-            onFinished={() => { setLoading(false); setShowResults(true); }}
+            onFinished={handleLoaderFinished}
           />
         )}
 

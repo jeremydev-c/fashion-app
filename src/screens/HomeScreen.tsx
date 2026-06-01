@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -75,7 +75,7 @@ export const HomeScreen: React.FC = () => {
       Animated.timing(fadeAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 900, useNativeDriver: true }),
     ]).start();
-  }, []);
+  }, [fadeAnim, slideAnim]);
 
   useEffect(() => {
     if (!userId) return;

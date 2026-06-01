@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
+  TextInput,
+  I18nManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -13,7 +15,7 @@ import * as Haptics from 'expo-haptics';
 import { colors } from '../theme/colors';
 import { useThemeColors } from '../theme/ThemeProvider';
 import { spacing } from '../theme/spacing';
-import { supportedLanguages, saveLanguage } from '../i18n/config';
+import { supportedLanguages, saveLanguage, isRTL } from '../i18n/config';
 
 interface LanguageSwitcherProps {
   visible: boolean;
@@ -23,11 +25,29 @@ interface LanguageSwitcherProps {
 export default function LanguageSwitcher({ visible, onClose }: LanguageSwitcherProps) {
   const colors = useThemeColors();
   const { i18n, t } = useTranslation();
+  const [search, setSearch] = useState('');
+
+  const filteredLanguages = useMemo(() => {
+    if (!search.trim()) return supportedLanguages;
+    const q = search.toLowerCase().trim();
+    return supportedLanguages.filter(
+      (lang) =>
+        lang.name.toLowerCase().includes(q) ||
+        lang.nativeName.toLowerCase().includes(q) ||
+        lang.code.toLowerCase().includes(q)
+    );
+  }, [search]);
 
   const handleLanguageSelect = async (langCode: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const needsRTL = isRTL(langCode);
+    if (I18nManager.isRTL !== needsRTL) {
+      I18nManager.allowRTL(needsRTL);
+      I18nManager.forceRTL(needsRTL);
+    }
     await i18n.changeLanguage(langCode);
     await saveLanguage(langCode);
+    setSearch('');
     onClose();
   };
 
@@ -46,8 +66,25 @@ export default function LanguageSwitcher({ visible, onClose }: LanguageSwitcherP
           </TouchableOpacity>
         </View>
 
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={18} color={colors.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.textPrimary }]}
+            placeholder={t('common.search')}
+            placeholderTextColor={colors.textSecondary}
+            value={search}
+            onChangeText={setSearch}
+            autoCorrect={false}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-          {supportedLanguages.map((lang) => (
+          {filteredLanguages.map((lang) => (
             <TouchableOpacity
               key={lang.code}
               style={[
@@ -56,9 +93,12 @@ export default function LanguageSwitcher({ visible, onClose }: LanguageSwitcherP
               ]}
               onPress={() => handleLanguageSelect(lang.code)}
             >
-              <View>
-                <Text style={styles.languageName}>{lang.nativeName}</Text>
-                <Text style={styles.languageEnglish}>{lang.name}</Text>
+              <View style={styles.languageInfo}>
+                <Text style={styles.flag}>{lang.flag}</Text>
+                <View>
+                  <Text style={styles.languageName}>{lang.nativeName}</Text>
+                  <Text style={styles.languageEnglish}>{lang.name}</Text>
+                </View>
               </View>
               {i18n.language === lang.code && (
                 <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
@@ -100,6 +140,25 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.md,
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.card,
+    borderRadius: 10,
+  },
+  searchIcon: {
+    marginRight: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 4,
+  },
   languageItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -112,6 +171,14 @@ const styles = StyleSheet.create({
   languageItemActive: {
     borderWidth: 2,
     borderColor: colors.primary,
+  },
+  languageInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  flag: {
+    fontSize: 28,
+    marginRight: spacing.md,
   },
   languageName: {
     fontSize: 16,

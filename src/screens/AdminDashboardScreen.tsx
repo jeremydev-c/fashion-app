@@ -794,7 +794,7 @@ const styles = StyleSheet.create({
     height: scale(16),
     borderRadius: scale(8),
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderMedium,
   },
   colorName: {
     fontSize: scale(12),
@@ -1009,4 +1009,3 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
 });
-

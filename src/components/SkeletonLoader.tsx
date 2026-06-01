@@ -1,12 +1,14 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet, Animated, ViewStyle } from 'react-native';
+import { Animated, StyleProp, ViewStyle } from 'react-native';
 import { useThemeColors } from '../theme/ThemeProvider';
 
+type SkeletonWidth = number | `${number}%` | 'auto';
+
 interface SkeletonLoaderProps {
-  width?: number | string;
+  width?: SkeletonWidth;
   height?: number;
   borderRadius?: number;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export default function SkeletonLoader({

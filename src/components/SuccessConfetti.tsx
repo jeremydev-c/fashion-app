@@ -8,6 +8,7 @@ interface ConfettiPiece {
   x: Animated.Value;
   y: Animated.Value;
   rotate: Animated.Value;
+  startX: number;
   color: string;
   size: number;
 }
@@ -23,22 +24,26 @@ export default function SuccessConfetti({ visible, duration = 3000 }: SuccessCon
 
   useEffect(() => {
     if (visible) {
-      pieces.current = Array.from({ length: 50 }, () => ({
-        x: new Animated.Value(Math.random() * width),
-        y: new Animated.Value(-50),
-        rotate: new Animated.Value(0),
-        color: [
-          colors.primary,
-          colors.secondary,
-          colors.accent,
-          colors.success,
-          colors.warning,
-        ][Math.floor(Math.random() * 5)],
-        size: Math.random() * 10 + 5,
-      }));
+      pieces.current = Array.from({ length: 50 }, () => {
+        const startX = Math.random() * width;
+        return {
+          x: new Animated.Value(startX),
+          y: new Animated.Value(-50),
+          rotate: new Animated.Value(0),
+          startX,
+          color: [
+            colors.primary,
+            colors.secondary,
+            colors.accent,
+            colors.success,
+            colors.warning,
+          ][Math.floor(Math.random() * 5)],
+          size: Math.random() * 10 + 5,
+        };
+      });
 
       pieces.current.forEach((piece) => {
-        const xEnd = piece.x._value + (Math.random() - 0.5) * 200;
+        const xEnd = piece.startX + (Math.random() - 0.5) * 200;
         
         Animated.parallel([
           Animated.timing(piece.y, {

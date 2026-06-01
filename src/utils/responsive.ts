@@ -10,7 +10,7 @@
  * - Safe areas (notches, camera cutouts)
  */
 
-import { Dimensions, PixelRatio, Platform, ScaledSize } from 'react-native';
+import { Dimensions, PixelRatio, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Get initial dimensions

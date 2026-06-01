@@ -105,6 +105,10 @@ export async function scheduleLocalNotification(
   delaySeconds = 0,
   channelId = 'default',
 ): Promise<void> {
+  const trigger: Notifications.NotificationTriggerInput = delaySeconds > 0
+    ? { seconds: delaySeconds, channelId }
+    : null;
+
   await Notifications.scheduleNotificationAsync({
     content: {
       title,
@@ -112,9 +116,7 @@ export async function scheduleLocalNotification(
       sound: 'default',
       data: { channelId },
     },
-    trigger: delaySeconds > 0
-      ? { seconds: delaySeconds, type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL }
-      : null,
+    trigger,
   });
 }
 
@@ -131,7 +133,7 @@ export function addNotificationResponseListener(
 }
 
 export function removeNotificationSubscription(
-  subscription: Notifications.EventSubscription,
+  subscription: Notifications.Subscription,
 ) {
   Notifications.removeNotificationSubscription(subscription);
 }
@@ -164,8 +166,8 @@ export async function scheduleRetentionReminders(): Promise<void> {
         data: { screen: 'recommendations' },
       },
       trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
         repeats: true,
+        channelId: 'reminders',
         hour,
         minute,
         second: 0,

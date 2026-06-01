@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -122,12 +122,7 @@ export const PlannerScreen: React.FC = () => {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [upgradeWall, setUpgradeWall] = useState(false);
 
-  useEffect(() => {
-    load();
-    loadWeather();
-  }, [userId]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [outfits, items] = await Promise.all([userId ? fetchPlannedOutfits(userId) : Promise.resolve([]), userId ? fetchWardrobeItems(userId) : Promise.resolve([])]);
       setPlanned(outfits);
@@ -139,9 +134,9 @@ export const PlannerScreen: React.FC = () => {
       }
       console.log(err);
     }
-  };
+  }, [userId]);
 
-  const loadWeather = async () => {
+  const loadWeather = useCallback(async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
@@ -151,7 +146,12 @@ export const PlannerScreen: React.FC = () => {
     } catch {
       // Weather is optional for planner
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    load();
+    loadWeather();
+  }, [load, loadWeather]);
 
   const planOutfit = async () => {
     if (wardrobe.length < 2) {

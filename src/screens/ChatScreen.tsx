@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../services/apiClient';
 import { useUserId } from '../hooks/useUserId';
 import { useAuth } from '../context/AuthContext';
@@ -161,6 +162,7 @@ export default function ChatScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const userId = useUserId();
   const { user } = useAuth();
+  const { i18n } = useTranslation();
   const userName = user?.name?.split(' ')[0] || 'You';
   const insets = useSafeAreaInsets();
 
@@ -339,7 +341,7 @@ export default function ChatScreen() {
         userId,
         message: messageText,
         conversationId,
-        language: 'en',
+        language: i18n.language || 'en',
       });
 
       const assistantMessage: Message = {

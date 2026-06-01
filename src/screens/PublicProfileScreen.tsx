@@ -74,7 +74,7 @@ export const PublicProfileScreen: React.FC = () => {
       setIsFollowing(profile.isFollowing);
       setFollowersDelta(0);
     }
-  }, [profile?.isFollowing]);
+  }, [profile]);
 
   // ── Post grid — infinite query ────────────────────────────────────────────
   const {

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   Image,
   ScrollView,
-  Alert,
   FlatList,
   Animated,
 } from 'react-native';
@@ -18,7 +17,6 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
 import { useThemeColors } from '../theme/ThemeProvider';
-import { spacing } from '../theme/spacing';
 import { apiClient } from '../services/apiClient';
 import { useUserId } from '../hooks/useUserId';
 import { useAuth } from '../context/AuthContext';
@@ -63,12 +61,11 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
   const [permission, requestPermission] = useCameraPermissions();
   const [mode, setMode] = useState<'select' | 'camera' | 'review' | 'processing'>('select');
   const [capturedItems, setCapturedItems] = useState<CapturedItem[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [_isProcessing, setIsProcessing] = useState(false);
   const [processingPhase, setProcessingPhase] = useState<'analyzing' | 'readyToSave' | 'saving' | 'complete'>('analyzing');
   const [currentSlide, setCurrentSlide] = useState(0);
   const [progress, setProgress] = useState(0);
   const cameraRef = useRef<CameraView>(null);
-  const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(true); // Muted by default
@@ -126,7 +123,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
         soundRef.current = null;
       }
     };
-  }, [mode]);
+  }, [isMuted, mode]);
 
   // Play/pause based on mute state
   const toggleMute = async () => {
@@ -183,7 +180,7 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
 
       return () => clearInterval(interval);
     }
-  }, [mode, processingPhase, isPaused]);
+  }, [fadeAnim, isPaused, mode, processingPhase]);
 
   const togglePause = () => {
     setIsPaused(prev => !prev);
@@ -276,11 +273,6 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
 
   const selectAll = () => {
     setSelectedForDelete(new Set(capturedItems.map(item => item.id)));
-  };
-
-  const clearSelection = () => {
-    setSelectedForDelete(new Set());
-    setIsSelectMode(false);
   };
 
   const startProcessing = async () => {
@@ -727,7 +719,6 @@ export default function BulkCameraScreen({ onClose, onComplete }: BulkCameraScre
   }
 
   // REVIEW MODE
-  const pendingCount = capturedItems.filter(i => i.status === 'pending').length;
   const rejectedCount = capturedItems.filter(i => i.status === 'rejected').length;
 
   return (

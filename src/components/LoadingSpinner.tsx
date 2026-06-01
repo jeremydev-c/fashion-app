@@ -71,7 +71,7 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
         }),
       ])
     ).start();
-  }, []);
+  }, [pulseAnim, rotateAnim, shimmerAnim]);
 
   const sizeMap = {
     small: scale(24),

@@ -172,8 +172,8 @@ export const VerifyScreen: React.FC<Props> = ({ email, onVerified, onBack }) => 
               ref={(ref) => (inputRefs.current[index] = ref)}
               style={[
                 styles.codeInput,
-                digit && styles.codeInputFilled,
-                error && styles.codeInputError,
+                !!digit && styles.codeInputFilled,
+                !!error && styles.codeInputError,
               ]}
               value={digit}
               onChangeText={(text) => handleCodeChange(text, index)}
@@ -335,4 +335,3 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
 });
-

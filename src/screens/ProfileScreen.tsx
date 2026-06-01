@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -82,7 +82,6 @@ export const ProfileScreen: React.FC = () => {
   const { user, logout, setUser } = useAuth();
   const userId = useUserId();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
-  const [showStyleDNA, setShowStyleDNA] = useState(false);
   const [showDNAModal, setShowDNAModal] = useState(false);
   const [sharingDNA, setSharingDNA] = useState(false);
   const dnaCardRef = useRef<ViewShot>(null);
@@ -109,20 +108,7 @@ export const ProfileScreen: React.FC = () => {
   const [logoTapCount, setLogoTapCount] = useState(0);
   const [lastLogoTap, setLastLogoTap] = useState(0);
 
-  useEffect(() => {
-    loadData();
-  }, [userId]);
-
-  useEffect(() => {
-    // Initialize edit form with current user data
-    if (user) {
-      setEditingName(user.name || '');
-      setEditingUsername(user.username || '');
-      setProfilePictureUri(user.avatar || null);
-    }
-  }, [user]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     try {
@@ -161,7 +147,20 @@ export const ProfileScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    // Initialize edit form with current user data
+    if (user) {
+      setEditingName(user.name || '');
+      setEditingUsername(user.username || '');
+      setProfilePictureUri(user.avatar || null);
+    }
+  }, [user]);
 
   const showAlert = (config: {
     title: string;
@@ -1001,7 +1000,6 @@ export const ProfileScreen: React.FC = () => {
                       source={{ uri: profilePictureUri }} 
                       style={styles.profilePicturePreview}
                       resizeMode="cover"
-                      cache="force-cache"
                     />
                   ) : (
                     <LinearGradient
@@ -1022,6 +1020,13 @@ export const ProfileScreen: React.FC = () => {
                   >
                     <Ionicons name="image-outline" size={scale(18)} color={colors.textPrimary} />
                     <Text style={styles.pictureButtonText}>Choose from Gallery</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.pictureButton}
+                    onPress={handleTakeProfilePicture}
+                  >
+                    <Ionicons name="camera-outline" size={scale(18)} color={colors.textPrimary} />
+                    <Text style={styles.pictureButtonText}>Take Photo</Text>
                   </TouchableOpacity>
                 </View>
               </View>

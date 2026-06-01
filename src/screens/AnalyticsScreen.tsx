@@ -6,7 +6,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
-  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -483,4 +482,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

@@ -8,19 +8,19 @@
  */
 
 import React from 'react';
-import { Image, ImageStyle, StyleSheet, ViewStyle } from 'react-native';
+import { Image, ImageStyle, StyleProp, View, ViewStyle } from 'react-native';
 import { getImageDimensions, scale, verticalScale } from '../utils/responsive';
 
 interface ResponsiveImageProps {
   source: { uri: string } | number;
-  width?: number | string;
-  height?: number | string;
+  width?: ImageStyle['width'];
+  height?: ImageStyle['height'];
   aspectRatio?: number;
   maxWidth?: number;
   maxHeight?: number;
   resizeMode?: 'cover' | 'contain' | 'stretch' | 'center' | 'repeat';
-  style?: ImageStyle | ImageStyle[];
-  containerStyle?: ViewStyle | ViewStyle[];
+  style?: StyleProp<ImageStyle>;
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
 export const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
@@ -35,8 +35,8 @@ export const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
   containerStyle,
 }) => {
   // Calculate responsive dimensions
-  let imageWidth: number | string | undefined = width;
-  let imageHeight: number | string | undefined = height;
+  let imageWidth = width;
+  let imageHeight = height;
 
   // If aspect ratio provided, calculate dimensions
   if (aspectRatio && width) {
@@ -65,7 +65,7 @@ export const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
     imageHeight = verticalScale(imageHeight);
   }
 
-  return (
+  const image = (
     <Image
       source={source}
       style={[
@@ -78,5 +78,11 @@ export const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
       resizeMode={resizeMode}
     />
   );
+
+  if (containerStyle) {
+    return <View style={containerStyle}>{image}</View>;
+  }
+
+  return image;
 };
 

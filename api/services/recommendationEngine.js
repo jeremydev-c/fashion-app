@@ -17,6 +17,10 @@ const {
   summarizeSemanticProfile,
 } = require('../utils/semanticStyleProfile');
 const { enhanceWithAI } = require('./openaiStylist');
+const { feedbackPatternScore } = require('./feedbackPatterns');
+const { crossDayPenalty } = require('./outfitMemory');
+const { userColorTempScore } = require('./colorTemperature');
+const { parseOccasionSubVariant } = require('./occasionVariants');
 
 // In-memory result cache
 const _recCache = new Map();
@@ -834,6 +838,104 @@ function scoreOutfit(items, ctx, cachedIntel) {
 
   // 13. Trend alignment — small boost when outfit matches current cultural aesthetics
   s += trendAlignmentScore(items, styleDNA) * 0.04;
+
+  // 14. Pattern mixing — outfit-level pattern coherence
+  const patterns = items.map(i => i.pattern).filter(Boolean);
+  const nonSolid = patterns.filter(p => p !== 'solid');
+  if (nonSolid.length === 0) s += 0.04;
+  else if (nonSolid.length === 1) s += 0.06;
+  else if (new Set(nonSolid).size > 1) s -= 0.04;
+
+  // 15. Formality alignment with occasion
+  const formalityTarget = {
+    casual: 0.38, work: 0.72, date: 0.58, party: 0.64, gym: 0.15, formal: 0.88,
+  }[occasion] || 0.48;
+  const avgFormality = items.reduce((sum, i) => {
+    return sum + (getSemanticProfileCached(i, ctx).axes?.formality ?? 0.5);
+  }, 0) / (items.length || 1);
+  s += (1 - Math.abs(avgFormality - formalityTarget)) * 0.06;
+
+  // 16. Semantic diversity — mild penalty for too-similar non-same-category pieces
+  if (items.length >= 3) {
+    let maxSemSim = 0;
+    let avgSemSim = 0;
+    let semPairCount = 0;
+    for (let pi = 0; pi < items.length; pi++) {
+      for (let pj = pi + 1; pj < items.length; pj++) {
+        if (items[pi].category === items[pj].category) continue;
+        const profA = getSemanticProfileCached(items[pi], ctx);
+        const profB = getSemanticProfileCached(items[pj], ctx);
+        const sim = embeddingSimilarity(profA.embedding, profB.embedding);
+        if (sim > maxSemSim) maxSemSim = sim;
+        avgSemSim += sim;
+        semPairCount++;
+      }
+    }
+    if (semPairCount > 0) avgSemSim /= semPairCount;
+    if (maxSemSim > 0.86) s -= Math.min((maxSemSim - 0.86) * 0.20, 0.05);
+    if (avgSemSim > 0.68) s -= 0.02;
+  }
+
+  // 17. Feedback pattern combos — learned color/style/category combo preferences
+  if (ctx.feedbackPatterns) {
+    s += feedbackPatternScore(items, ctx.feedbackPatterns);
+  }
+
+  // 18. Cross-day freshness — penalize outfits recently served in last 7 days
+  if (ctx.recentlyServed?.length > 0) {
+    s -= crossDayPenalty(items, ctx.recentlyServed);
+  }
+
+  // 19. User color temperature alignment — warm/cool tendency matching
+  if (ctx.userColorTemp) {
+    s += userColorTempScore(items, ctx.userColorTemp);
+  }
+
+  // 20. Visual weight balance — items should have compatible visual density
+  const visualWeights = items.map(i => i.visualWeight).filter(w => typeof w === 'number');
+  if (visualWeights.length >= 2) {
+    const avgVW = visualWeights.reduce((a, b) => a + b, 0) / visualWeights.length;
+    const maxSpread = Math.max(...visualWeights) - Math.min(...visualWeights);
+    if (maxSpread >= 0.15 && maxSpread <= 0.55) s += 0.03;
+    else if (maxSpread > 0.70) s -= 0.02;
+    if (weather === 'cold' && avgVW >= 0.55) s += 0.02;
+    else if (weather === 'hot' && avgVW <= 0.35) s += 0.02;
+    else if (weather === 'hot' && avgVW >= 0.65) s -= 0.03;
+  }
+
+  // 21. Fabric surface compatibility — clashing textures penalized
+  const surfaces = items.map(i => i.fabricSurface).filter(Boolean);
+  if (surfaces.length >= 2) {
+    const SURFACE_CLASH = { sheer: ['nubby', 'waxed'], metallic: ['nubby', 'brushed'], glossy: ['distressed'] };
+    let surfaceClash = false;
+    for (let si = 0; si < surfaces.length && !surfaceClash; si++) {
+      for (let sj = si + 1; sj < surfaces.length && !surfaceClash; sj++) {
+        if ((SURFACE_CLASH[surfaces[si]] || []).includes(surfaces[sj])) surfaceClash = true;
+        if ((SURFACE_CLASH[surfaces[sj]] || []).includes(surfaces[si])) surfaceClash = true;
+      }
+    }
+    if (surfaceClash) s -= 0.03;
+    if (new Set(surfaces).size >= 2 && !surfaceClash) s += 0.02;
+  }
+
+  // 22. Layering role coherence — base+mid or base+outer is better than all standalone
+  const layerRoles = items.map(i => i.layeringRole).filter(Boolean);
+  if (layerRoles.length >= 2) {
+    const hasBase = layerRoles.includes('base');
+    const hasMid = layerRoles.includes('mid');
+    const hasOuter = layerRoles.includes('outer');
+    if (hasBase && (hasMid || hasOuter)) s += 0.02;
+    if (hasBase && hasMid && hasOuter) s += 0.02;
+  }
+
+  // 23. Occasion sub-variant formality boost — granular occasion alignment
+  if (ctx.occasionSubVariant) {
+    const subTargetF = ctx.occasionSubVariant.formality;
+    const avgF = items.reduce((sum, i) => {
+      return sum + (getSemanticProfileCached(i, ctx).axes?.formality ?? 0.5);
+    }, 0) / (items.length || 1);
+    s += (1 - Math.abs(avgF - subTargetF)) * 0.05;
+  }
 
   return Math.max(0.40, Math.min(0.96, s));
 }

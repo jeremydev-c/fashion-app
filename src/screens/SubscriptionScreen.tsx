@@ -26,7 +26,7 @@ import {
   type SubscriptionPlan,
   type Subscription,
 } from '../services/paymentService';
-import { scale, verticalScale, SCREEN_WIDTH } from '../utils/responsive';
+import { scale, verticalScale } from '../utils/responsive';
 
 const PENDING_REF_KEY = 'paystack_pending_ref';
 

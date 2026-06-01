@@ -286,7 +286,27 @@ export const LoadingScreen: React.FC = () => {
       [logoScale, logoOpacity, ringOpacity, ringScale, ringRotation, glowScale, glowOpacity, accentWidth, screenOpacity, statusOpacity, statusTranslateY].forEach(v => v.stopAnimation());
       diamonds.forEach(d => { d.x.stopAnimation(); d.y.stopAnimation(); d.opacity.stopAnimation(); d.rotation.stopAnimation(); });
     };
-  }, []);
+  }, [
+    accentWidth,
+    diamonds,
+    glowOpacity,
+    glowScale,
+    letterAnims,
+    lineOpacity,
+    lineWidth,
+    logoOpacity,
+    logoScale,
+    ringOpacity,
+    ringRotation,
+    ringScale,
+    screenOpacity,
+    statusOpacity,
+    statusTranslateY,
+    taglineOpacity,
+    taglineTranslateY,
+    wordOpacity,
+    wordTranslateY,
+  ]);
 
   const ringRotationInterp = ringRotation.interpolate({
     inputRange: [0, 1],

@@ -55,6 +55,7 @@ export async function getRecommendations(params: {
   variant?: string | number;
   forecast?: ForecastContext;
   weatherDetail?: WeatherContext;
+  language?: string;
 }): Promise<OutfitRecommendation[]> {
   const queryParams = new URLSearchParams({
     userId: params.userId,
@@ -70,6 +71,7 @@ export async function getRecommendations(params: {
     ...(params.weatherDetail?.condition && { condition: params.weatherDetail.condition }),
     ...(params.weatherDetail?.humidity !== undefined && { humidity: params.weatherDetail.humidity.toString() }),
     ...(params.weatherDetail?.windSpeed !== undefined && { windSpeed: params.weatherDetail.windSpeed.toString() }),
+    ...(params.language && { language: params.language }),
   });
 
   try {

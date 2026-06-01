@@ -64,10 +64,10 @@ const StyleDNACard = forwardRef<View, Props>(({ dna, username }, ref) => {
   const dominant = dna.colorPreferences?.dominantColors?.slice(0, 4) || [];
   const brands = dna.brandAffinity?.slice(0, 4) || [];
   const seasonal = dna.colorPreferences?.seasonalColors;
+  const capsuleEssentials = dna.capsuleEssentials ?? [];
 
   // Derive gradient from top two palette colors or use gold default
   const grad1 = palette[0] || '#c8a55a';
-  const grad2 = palette[1] || '#1a1208';
 
   return (
     <View ref={ref} style={styles.card} collapsable={false}>
@@ -187,10 +187,10 @@ const StyleDNACard = forwardRef<View, Props>(({ dna, username }, ref) => {
         )}
 
         {/* Capsule essentials */}
-        {dna.capsuleEssentials?.length > 0 && (
+        {capsuleEssentials.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>CAPSULE ESSENTIALS</Text>
-            {dna.capsuleEssentials.map((item, i) => (
+            {capsuleEssentials.map((item, i) => (
               <View key={i} style={styles.capsuleItem}>
                 <View style={[styles.capsuleDot, { backgroundColor: grad1 }]} />
                 <Text style={styles.capsuleText}>{item}</Text>
